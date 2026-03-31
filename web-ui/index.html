@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🦆 Duck Agent - Web UI</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦆</text></svg>">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    :root {
+      --bg-primary: #0f0f23;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #16213e;
+      --accent: #ffd700;
+      --accent-hover: #ffed4a;
+      --text: #ffffff;
+      --text-muted: #a0a0b0;
+      --border: #2d2d4a;
+      --success: #4ade80;
+      --error: #f87171;
+      --warning: #fbbf24;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .logo .duck { font-size: 32px; }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .nav-links {
+      padding: 15px 0;
+    }
+    
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: var(--text-muted);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .nav-link:hover, .nav-link.active {
+      background: var(--bg-tertiary);
+      color: var(--accent);
+    }
+    
+    .nav-link .icon { font-size: 20px; }
+    
+    /* Main Content */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .header {
+      padding: 15px 25px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header-title { font-size: 18px; font-weight: 600; }
+    
+    .header-actions { display: flex; gap: 10px; }
+    
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+    
+    .btn-primary:hover { background: var(--accent-hover); }
+    
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text);
+    }
+    
+    /* Chat Area */
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 20px;
+    }
+    
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 0;
+    }
+    
+    .message {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .message.user { flex-direction: row-reverse; }
+    
+    .message-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--bg-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    
+    .message.user .message-avatar { background: var(--accent); }
+    
+    .message-content {
+      max-width: 70%;
+      padding: 15px 20px;
+      border-radius: 16px;
+      background: var(--bg-secondary);
+    }
+    
+    .message.user .message-content {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+    
+    .message-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+    
+    /* Input Area */
+    .input-area {
+      padding: 15px;
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      margin-top: 15px;
+    }
+    
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .input-field {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-primary);
+      color: var(--text);
+      font-size: 14px;
+    }
+    
+    .input-field:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    
+    .send-btn {
+      padding: 12px 20px;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    
+    /* Panels */
+    .panel {
+      display: none;
+      padding: 25px;
+      overflow-y: auto;
+    }
+    
+    .panel.active { display: block; }
+    
+    .panel-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+    }
+    
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 5px;
+    }
+    
+    /* Tools Grid */
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 15px;
+    }
+    
+    .tool-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .tool-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    
+    .tool-name {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    
+    .tool-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .tool-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: var(--error);
+      border-radius: 4px;
+      font-size: 10px;
+      margin-top: 8px;
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    
+    .tab {
+      padding: 8px 16px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    
+    .tab.active {
+      background: var(--bg-tertiary);
+      color: var(--accent);
+    }
+    
+    /* Voice Indicator */
+    .voice-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    
+    .voice-bars {
+      display: flex;
+      gap: 2px;
+      align-items: flex-end;
+      height: 16px;
+    }
+    
+    .voice-bar {
+      width: 3px;
+      background: var(--accent);
+      animation: voice 0.5s ease infinite;
+    }
+    
+    .voice-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+    .voice-bar:nth-child(2) { height: 12px; animation-delay: 0.1s; }
+    .voice-bar:nth-child(3) { height: 16px; animation-delay: 0.2s; }
+    .voice-bar:nth-child(4) { height: 10px; animation-delay: 0.3s; }
+    
+    @keyframes voice {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.5); }
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .message-content { max-width: 90%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="duck">🦆</span>
+          <span>Duck Agent</span>
+        </div>
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span>Connected</span>
+        </div>
+      </div>
+      
+      <nav class="nav-links">
+        <a class="nav-link active" data-panel="chat">
+          <span class="icon">💬</span>
+          <span>Chat</span>
+        </a>
+        <a class="nav-link" data-panel="status">
+          <span class="icon">📊</span>
+          <span>Status</span>
+        </a>
+        <a class="nav-link" data-panel="tools">
+          <span class="icon">🛠️</span>
+          <span>Tools</span>
+        </a>
+        <a class="nav-link" data-panel="voice">
+          <span class="icon">🎤</span>
+          <span>Voice</span>
+        </a>
+        <a class="nav-link" data-panel="kairos">
+          <span class="icon">🧠</span>
+          <span>KAIROS</span>
+        </a>
+        <a class="nav-link" data-panel="settings">
+          <span class="icon">⚙️</span>
+          <span>Settings</span>
+        </a>
+      </nav>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main">
+      <header class="header">
+        <div class="header-title" id="panel-title">Chat</div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" onclick="clearChat()">Clear</button>
+          <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+        </div>
+      </header>
+      
+      <!-- Chat Panel -->
+      <div class="panel active" id="panel-chat">
+        <div class="chat-container">
+          <div class="messages" id="messages">
+            <div class="message">
+              <div class="message-avatar">🦆</div>
+              <div class="message-content">
+                Hello! I'm Duck Agent, your AI assistant. How can I help you today?
+                <div class="message-time">Just now</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="input-area">
+            <div class="input-row">
+              <input type="text" class="input-field" id="message-input" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+              <button class="send-btn" onclick="sendMessage()">➤</button>
+            </div>
+            <div class="voice-indicator">
+              <div class="voice-bars">
+                <div class="voice-bar"></div>
+                <div class="voice-bar"></div>
+                <div class="voice-bar"></div>
+                <div class="voice-bar"></div>
+              </div>
+              <span style="font-size: 12px; color: var(--text-muted)">Voice input available</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Status Panel -->
+      <div class="panel" id="panel-status">
+        <h2 class="panel-title">System Status</h2>
+        
+        <div class="card-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-uptime">0:00</div>
+            <div class="stat-label">Uptime</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-interactions">0</div>
+            <div class="stat-label">Interactions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-cost">$0.00</div>
+            <div class="stat-label">Total Cost</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-tokens">0</div>
+            <div class="stat-label">Tokens Today</div>
+          </div>
+        </div>
+        
+        <h3 style="margin: 25px 0 15px; font-size: 18px;">Components</h3>
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-title">🔌 Provider</div>
+            <div id="provider-name">MiniMax M2.7</div>
+          </div>
+          <div class="card">
+            <div class="card-title">🛠️ Tools</div>
+            <div id="tool-count">58+ available</div>
+          </div>
+          <div class="card">
+            <div class="card-title">🎯 Skills</div>
+            <div id="skill-count">10 loaded</div>
+          </div>
+          <div class="card">
+            <div class="card-title">🌐 Channels</div>
+            <div id="channel-status">Telegram, Discord</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tools Panel -->
+      <div class="panel" id="panel-tools">
+        <h2 class="panel-title">Available Tools</h2>
+        
+        <div class="tabs">
+          <button class="tab active" onclick="filterTools('all')">All</button>
+          <button class="tab" onclick="filterTools('coding')">Coding</button>
+          <button class="tab" onclick="filterTools('browser')">Browser</button>
+          <button class="tab" onclick="filterTools('system')">System</button>
+        </div>
+        
+        <div class="tools-grid" id="tools-grid">
+          <!-- Tools will be populated here -->
+        </div>
+      </div>
+      
+      <!-- Voice Panel -->
+      <div class="panel" id="panel-voice">
+        <h2 class="panel-title">Voice / TTS</h2>
+        
+        <div class="card">
+          <h3 class="card-title">Text-to-Speech</h3>
+          <p style="color: var(--text-muted); margin-bottom: 15px;">
+            Generate speech with MiniMax TTS. Daily limit: 4,000 characters.
+          </p>
+          
+          <textarea class="input-field" id="tts-text" rows="3" placeholder="Enter text to speak..." style="width: 100%; margin-bottom: 15px;"></textarea>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="font-size: 14px; margin-bottom: 8px; display: block;">Voice:</label>
+            <select class="input-field" id="tts-voice" style="width: auto;">
+              <option value="narrator">English Narrative (Formal)</option>
+              <option value="casual">English Casual</option>
+              <option value="sad">English Sad</option>
+            </select>
+          </div>
+          
+          <button class="btn btn-primary" onclick="generateSpeech()">🎤 Generate & Play</button>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+          <h3 class="card-title">Quota</h3>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="flex: 1; height: 8px; background: var(--bg-primary); border-radius: 4px; overflow: hidden;">
+              <div id="quota-bar" style="width: 100%; height: 100%; background: var(--accent);"></div>
+            </div>
+            <span id="quota-text">4000 / 4000</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- KAIROS Panel -->
+      <div class="panel" id="panel-kairos">
+        <h2 class="panel-title">🧠 KAIROS Proactive AI</h2>
+        
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 class="card-title" style="margin: 0;">Always-On Agent</h3>
+            <label class="toggle">
+              <input type="checkbox" id="kairos-toggle" onchange="toggleKairos()">
+              <span style="margin-left: 8px;">Enabled</span>
+            </label>
+          </div>
+          
+          <div style="color: var(--text-muted); margin-bottom: 15px;">
+            KAIROS runs in the background and takes actions automatically when needed.
+          </div>
+          
+          <div class="card-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="kairos-heartbeat">30s</div>
+              <div class="stat-label">Heartbeat Interval</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="kairos-actions">0</div>
+              <div class="stat-label">Actions Today</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="kairos-patterns">0</div>
+              <div class="stat-label">Patterns Learned</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+          <h3 class="card-title">Auto-Dream Schedule</h3>
+          <p style="color: var(--text-muted); font-size: 12px;">
+            Consolidates learnings at 3:00 AM daily
+          </p>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+          <h3 class="card-title">Recent Actions</h3>
+          <div id="kairos-actions-log" style="max-height: 200px; overflow-y: auto;">
+            <p style="color: var(--text-muted);">No actions yet today.</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Settings Panel -->
+      <div class="panel" id="panel-settings">
+        <h2 class="panel-title">Settings</h2>
+        
+        <div class="card">
+          <h3 class="card-title">API Configuration</h3>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="font-size: 14px; margin-bottom: 8px; display: block;">MiniMax API Key</label>
+            <input type="password" class="input-field" id="api-key" placeholder="sk-..." style="width: 100%;">
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="font-size: 14px; margin-bottom: 8px; display: block;">Model</label>
+            <select class="input-field" id="model-select" style="width: 100%;">
+              <option value="MiniMax-M2.7">MiniMax M2.7 (Recommended)</option>
+              <option value="MiniMax-M2.5">MiniMax M2.5</option>
+              <option value="glm-5">GLM-5</option>
+            </select>
+          </div>
+          
+          <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+          <h3 class="card-title">Gateway</h3>
+          <p style="color: var(--text-muted); margin-bottom: 10px;">
+            HTTP API running on port 18789
+          </p>
+          <code style="background: var(--bg-primary); padding: 8px 12px; border-radius: 6px; display: block;">
+            curl http://localhost:18789/health
+          </code>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <script>
+    // State
+    let kairosEnabled = false;
+    let quotaRemaining = 4000;
+    
+    // Tools data
+    const tools = [
+      { name: 'file_read', desc: 'Read file contents', category: 'coding' },
+      { name: 'file_write', desc: 'Write content to file', category: 'coding', dangerous: true },
+      { name: 'bash', desc: 'Execute shell commands', category: 'system', dangerous: true },
+      { name: 'grep', desc: 'Search for patterns in files', category: 'coding' },
+      { name: 'glob', desc: 'Find files matching patterns', category: 'coding' },
+      { name: 'browser_navigate', desc: 'Navigate to URL', category: 'browser' },
+      { name: 'browser_click', desc: 'Click on page element', category: 'browser' },
+      { name: 'browser_screenshot', desc: 'Take page screenshot', category: 'browser' },
+      { name: 'speak', desc: 'Generate speech with TTS', category: 'system' },
+      { name: 'think', desc: 'Reasoning mode', category: 'system' },
+      { name: 'remember', desc: 'Save to memory', category: 'system' },
+      { name: 'recall', desc: 'Search memory', category: 'system' },
+    ];
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      initNavigation();
+      renderTools();
+      startStatusUpdates();
+    });
+    
+    // Navigation
+    function initNavigation() {
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+          const panel = link.dataset.panel;
+          
+          document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+          link.classList.add('active');
+          
+          document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+          document.getElementById(`panel-${panel}`).classList.add('active');
+          
+          document.getElementById('panel-title').textContent = 
+            panel.charAt(0).toUpperCase() + panel.slice(1);
+        });
+      });
+    }
+    
+    // Tools
+    function renderTools(filter = 'all') {
+      const grid = document.getElementById('tools-grid');
+      const filtered = filter === 'all' ? tools : tools.filter(t => t.category === filter);
+      
+      grid.innerHTML = filtered.map(tool => `
+        <div class="tool-card">
+          <div class="tool-name">${tool.name}</div>
+          <div class="tool-desc">${tool.desc}</div>
+          ${tool.dangerous ? '<span class="tool-badge">DANGEROUS</span>' : ''}
+        </div>
+      `).join('');
+    }
+    
+    function filterTools(filter) {
+      document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      renderTools(filter);
+    }
+    
+    // Chat
+    function handleKeyPress(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+    
+    async function sendMessage() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      addMessage('user', text);
+      input.value = '';
+      
+      // Add typing indicator
+      const typingId = addTypingIndicator();
+      
+      try {
+        const response = await fetch('/v1/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        
+        removeTypingIndicator(typingId);
+        
+        const data = await response.json();
+        addMessage('agent', data.response);
+      } catch (error) {
+        removeTypingIndicator(typingId);
+        addMessage('agent', 'Sorry, something went wrong. Please try again.');
+      }
+    }
+    
+    function addMessage(role, content) {
+      const messages = document.getElementById('messages');
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      messages.innerHTML += `
+        <div class="message ${role}">
+          <div class="message-avatar">${role === 'user' ? '👤' : '🦆'}</div>
+          <div class="message-content">
+            ${escapeHtml(content)}
+            <div class="message-time">${time}</div>
+          </div>
+        </div>
+      `;
+      
+      messages.scrollTop = messages.scrollHeight;
+    }
+    
+    function addTypingIndicator() {
+      const id = Date.now();
+      const messages = document.getElementById('messages');
+      messages.innerHTML += `
+        <div class="message" id="typing-${id}">
+          <div class="message-avatar">🦆</div>
+          <div class="message-content">Typing...</div>
+        </div>
+      `;
+      return id;
+    }
+    
+    function removeTypingIndicator(id) {
+      const el = document.getElementById(`typing-${id}`);
+      if (el) el.remove();
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML.replace(/\n/g, '<br>');
+    }
+    
+    function clearChat() {
+      document.getElementById('messages').innerHTML = `
+        <div class="message">
+          <div class="message-avatar">🦆</div>
+          <div class="message-content">
+            Chat cleared. How can I help you?
+            <div class="message-time">Just now</div>
+          </div>
+        </div>
+      `;
+    }
+    
+    // Voice / TTS
+    async function generateSpeech() {
+      const text = document.getElementById('tts-text').value;
+      const voice = document.getElementById('tts-voice').value;
+      
+      if (!text) return alert('Please enter text to speak');
+      
+      try {
+        const response = await fetch('/v1/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice })
+        });
+        
+        // Play audio
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        new Audio(url).play();
+        
+        quotaRemaining -= text.length;
+        updateQuotaDisplay();
+      } catch (error) {
+        alert('TTS generation failed');
+      }
+    }
+    
+    function updateQuotaDisplay() {
+      const percent = (quotaRemaining / 4000) * 100;
+      document.getElementById('quota-bar').style.width = percent + '%';
+      document.getElementById('quota-text').textContent = `${quotaRemaining} / 4000`;
+    }
+    
+    // KAIROS
+    function toggleKairos() {
+      kairosEnabled = document.getElementById('kairos-toggle').checked;
+      console.log('KAIROS:', kairosEnabled ? 'Enabled' : 'Disabled');
+    }
+    
+    // Status updates
+    function startStatusUpdates() {
+      setInterval(updateStatus, 5000);
+      updateStatus();
+    }
+    
+    async function updateStatus() {
+      try {
+        const response = await fetch('/status');
+        const data = await response.json();
+        
+        // Update stats
+        document.getElementById('stat-uptime').textContent = formatUptime(data.uptime);
+        document.getElementById('stat-interactions').textContent = data.agent?.interactions || 0;
+        document.getElementById('stat-cost').textContent = '$' + (data.agent?.cost?.total || 0).toFixed(4);
+      } catch (error) {
+        console.log('Status update failed');
+      }
+    }
+    
+    function formatUptime(ms) {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      return `${hours}:${String(minutes % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+    
+    // Settings
+    function saveSettings() {
+      const apiKey = document.getElementById('api-key').value;
+      const model = document.getElementById('model-select').value;
+      
+      localStorage.setItem('duck-settings', JSON.stringify({ apiKey, model }));
+      alert('Settings saved!');
+    }
+  </script>
+</body>
+</html>

@@ -81,6 +81,11 @@ async function main() {
       await startMCP(parseInt(args[0]) || 3848);
       break;
 
+    case 'web':
+    case 'ui':
+      await startWebUI();
+      break;
+
     case 'tools':
       await listTools();
       break;
@@ -484,6 +489,114 @@ async function startMCP(port: number) {
   console.log(`\n${c.dim}Press Ctrl+C to stop${c.reset}`);
 
   await new Promise(() => {});
+}
+
+// ============ WEB UI ============
+
+async function startWebUI() {
+  const port = parseInt(process.env.WEB_PORT || '3000');
+  console.log(logo);
+  console.log(`${c.cyan}Starting Duck Agent Web UI on port ${port}...${c.reset}\n`);
+  
+  const { createServer } = await import('http');
+  const { readFileSync, existsSync } = await import('fs');
+  const { join, extname } = await import('path');
+  const { Agent } = await import('../agent/core.js');
+  
+  // Initialize agent
+  const agent = new Agent({ name: 'DuckWebAgent' });
+  await agent.initialize();
+  
+  const WEB_UI_PATH = join(process.cwd(), 'web-ui');
+  
+  const MIME_TYPES: Record<string, string> = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+  };
+  
+  const server = createServer(async (req: any, res: any) => {
+    const url = new URL(req.url, `http://localhost:${port}`);
+    const path = url.pathname;
+    
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200);
+      res.end();
+      return;
+    }
+    
+    try {
+      // API Routes
+      if (path === '/api/status') {
+        const status = agent.getStatus();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...status, uptime: Date.now() }));
+        return;
+      }
+      
+      if (path === '/api/chat') {
+        let body = '';
+        req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        req.on('end', async () => {
+          const { message } = JSON.parse(body);
+          const response = await agent.think(message);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ response }));
+        });
+        return;
+      }
+      
+      if (path === '/api/tools') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ tools: agent.getStatus().toolList }));
+        return;
+      }
+      
+      // Static files
+      let filePath = path === '/' ? '/index.html' : path;
+      filePath = join(WEB_UI_PATH, filePath);
+      
+      if (!filePath.startsWith(WEB_UI_PATH)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      
+      if (existsSync(filePath)) {
+        const ext = extname(filePath);
+        const mime = MIME_TYPES[ext] || 'application/octet-stream';
+        const content = readFileSync(filePath);
+        res.writeHead(200, { 'Content-Type': mime });
+        res.end(content);
+      } else {
+        const indexPath = join(WEB_UI_PATH, 'index.html');
+        if (existsSync(indexPath)) {
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(readFileSync(indexPath));
+        } else {
+          res.writeHead(404);
+          res.end('Web UI not found. Run: duck web');
+        }
+      }
+    } catch (error) {
+      res.writeHead(500);
+      res.end('Error');
+    }
+  });
+  
+  server.listen(port, () => {
+    console.log(`${c.green}✅ Duck Agent Web UI running!${c.reset}`);
+    console.log(`\n  🌐 http://localhost:${port}`);
+    console.log(`\n${c.dim}Press Ctrl+C to stop${c.reset}\n`);
+  });
 }
 
 // ============ DESKTOP ============
