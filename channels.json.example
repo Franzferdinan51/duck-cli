@@ -1,0 +1,13 @@
+{
+  "telegram": {
+    "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
+    "allowedUsers": [123456789],
+    "groupIds": [-1001234567890]
+  },
+  "discord": {
+    "botToken": "YOUR_DISCORD_BOT_TOKEN",
+    "applicationId": "123456789012345678",
+    "guildId": "123456789012345678",
+    "allowedRoles": ["Admin", "Moderator", "DuckBot User"]
+  }
+}

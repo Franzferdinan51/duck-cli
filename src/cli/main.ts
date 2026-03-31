@@ -81,6 +81,17 @@ async function main() {
       await clearHistory();
       break;
 
+    case 'telegram':
+    case 'discord':
+    case 'channels':
+      await startChannels(args);
+      break;
+
+    case 'send':
+    case 'sendto':
+      await sendToChannel(args);
+      break;
+
     case 'desktop':
       await desktopCommand(args);
       break;
@@ -444,6 +455,8 @@ ${c.bold}Commands:${c.reset}
   ${c.green}history${c.reset}         Show conversation history
   ${c.green}mcp [port]${c.reset}       Start MCP server (default: 3848)
   ${c.green}memory${c.reset}           Memory commands
+  ${c.green}channels${c.reset}          Start Telegram/Discord channels
+  ${c.green}send <ch> <id> <msg>${c.reset}  Send message to channel
   ${c.green}desktop${c.reset}          Desktop control
 
 ${c.bold}Examples:${c.reset}
@@ -465,3 +478,87 @@ main().catch(e => {
   console.error(`${c.red}Error:${c.reset}`, e.message);
   process.exit(1);
 });
+
+// ============ TELEGRAM & DISCORD ============
+
+async function startChannels(args: string[]) {
+  const configFile = args[0] || './channels.json';
+  
+  console.log(logo);
+  console.log(`${c.cyan}Starting Duck Agent with channels...${c.reset}\n`);
+
+  // Load config
+  let config: any = {};
+  try {
+    const { readFile } = await import('fs/promises');
+    const content = await readFile(configFile, 'utf-8');
+    config = JSON.parse(content);
+  } catch (e) {
+    console.log(`${c.yellow}No config file found at ${configFile}${c.reset}`);
+    console.log(`\n${c.bold}To enable channels, create a ${configFile} with:${c.reset}`);
+    console.log(`
+{
+  "telegram": {
+    "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
+    "allowedUsers": [123456789]
+  },
+  "discord": {
+    "botToken": "YOUR_DISCORD_BOT_TOKEN",
+    "applicationId": "123456789",
+    "allowedRoles": ["Admin", "Moderator"]
+  }
+}
+`);
+    return;
+  }
+
+  const agent = new Agent({ name: 'Duck Agent' });
+  await agent.initialize();
+
+  const { ChannelManager } = await import('../channels/manager.js');
+  const manager = new ChannelManager(agent);
+  
+  await manager.start(config);
+
+  console.log(`\n${c.green}✅ Channels started!${c.reset}`);
+  console.log(`   Active: ${manager.listChannels().join(', ')}`);
+  console.log(`\n${c.dim}Press Ctrl+C to stop${c.reset}`);
+
+  // Handle shutdown
+  process.on('SIGINT', async () => {
+    console.log('\n\n🦆 Shutting down...');
+    manager.stop();
+    await agent.shutdown();
+    process.exit(0);
+  });
+
+  // Keep running
+  await new Promise(() => {});
+}
+
+// ============ SEND MESSAGE ============
+
+async function sendToChannel(args: string[]) {
+  const [channel, chatId, ...messageParts] = args;
+  const message = messageParts.join(' ');
+
+  if (!channel || !chatId || !message) {
+    console.log(`${c.red}Usage: duck send <telegram|discord> <chatId> <message>${c.reset}`);
+    return;
+  }
+
+  const agent = new Agent({ name: 'Duck Agent' });
+  await agent.initialize();
+
+  const { ChannelManager } = await import('../channels/manager.js');
+  const manager = new ChannelManager(new Agent({ name: 'Temp' }));
+
+  try {
+    await manager.sendTo(channel, chatId, message);
+    console.log(`${c.green}✅ Message sent to ${channel}${c.reset}`);
+  } catch (e: any) {
+    console.error(`${c.red}❌ Failed: ${e.message}${c.reset}`);
+  }
+
+  await agent.shutdown();
+}
