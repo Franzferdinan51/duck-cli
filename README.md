@@ -18,7 +18,7 @@ npm install && npm run build
 
 # Start - pick your interface
 duck shell              # Interactive TUI shell
-duck web               # Web UI (http://localhost:3000)
+duck web [port]         # Web UI (http://localhost:3001)
 duck unified           # All protocols (MCP + ACP + WS + Gateway)
 duck mcp               # MCP server only (port 3848)
 duck gateway           # Gateway API (port 18789)
