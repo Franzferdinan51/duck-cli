@@ -18,3 +18,4 @@ sources/
 # Temp
 *.tmp
 *.swp
+node_modules/
