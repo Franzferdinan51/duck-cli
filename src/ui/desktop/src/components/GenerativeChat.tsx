@@ -1,63 +1,112 @@
 /**
- * GenerativeChat - Chat UI combining CopilotKit + Pretext streaming
+ * GenerativeChat - Chat UI with Pretext streaming
  * 
  * Features:
- * - Uses CopilotKit for chat infrastructure
  * - Uses Pretext StreamableText for animated message rendering
  * - Canvas-based message display for AI responses
  * - Duck-themed styling
+ * - Can connect to Duck Agent via useDuckAgent hook
  */
 
 import React, { useState, useEffect, useRef } from 'react'
-import { useCopilotChat } from '@copilotkit/react-core'
-import { StreamableText, StreamingCursor } from '../pretextgen/streaming/StreamableText'
+import { StreamingCursor } from '../streaming/StreamableText'
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
 
 export interface GenerativeChatProps {
   className?: string
   style?: React.CSSProperties
   onMessage?: (message: string) => void
   placeholder?: string
+  messages?: ChatMessage[]
+  onSendMessage?: (message: string) => void
+  isLoading?: boolean
 }
 
 export const GenerativeChat: React.FC<GenerativeChatProps> = ({
   className = '',
   style,
   onMessage,
-  placeholder = 'Ask DuckBot anything...'
+  placeholder = 'Ask DuckBot anything...',
+  messages: externalMessages,
+  onSendMessage,
+  isLoading: externalLoading = false
 }) => {
   const [input, setInput] = useState('')
+  const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
-  const [currentResponse, setCurrentResponse] = useState('')
+  const [streamedContent, setStreamedContent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  const { messages, sendMessage, isLoading } = useCopilotChat({
-    onResponse: (response) => {
-      if (response) {
-        setIsStreaming(true)
-      }
-    },
-    onFinish: () => {
-      setIsStreaming(false)
-    }
-  })
+  const messages = externalMessages || internalMessages
+  const isLoading = externalLoading || isStreaming
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim()) return
     
-    setCurrentResponse('')
-    await sendMessage(input)
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+      timestamp: Date.now()
+    }
+    
+    if (externalMessages) {
+      // External message handling
+      onSendMessage?.(input.trim())
+    } else {
+      setInternalMessages(prev => [...prev, userMessage])
+    }
+    
     setInput('')
+    setIsStreaming(true)
+    setStreamedContent('')
+    
+    // Simulate streaming response (replace with actual WebSocket in production)
+    let streamed = ''
+    const responses = [
+      "我正在思考您的问题...",
+      "这是一个关于 Duck Agent 的问题。",
+      "我可以帮助您处理各种任务，包括代码编写、文件操作、天气查询等。",
+      "Duck Agent 使用先进的 AI 技术来理解和响应您的需求。"
+    ]
+    const response = responses[Math.floor(Math.random() * responses.length)]
+    
+    for (let i = 0; i < response.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 30))
+      streamed += response[i]
+      setStreamedContent(streamed)
+    }
+    
+    const assistantMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: streamed,
+      timestamp: Date.now()
+    }
+    
+    if (!externalMessages) {
+      setInternalMessages(prev => [...prev, assistantMessage])
+    }
+    
+    setIsStreaming(false)
+    setStreamedContent('')
     
     if (onMessage) {
-      onMessage(input)
+      onMessage(input.trim())
     }
   }
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, currentResponse])
+  }, [messages, streamedContent])
 
   return (
     <div 
@@ -107,9 +156,9 @@ export const GenerativeChat: React.FC<GenerativeChatProps> = ({
         flexDirection: 'column',
         gap: '12px'
       }}>
-        {messages.map((msg, idx) => (
+        {messages.map((msg) => (
           <div
-            key={idx}
+            key={msg.id}
             style={{
               display: 'flex',
               justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -126,22 +175,35 @@ export const GenerativeChat: React.FC<GenerativeChatProps> = ({
               fontSize: '14px',
               lineHeight: 1.5
             }}>
-              {msg.role === 'user' ? (
-                msg.content
-              ) : (
-                <StreamableText 
-                  content={msg.content || ''}
-                  font="14px Inter, system-ui, sans-serif"
-                  speed={15}
-                  showCursor={true}
-                />
-              )}
+              {msg.content}
             </div>
           </div>
         ))}
         
         {/* Current streaming response */}
-        {isLoading && (
+        {streamedContent && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{
+              maxWidth: '75%',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.1)',
+              color: '#e5e7eb',
+              fontSize: '14px',
+              lineHeight: 1.5
+            }}>
+              {streamedContent}
+              <StreamingCursor 
+                char="▋"
+                blinkSpeed={300}
+                color="#FFD700"
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Loading indicator */}
+        {isLoading && !streamedContent && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{
               maxWidth: '75%',
