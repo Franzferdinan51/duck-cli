@@ -269,6 +269,104 @@ duck mesh capabilities
 
 ---
 
+## 🛒 ClawHub Skill Marketplace — FEATURED
+
+**clawhub.ai** — The OpenClaw skill registry. Browse, search, and install skills to extend Duck Agent's capabilities.
+
+### What is ClawHub?
+
+ClawHub is the official skill marketplace for OpenClaw-compatible agents. Find skills for:
+- 🌐 Web scraping & browser automation
+- 📊 Data analysis & visualization  
+- 🔧 Development tools & code generators
+- 🤖 AI integrations & model connectors
+- 📱 Mobile & desktop automation
+- 🔒 Security & compliance tools
+
+### ClawHub Commands
+
+```bash
+duck clawhub explore              # Browse the skill catalog
+duck clawhub search <query>        # Search for skills
+duck clawhub install <name>       # Install a skill
+duck clawhub list                 # List installed skills
+duck clawhub info <name>          # Show skill details
+duck clawhub update [name|--all]  # Update skills
+duck clawhub uninstall <name>     # Remove a skill
+```
+
+### ClawHub Usage Examples
+
+```bash
+# Browse available skills
+duck clawhub explore
+# Shows featured and latest skills from clawhub.ai
+
+# Search for a specific skill
+duck clawhub search "web scraping"
+# Returns matching skills with descriptions
+
+# Install a skill
+duck clawhub install github        # Install GitHub integration
+duck clawhub install browser       # Install browser automation
+duck clawhub install security     # Install security toolkit
+
+# List installed skills
+duck clawhub list
+# Shows all installed skills with versions
+
+# Update all installed skills
+duck clawhub update --all
+```
+
+### Skill Installation
+
+Skills are installed to `src/skills/` and automatically loaded by Duck Agent. Each skill contains:
+- `SKILL.md` — Skill definition and triggers
+- `scripts/` — Executable scripts
+- `references/` — Documentation and templates
+
+### Skill Discovery
+
+| Command | What it does |
+|---------|--------------|
+| `duck clawhub explore` | Browse featured and latest skills |
+| `duck clawhub search "term"` | Vector search for skills |
+| `duck clawhub featured` | Show top-rated skills |
+
+---
+
+## 👻 SOUL Registry — AI Personas
+
+**onlycrabs.ai** — Download and activate AI persona files (SOUL.md) for different personalities and behaviors.
+
+### SOUL Commands
+
+```bash
+duck souls featured               # Show featured SOULs
+duck souls search <query>         # Search for SOULs
+duck souls install <name>         # Install a SOUL
+duck souls list                   # List installed SOULs
+duck souls activate <name>        # Activate a SOUL
+duck souls uninstall <name>       # Remove a SOUL
+```
+
+### SOUL Usage Examples
+
+```bash
+# Browse featured AI personas
+duck souls featured
+
+# Search for a specific persona
+duck souls search "helpful assistant"
+
+# Install and activate a SOUL
+duck souls install my-persona
+duck souls activate my-persona
+```
+
+---
+
 ## 🧪 OpenClaw-RL — OPTIONAL
 
 **Reinforcement learning-based self-improvement** — Turns every conversation into a training signal. Runs entirely on your own infrastructure. **Disabled by default.**

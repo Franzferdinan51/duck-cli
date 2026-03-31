@@ -8,6 +8,7 @@
 import { Agent } from '../agent/core.js';
 import * as readline from 'readline';
 import { meshCommand } from './mesh-cmd.js';
+import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
 
 // Colors
 const c = {
@@ -749,6 +750,8 @@ ${c.bold}Commands:${c.reset}
   ${c.green}channels${c.reset}          Start Telegram/Discord channels
   ${c.green}send <ch> <id> <msg>${c.reset}  Send message to channel
   ${c.green}desktop${c.reset}          Desktop control
+  ${c.green}clawhub${c.reset}          ClawHub skill marketplace
+  ${c.green}souls${c.reset}            SOUL registry (AI personas)
 
 ${c.bold}Examples:${c.reset}
   duck shell                      # Interactive mode
@@ -756,6 +759,9 @@ ${c.bold}Examples:${c.reset}
   duck think "Why is sky blue?"   # Reasoning
   duck tools                     # List tools
   duck mcp                       # MCP server
+  duck clawhub explore            # Browse skill marketplace
+  duck clawhub search "web"       # Search skills
+  duck souls search "assistant"   # Search AI personas
 
 ${c.bold}Environment Variables:${c.reset}
   MINIMAX_API_KEY    MiniMax API key
