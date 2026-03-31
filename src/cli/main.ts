@@ -81,6 +81,26 @@ async function main() {
       await startMCP(parseInt(args[0]) || 3848);
       break;
 
+    case 'unified':
+    case 'headless':
+      await startUnified();
+      break;
+
+    case 'acp-server':
+    case 'acpserver':
+      await startACPServer(args);
+      break;
+
+    case 'acp':
+    case 'acp-spawn':
+      await acpSpawn(args);
+      break;
+
+    case 'ws':
+    case 'websocket':
+      await wsCommand(args);
+      break;
+
     case 'web':
     case 'ui':
       await startWebUI();
@@ -798,6 +818,38 @@ async function updateCommand(args: string[]) {
 }
 
 
+
+// ============ ACP SERVER (for OpenClaw) ============
+
+async function startACPServer(args: string[]) {
+  const port = parseInt(args[0]) || 18790;
+  
+  const { ACPServer } = await import('../gateway/acp-server.js');
+  const agent = new Agent({ name: 'Duck Agent (ACP Server)' });
+  await agent.initialize();
+
+  const server = new ACPServer(agent, { port });
+  
+  console.log(`${c.cyan}Starting Duck Agent ACP Server for OpenClaw...${c.reset}`);
+  console.log(`${c.yellow}OpenClaw can now connect to this agent!${c.reset}`);
+  console.log(`URL: ws://localhost:${port}/acp`);
+  console.log('');
+  console.log(`To use from OpenClaw, configure:`);
+  console.log(`  agents.list[].runtime.acp.backend = "acpx"`);
+  console.log(`  agents.list[].runtime.acp.agent = "duck"`);
+  console.log('');
+
+  await server.start();
+
+  process.on('SIGINT', async () => {
+    console.log('\nShutting down ACP server...');
+    await server.stop();
+    await agent.shutdown();
+    process.exit(0);
+  });
+
+  await new Promise(() => {});
+}
 
 // ============ UNIFIED SERVER ============
 
