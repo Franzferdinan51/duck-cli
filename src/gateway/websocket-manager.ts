@@ -64,7 +64,7 @@ export class WebSocketManager extends EventEmitter {
   constructor(config: WSConfig = {}) {
     super();
     this.config = {
-      port: config.port || 18791,
+      port: config.port || 18796,
       host: config.host || 'localhost',
       path: config.path || '/ws',
       maxConnections: config.maxConnections || 100,

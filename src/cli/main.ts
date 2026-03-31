@@ -79,7 +79,7 @@ async function main() {
 
     case 'mcp':
     case 'server':
-      await startMCP(parseInt(args[0]) || 3848);
+      await startMCP(parseInt(args[0]) || 3850);
       break;
 
     case 'unified':
@@ -734,7 +734,7 @@ ${c.bold}Commands:${c.reset}
   ${c.green}status${c.reset}           Show agent status
   ${c.green}tools${c.reset}           List available tools
   ${c.green}history${c.reset}         Show conversation history
-  ${c.green}mcp [port]${c.reset}       Start MCP server (default: 3848)
+  ${c.green}mcp [port]          Start MCP server (default: 3850))
   ${c.green}memory${c.reset}           Memory commands
   ${c.green}channels${c.reset}          Start Telegram/Discord channels
   ${c.green}send <ch> <id> <msg>${c.reset}  Send message to channel
@@ -998,7 +998,7 @@ async function syncCommand(args: string[]) {
 // ============ ACP SERVER (for OpenClaw) ============
 
 async function startACPServer(args: string[]) {
-  const port = parseInt(args[0]) || 18790;
+  const port = parseInt(args[0]) || 18794;
   
   const { ACPServer } = await import('../gateway/acp-server.js');
   const agent = new Agent({ name: 'Duck Agent (ACP Server)' });
@@ -1037,10 +1037,10 @@ async function startUnified() {
   await agent.initialize();
 
   const server = new UnifiedServer(agent, {
-    mcpPort: 3848,
-    acpPort: 18790,
-    wsPort: 18791,
-    gatewayPort: 18789,
+    mcpPort: 3850,
+    acpPort: 18794,
+    wsPort: 18796,
+    gatewayPort: 18792,
     enableMCP: true,
     enableACP: true,
     enableWebSocket: true,
@@ -1065,7 +1065,7 @@ async function mcpConnect(args: string[]) {
   const url = args[0];
   if (!url) {
     console.log(`${c.red}Usage: duck mcp-connect <url>${c.reset}`);
-    console.log('Example: duck mcp-connect ws://localhost:3848/ws');
+    console.log('Example: duck mcp-connect ws://localhost:3850/ws');
     return;
   }
 
@@ -1141,7 +1141,7 @@ async function wsCommand(args: string[]) {
 
   if (action === 'connect' && url) {
     const { WebSocketManager } = await import('../gateway/websocket-manager.js');
-    const ws = new WebSocketManager({ port: 18792 });
+    const ws = new WebSocketManager({ port: 18796 });
     
     console.log(`${c.cyan}Connecting to ${url}...${c.reset}`);
     

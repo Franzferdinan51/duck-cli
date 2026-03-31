@@ -35,7 +35,7 @@ export class Gateway extends EventEmitter {
   constructor(config: GatewayConfig) {
     super();
     this.config = {
-      port: config.port || 18789,
+      port: config.port || 18792,
       host: config.host || 'localhost',
       authToken: config.authToken || process.env.GATEWAY_TOKEN || 'duck',
     };

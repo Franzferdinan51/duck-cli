@@ -54,7 +54,7 @@ interface ACPServerCapabilities {
  * ACP Server - OpenClaw connects TO this to spawn Duck Agent sessions
  * 
  * Usage:
- *   duck acp-server              # Start server on default port (18790)
+ *   duck acp-server              # Start server on default port (18794)
  *   duck acp-server --port 3849 # Custom port
  * 
  * Then in OpenClaw config:
@@ -74,7 +74,7 @@ export class ACPServer extends EventEmitter {
   constructor(agent: Agent, config: ACPServerConfig = {}) {
     super();
     this.agent = agent;
-    this.port = config.port || 18790;
+    this.port = config.port || 18794;
     this.config = {
       port: this.port,
       host: config.host || '0.0.0.0',

@@ -99,8 +99,8 @@ npm run build
 # 2. Test protocols
 duck unified &            # Start all servers
 sleep 3
-curl http://localhost:3848/health   # MCP
-curl http://localhost:18789/health  # Gateway
+curl http://localhost:3850/health   # MCP
+curl http://localhost:18792/health  # Gateway
 kill %1
 
 # 3. Test standalone

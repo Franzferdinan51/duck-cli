@@ -309,8 +309,8 @@ export class OpenClawAdapter extends EventEmitter {
     super();
     
     this.agent = config.agent || null;
-    this.gatewayUrl = config.gatewayUrl || 'http://localhost:18789';
-    this.acpPort = config.acpPort || 18790;
+    this.gatewayUrl = config.gatewayUrl || 'http://localhost:18792';
+    this.acpPort = config.acpPort || 18794;
     
     // If we have an agent, we're in server mode (Duck Agent serves OpenClaw)
     if (this.agent) {

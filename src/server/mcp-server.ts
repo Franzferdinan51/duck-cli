@@ -70,7 +70,7 @@ export class MCPServer {
   private toolInvocations: Map<string | number, { name: string; startTime: number }> = new Map();
   private nextId = 1;
 
-  constructor(port: number = 3848) {
+  constructor(port: number = 3850) {
     this.port = port;
     this.agent = new Agent({ name: 'Duck Agent (MCP)' });
     this.registerCoreHandlers();

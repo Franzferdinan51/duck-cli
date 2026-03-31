@@ -74,7 +74,7 @@ export class ACPClient extends EventEmitter {
   private acpxPath: string = 'acpx';
   private httpServer?: http.Server;
   private wsServer?: WebSocketServer;
-  private localWsPort: number = 18790;
+  private localWsPort: number = 18794;
 
   constructor(agent: Agent, config: ACPConfig = {}) {
     super();

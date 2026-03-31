@@ -75,7 +75,7 @@ export DISCORD_BOT_TOKEN=...    # Prefer OpenClaw gateway
 Duck CLI connects to OpenClaw gateway as an ACP client:
 
 ```bash
-export OPENCLAW_GATEWAY=ws://localhost:18789
+export OPENCLAW_GATEWAY=ws://localhost:18792
 export OPENCLAW_TOKEN=your_token
 
 duck run "task via OpenClaw gateway"

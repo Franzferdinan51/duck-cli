@@ -36,7 +36,7 @@ interface ExternalMCPServer {
  * Unified Server - All headless protocols in one
  * 
  * Provides:
- * - MCP Server (port configurable, default 3848)
+ * - MCP Server (port configurable, default 3850)
  * - ACP Client (spawn Codex, Claude, Pi, etc.)
  * - WebSocket Manager (bidirectional)
  * - Gateway API (OpenAI-compatible)
@@ -62,10 +62,10 @@ export class UnifiedServer extends EventEmitter {
     super();
     this.agent = agent;
     this.config = {
-      mcpPort: config.mcpPort ?? 3848,
-      acpPort: config.acpPort ?? 18790,
-      wsPort: config.wsPort ?? 18791,
-      gatewayPort: config.gatewayPort ?? 18789,
+      mcpPort: config.mcpPort ?? 3850,
+      acpPort: config.acpPort ?? 18794,
+      wsPort: config.wsPort ?? 18796,
+      gatewayPort: config.gatewayPort ?? 18792,
       enableMCP: config.enableMCP ?? true,
       enableACP: config.enableACP ?? true,
       enableWebSocket: config.enableWebSocket ?? true,
