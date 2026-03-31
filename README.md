@@ -602,3 +602,92 @@ MIT License — Ryan (Duckets) 2026
 Inspired by and integrating features from:
 
 [OpenClaw](https://github.com/openclaw/openclaw) · [Claude Code](https://github.com/anthropics/claude-code) · [Hermes-Agent](https://github.com/Franzferdinan51/hermes-agent) · [NemoClaw](https://github.com/NVIDIA/NemoClaw) · [Codex CLI](https://github.com/openai/codex) · [DroidClaw](https://github.com/unitedbyai/droidclaw) · [OpenCrabs](https://github.com/adolfousier/opencrabs) · [TrinityClaw](https://github.com/TrinityClaw/trinity-claw) · [FlowlyAI](https://github.com/Nocetic/flowlyai) · [ClawX](https://github.com/ValueCell-ai/ClawX)
+
+---
+
+## 🤖 OpenClaw-RL Integration (Optional)
+
+Duck Agent can integrate with **[OpenClaw-RL](https://github.com/Franzferdinan51/OpenClaw-RL)** for optional reinforcement learning-based self-improvement. This feature is **entirely optional and disabled by default** — Duck Agent operates normally without any RL overhead when disabled.
+
+### What is OpenClaw-RL?
+
+OpenClaw-RL is a fully asynchronous RL framework that turns conversations into training signals for personalized AI agents. It runs entirely on your own infrastructure — no external API keys, no data leaves your machine.
+
+**Two learning methods are supported:**
+
+| Method | Signal | Best For |
+|--------|--------|----------|
+| **Binary RL (GRPO)** | +1/-1/0 scores | Implicit feedback (likes/dislikes, task success/failure) |
+| **On-Policy Distillation (OPD)** | Token-level hints | Rich textual feedback, directional improvement |
+
+### Setup & Usage
+
+**1. Start the OpenClaw-RL server:**
+```bash
+cd OpenClaw-RL/slime
+bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh   # Binary RL
+# or
+bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh  # OPD
+```
+
+**2. Connect Duck Agent to the RL server:**
+```bash
+duck rl connect http://<host>:30000
+```
+
+**3. Enable RL training:**
+```bash
+duck rl enable
+```
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `duck rl status` | Show RL on/off, server, training state |
+| `duck rl enable` | Turn on RL training |
+| `duck rl disable` | Turn off RL training |
+| `duck rl stats` | Show training statistics |
+| `duck rl connect <url>` | Connect to an RL server |
+| `duck rl disconnect` | Remove RL server connection |
+
+### How It Works
+
+- **Session-aware**: Each conversation thread gets a unique session ID
+- **Turn classification**: `main` turns (trainable) vs `side` turns (meta/system — skipped)
+- **PRM evaluation**: Process Reward Model scores each turn as good/bad/neutral
+- **Background training**: Policy updates happen in background — no conversation latency
+- **KAIROS integration**: When RL is enabled, KAIROS insights feed into training
+
+### Default Behavior
+
+> ⚠️ **RL is 100% optional and OFF by default.**
+>
+> - Duck Agent works exactly the same whether RL is enabled or disabled
+> - No training occurs unless you explicitly enable it
+> - Can be disabled at any time with `duck rl disable`
+> - No external API keys or cloud services required
+
+### Example Workflow
+
+```bash
+# Check status (RL is off by default)
+duck rl status
+
+# Connect to your RL server
+duck rl connect http://192.168.1.100:30000
+
+# Enable training
+duck rl enable
+
+# Now every conversation trains the model in background
+duck shell
+# Chat normally — training happens automatically
+
+# Check training progress
+duck rl stats
+
+# Done? Turn it off
+duck rl disable
+```
+
