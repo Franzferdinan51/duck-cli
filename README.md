@@ -641,3 +641,96 @@ renderer.startAnimation();
 ---
 
 **🦆 Built with Pretext** - AI controls every pixel via Canvas
+
+---
+
+## 🏛️ AI Council Chamber Integration
+
+Duck Agent integrates deeply with AI Council for multi-agent deliberation.
+
+### Councilor Roles (12 Core)
+
+| Councilor | Role | Focus |
+|-----------|------|-------|
+| **High Speaker** | Facilitator | Neutral synthesis |
+| **Technocrat** | Technical | Efficiency, data |
+| **Ethicist** | Moral | Human well-being |
+| **Pragmatist** | Practical | Cost, feasibility |
+| **Skeptic** | Devil's advocate | Find flaws |
+| **Sentinel** | Security | Threats, defense |
+| **Visionary** | Future | Innovation |
+| **Historian** | Past | Lessons learned |
+| **Diplomat** | Relations | Compromise |
+| **Journalist** | Truth | Accountability |
+| **Scientist** | Evidence | Research |
+| **Psychologist** | Behavior | Motivations |
+
+### Deliberation Modes
+
+| Mode | Description |
+|------|-------------|
+| `legislative` | Debate & vote on proposals |
+| `deliberation` | Open roundtable discussion |
+| `research` | Multi-vector investigation |
+| `prediction` | Probabilistic forecasting |
+| `swarm_coding` | Multi-agent code generation |
+| `inquiry` | Direct Q&A |
+
+### CLI Commands
+
+```bash
+# List modes and councilors
+duck council modes
+duck council councilors
+
+# Quick deliberation
+duck council ask "Should I build a REST API?"
+
+# Legislative debate with voting
+duck council debate "Adopt microservices architecture"
+
+# Deep research
+duck council research "Latest AI developments"
+
+# Probabilistic forecasting
+duck council predict "Will AI exceed human intelligence by 2030?"
+
+# Check council status
+duck council status
+```
+
+### Programmatic Usage
+
+```typescript
+import { AICouncilClient, CORE_COUNCILORS } from './council/client.js';
+import { DeliberationEngine } from './council/deliberation-engine.js';
+
+const client = new AICouncilClient('http://localhost:3001');
+const engine = new DeliberationEngine(client);
+
+// Run deliberation
+const result = await engine.deliberate({
+  mode: 'legislative',
+  topic: 'Should we adopt Kubernetes?',
+  councilors: CORE_COUNCILORS.filter(c => c.enabled),
+  maxRounds: 3,
+});
+
+console.log(`Consensus: ${result.consensus * 100}%`);
+console.log(`Ruling: ${result.finalRuling}`);
+```
+
+### Integration with Web UI
+
+AI Council provides:
+- Full Web UI for visual deliberation
+- Real-time debate streaming
+- Vote visualization
+- Councilor avatars
+- Mobile-friendly PWA
+
+Access at: `http://localhost:3001`
+
+---
+
+**🦆 AI Council = Multi-agent governance for better decisions**
