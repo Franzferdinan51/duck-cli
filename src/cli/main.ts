@@ -59,6 +59,18 @@ async function main() {
       await think(args.join(' '));
       break;
 
+    case 'speak':
+    case 'voice':
+    case 'tts':
+      const [cmd, ...voiceArgs] = args.join(' ').split('|');
+      await speak(cmd, voiceArgs[0]?.trim());
+      break;
+
+    case 'think-speak':
+    case 'thinkandspk':
+      await thinkAndSpeak(args.join(' '));
+      break;
+
     case 'status':
     case 'info':
       await showStatus();
@@ -293,6 +305,101 @@ async function think(prompt: string) {
   console.log(result);
 
   await agent.shutdown();
+}
+
+// ============ SPEAK/TTS MODE ============
+
+async function speak(text: string, voice?: string) {
+  if (!text || text.trim() === '') {
+    console.log(`${c.red}Error: No text specified${c.reset}`);
+    console.log(`Usage: duck speak "Hello world" [voice]`);
+    console.log(`Voices: narrator, casual, sad`);
+    console.log(`Example: duck speak "Hello!" casual`);
+    return;
+  }
+
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    console.log(`${c.red}Error: MINIMAX_API_KEY not set${c.reset}`);
+    console.log(`Set it with: export MINIMAX_API_KEY="your-key"`);
+    return;
+  }
+
+  console.log(`${c.cyan}🎤 Generating speech...${c.reset}`);
+  console.log(`Text: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
+  if (voice) console.log(`Voice: ${voice}`);
+  
+  try {
+    const { TTSService } = await import('../tools/tts.js');
+    const tts = new TTSService({ apiKey });
+    
+    if (voice) tts.setVoice(voice);
+    
+    const result = await tts.speak({ text, outputPath: './duck_tts.mp3' });
+    
+    if (result.success) {
+      console.log(`\n${c.green}✅ Speech generated!${c.reset}`);
+      console.log(`File: ./duck_tts.mp3`);
+      console.log(`Chars: ${result.chars} | Remaining: ${tts.getRemainingQuota()}`);
+      
+      // Auto-play on macOS
+      try {
+        const { execSync } = await import('child_process');
+        execSync('afplay ./duck_tts.mp3 &', { stdio: 'ignore' });
+        console.log(`${c.cyan}🔊 Playing...${c.reset}`);
+      } catch {
+        // afplay not available
+      }
+    } else {
+      console.log(`${c.red}❌ Error: ${result.error}${c.reset}`);
+    }
+  } catch (err) {
+    console.log(`${c.red}❌ TTS Error: ${err}${c.reset}`);
+  }
+}
+
+// ============ THINK + SPEAK MODE ============
+
+async function thinkAndSpeak(prompt: string) {
+  if (!prompt) {
+    console.log(`${c.red}Error: No prompt specified${c.reset}`);
+    return;
+  }
+
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    console.log(`${c.red}Error: MINIMAX_API_KEY not set${c.reset}`);
+    return;
+  }
+
+  const agent = new Agent({ name: 'Duck Agent' });
+  await agent.initialize();
+
+  console.log(`${c.magenta}💭 Thinking...${c.reset}`);
+  const response = await agent.think(prompt);
+  console.log(`${c.cyan}🤖 Response ready, generating speech...${c.reset}`);
+  
+  await agent.shutdown();
+
+  try {
+    const { TTSService } = await import('../tools/tts.js');
+    const tts = new TTSService({ apiKey });
+    
+    // Truncate if too long for TTS
+    const ttsText = response.length > 500 ? response.substring(0, 500) + "... (truncated)" : response;
+    
+    const result = await tts.speak({ text: ttsText, outputPath: './duck_think_speak.mp3' });
+    
+    if (result.success) {
+      console.log(`\n${c.green}✅ Audio ready!${c.reset}`);
+      try {
+        const { execSync } = await import('child_process');
+        execSync('afplay ./duck_think_speak.mp3 &', { stdio: 'ignore' });
+      } catch {}
+    }
+  } catch (err) {
+    console.log(`${c.red}TTS Error: ${err}${c.reset}`);
+  }
 }
 
 // ============ STATUS ============
