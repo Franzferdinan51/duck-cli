@@ -5,5 +5,12 @@
     "type": "fact",
     "timestamp": 1774978562555,
     "tags": []
+  },
+  {
+    "id": "mem_1774979557482_ti4z",
+    "content": "What is machine learning? → <think>The user is asking a basic question about what machine learning is. This is a knowledge-based question that I can answer directly without needing to use any tools.\n</think>\n\n**Machine Learning** is a subset of artificial intelligence (AI) that enables computers to learn from data and improve their performance on a task without being explicitly programmed.\n\nInstead of following rigid, hand-coded rules, machine learning systems identify patterns in data and use them to make predictions or decisions.\n\n## Key Types of Machine Learning\n\n| Type | Description | Example |\n|------|-------------|---------|\n| **Supervised Learning** | Learns from labeled data (input-output pairs) | Email spam detection |\n| **Unsupervised Learning** | Finds patterns in unlabeled data | Customer segmentation |\n| **Reinforcement Learning** | Learns by trial and error through rewards/penalties | Game-playing AI |\n\n## Common Applications\n\n- **Recommendation systems** (Netflix, Amazon)\n- **Image recognition** (face detection, medical scans)\n- **Natural language processing** (chatbots, translation)\n- **Fraud detection**\n- **Autonomous vehicles**\n\n## How It Works (Simplified)\n\n1. **Collect data** – Gather relevant examples\n2. **Train a model** – The algorithm learns patterns from the data\n3. **Evaluate** – Test how well the model performs\n4. **Deploy** – Use the model to make predictions on new data\n\nAt its core, machine learning is about finding statistical patterns in data and using those patterns to generalize and make predictions on unseen data.",
+    "type": "interaction",
+    "timestamp": 1774979557482,
+    "tags": []
   }
 ]

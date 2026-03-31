@@ -1,64 +1,112 @@
 /**
- * Duck Agent - Tool Registry
- * Discover and execute tools
+ * 🦆 Duck Agent - Enhanced Tool Registry
+ * With dangerous tool detection and approval system
  */
 
 export interface ToolDefinition {
   name: string;
   description: string;
-  schema: Record<string, string>;
+  schema: Record<string, any>;
+  dangerous?: boolean;
+  requiresApproval?: boolean;
+  handler: Function;
 }
 
-export interface Tool {
+export interface ToolResult {
+  success?: boolean;
+  result?: any;
+  error?: string;
+  output?: string;
+}
+
+export interface ToolInfo {
   name: string;
   description: string;
-  schema: Record<string, string>;
-  handler: (args: any) => Promise<any>;
+  schema: Record<string, any>;
+  dangerous: boolean;
 }
 
 export class ToolRegistry {
-  private tools: Map<string, Tool> = new Map();
+  private tools: Map<string, ToolDefinition> = new Map();
+  private approvalCallback: ((name: string, args: any) => Promise<boolean>) | null = null;
 
-  register(tool: Tool): void {
-    this.tools.set(tool.name, tool);
-    console.log(`   + Tool: ${tool.name}`);
+  register(def: ToolDefinition): void {
+    // Validate schema
+    if (!def.schema || typeof def.schema !== 'object') {
+      throw new Error(`Tool ${def.name}: invalid schema`);
+    }
+
+    this.tools.set(def.name, {
+      ...def,
+      dangerous: def.dangerous || false,
+      requiresApproval: def.requiresApproval !== false
+    });
+
+    console.log(`   + Tool: ${def.name}${def.dangerous ? ' ⚠️' : ''}`);
   }
 
-  unregister(name: string): boolean {
-    return this.tools.delete(name);
+  has(name: string): boolean {
+    return this.tools.has(name);
   }
 
-  get(name: string): Tool | undefined {
+  get(name: string): ToolDefinition | undefined {
     return this.tools.get(name);
   }
 
-  list(): ToolDefinition[] {
-    return Array.from(this.tools.values()).map(t => ({
-      name: t.name,
-      description: t.description,
-      schema: t.schema
-    }));
-  }
-
-  async execute(name: string, args: any): Promise<any> {
+  async execute(name: string, args: any): Promise<ToolResult> {
     const tool = this.tools.get(name);
+    
     if (!tool) {
-      throw new Error(`Unknown tool: ${name}`);
+      return { success: false, error: `Unknown tool: ${name}` };
+    }
+
+    // Check approval for dangerous tools
+    if (tool.dangerous && this.approvalCallback) {
+      const approved = await this.approvalCallback(name, args);
+      if (!approved) {
+        return { success: false, error: `Tool ${name} requires approval` };
+      }
     }
 
     try {
-      return await tool.handler(args);
+      const result = await tool.handler(args);
+      return { success: true, result, output: String(result) };
     } catch (error: any) {
-      throw new Error(`Tool ${name} failed: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }
 
-  async executeMany(calls: Array<{ name: string; args: any }>): Promise<any[]> {
-    const results = [];
-    for (const call of calls) {
-      results.push(await this.execute(call.name, call.args));
+  list(): ToolInfo[] {
+    return Array.from(this.tools.values()).map(t => ({
+      name: t.name,
+      description: t.description,
+      schema: t.schema,
+      dangerous: t.dangerous || false
+    }));
+  }
+
+  listDangerous(): ToolInfo[] {
+    return this.list().filter(t => t.dangerous);
+  }
+
+  setApprovalCallback(callback: (name: string, args: any) => Promise<boolean>): void {
+    this.approvalCallback = callback;
+  }
+
+  validateArgs(name: string, args: any): { valid: boolean; error?: string } {
+    const tool = this.tools.get(name);
+    if (!tool) {
+      return { valid: false, error: `Unknown tool: ${name}` };
     }
-    return results;
+
+    // Basic schema validation
+    for (const [key, spec] of Object.entries(tool.schema)) {
+      if ((spec as any).required && !(key in args)) {
+        return { valid: false, error: `Missing required argument: ${key}` };
+      }
+    }
+
+    return { valid: true };
   }
 }
 
