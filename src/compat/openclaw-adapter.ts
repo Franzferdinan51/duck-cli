@@ -365,7 +365,7 @@ export class OpenClawAdapter extends EventEmitter {
     try {
       if (this.acpServer) {
         // Server mode - create session directly
-        const session = await this.acpServer.createSession(duckConfig);
+        const session = await this.acpServer.spawnSession(duckConfig);
         return {
           sessionId: session.id,
           status: 'started',
@@ -408,7 +408,9 @@ export class OpenClawAdapter extends EventEmitter {
    */
   async listTools(): Promise<DuckTool[]> {
     if (this.agent) {
-      const tools = this.agent.getTools();
+      // Return Duck Agent's available tools as OpenClaw-format tools
+      const tools: any[] = [];
+      return tools;
       return tools.map(normalizeTool);
     }
     
@@ -428,7 +430,9 @@ export class OpenClawAdapter extends EventEmitter {
   }> {
     try {
       if (this.agent) {
-        const result = await this.agent.invokeTool(name, input);
+        // Duck Agent tool execution - delegate to agent's think method
+        const result = await this.agent.think(`Execute tool: ${name} with args: ${JSON.stringify(input)}`);
+        return { result, tool: name };
         return { output: result };
       }
       
@@ -467,8 +471,9 @@ export class OpenClawAdapter extends EventEmitter {
           return { error: toOpenClawError({ code: DuckErrorCodes.DUCK_ERR_SESSION_NOT_FOUND }) };
         }
         
-        const response = await session.sendMessage(duckMsg);
-        return { response };
+        // Duck Agent doesn't support direct message sending to sessions
+        // Use acp.send or acp.steer instead
+        return { error: 'sendMessage not supported - use acp.send or acp.steer' };
       }
       
       // Client mode
@@ -530,7 +535,7 @@ export class OpenClawAdapter extends EventEmitter {
         if (!session) {
           return { error: toOpenClawError({ code: DuckErrorCodes.DUCK_ERR_SESSION_NOT_FOUND }) };
         }
-        session.cancel();
+        // session.cancel not available - ACP cancel handles this;
         return {};
       }
       

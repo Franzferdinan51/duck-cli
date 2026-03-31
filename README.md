@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Super AI Agent v0.3.0** — The ultimate personal AI assistant with KAIROS proactive AI, unified headless protocols, Claude Code tools, autonomous cron automation, multi-agent orchestration, and enterprise-grade security.
+> **Duck Agent v0.3.1** — Super AI Agent with KAIROS proactive AI, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw compatibility.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -19,8 +19,8 @@ npm install && npm run build
 # Start - pick your interface
 duck shell              # Interactive TUI shell
 duck web               # Web UI (http://localhost:3000)
-duck unified           # Headless server (MCP + ACP + WebSocket)
-duck mcp              # MCP server only (port 3848)
+duck unified           # All protocols (MCP + ACP + WS + Gateway)
+duck mcp               # MCP server only (port 3848)
 duck gateway           # Gateway API (port 18789)
 ```
 
@@ -59,7 +59,7 @@ duck voice --voice casual "Hi!"   # Different style
 - Auto-play on macOS
 
 ### 🌐 Web UI
-**Full-featured control interface** (~2000 lines)
+**Full-featured control interface**
 
 ```
 http://localhost:3000
@@ -185,7 +185,7 @@ duck acp claude
 | opencode | `duck acp opencode` | OpenCode |
 
 **ACP Features:**
-- Session spawn/cancel/steer/close
+- Session spawn/cancel/steer/send
 - Fire-and-forget with result delivery
 - Persistent sessions
 - Output streaming
@@ -243,16 +243,6 @@ acpx connect ws://localhost:18790/acp --agent duck
 - Supports agents: `duck`, `duck-agent`, `kairos`
 - Max concurrent sessions: 8
 - JSON-RPC 2.0 protocol
-
-**ACP Server Methods:**
-```
-acp.spawn     - Spawn new session
-acp.cancel    - Cancel session
-acp.steer     - Send steering instruction
-acp.send      - Send message to session
-acp.status    - Get session/server status
-acp.sessions  - List all sessions
-```
 
 ---
 
@@ -438,8 +428,8 @@ Duck Agent/
 │   ├── channels/       # Telegram, Discord
 │   └── prompts/        # System prompts
 ├── web-ui/              # Full Web UI
-├── tools/              # CLI tools
-└── docs/               # Documentation
+├── docs/               # Documentation
+└── package.json
 ```
 
 ---
@@ -538,7 +528,7 @@ duck update status    # Git status
 |-----|-------------|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [COMMANDS.md](docs/COMMANDS.md) | CLI reference |
-| [UPDATES.md](docs/UPDATES.md) | Update strategy |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ---
 
@@ -556,7 +546,7 @@ duck update backup
 
 # Health check (various ports)
 curl http://localhost:18789/health  # Gateway
-curl http://localhost:3848/health   # MCP
+curl http://localhost:3848/health     # MCP
 
 # View logs
 tail -f ~/.duck-agent/logs/*.log

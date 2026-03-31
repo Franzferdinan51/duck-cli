@@ -525,6 +525,75 @@ export class ACPServer extends EventEmitter {
   }
 
   /**
+
+  /**
+   * Create a session directly (programmatic API)
+   */
+  async createSession(config: { agentId?: string; task?: string; mode?: string; cwd?: string }): Promise<ACPSession> {
+    const agentId = config.agentId || 'duck';
+    const effectiveMode = config.mode || (config.task ? 'run' : 'persistent');
+    
+    const sessionId = `session_${this.nextSessionId++}`;
+    const session: ACPSession = {
+      id: sessionId,
+      agentId,
+      mode: effectiveMode as 'persistent' | 'oneshot' | 'run',
+      status: 'starting',
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+      cwd: config.cwd,
+      messages: config.task ? [{ role: 'user', content: config.task }] : [],
+      clientId: 'internal',
+      ws: null as any,
+    };
+
+    this.sessions.set(sessionId, session);
+    this.emit('session:created', session);
+
+    if (config.task) {
+      session.status = 'running';
+      try {
+        session.result = await this.executeSession(session, config.task);
+        session.status = 'completed';
+      } catch (err: any) {
+        session.status = 'failed';
+        session.result = `Error: ${err.message}`;
+      }
+    } else {
+      session.status = 'running';
+    }
+
+    return session;
+  }
+
+  /**
+   * Send a message to an existing session
+   */
+  async sendSessionMessage(sessionId: string, message: string): Promise<string> {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+
+    session.lastActivity = Date.now();
+    session.messages.push({ role: 'user', content: message });
+
+    const result = await this.executeSession(session, message);
+    session.messages.push({ role: 'assistant', content: result });
+    return result;
+  }
+
+  /**
+   * Cancel a session
+   */
+  cancelSessionById(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) throw new Error(`Session not found: ${sessionId}`);
+    session.status = 'cancelled';
+    session.lastActivity = Date.now();
+    if (session.ws) session.ws.close();
+    this.emit('session:cancelled', session);
+  }
+
+  /**
    * Stop the server
    */
   async stop(): Promise<void> {
