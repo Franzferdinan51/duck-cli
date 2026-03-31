@@ -3,11 +3,10 @@
 /**
  * Duck CLI - TypeScript Agent Core
  * 
- * The intelligent core that handles:
- * - Agent loop
- * - Tool execution
- * - Multi-agent coordination
- * - Context management
+ * Graceful handling of missing API keys:
+ * - Shows provider status
+ * - Falls back to available providers
+ * - Helpful setup instructions
  */
 
 import { Agent, AgentConfig } from './agent.js';
@@ -25,9 +24,11 @@ const colors = {
   gold: '\x1b[33m',
   green: '\x1b[32m',
   red: '\x1b[31m',
+  yellow: '\x1b[33m',
   dim: '\x1b[2m',
   reset: '\x1b[0m',
-  bold: '\x1b[1m'
+  bold: '\x1b[1m',
+  cyan: '\x1b[36m'
 };
 
 const logo = `
@@ -39,6 +40,10 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
 
   console.log(logo);
+
+  // Initialize providers first
+  const providers = new ProviderManager();
+  await providers.load();
 
   // Handle command modes
   if (args.agentList) {
@@ -85,25 +90,34 @@ async function main() {
     return;
   }
 
-  if (args.securityAudit) {
+  if (args.securityAudit || args.securityDefcon) {
     const monitor = new SecurityMonitor();
-    await monitor.audit();
-    console.log(`\n${monitor.getStatus()}`);
-    return;
-  }
-
-  if (args.securityDefcon) {
-    const monitor = new SecurityMonitor();
+    if (args.securityAudit) {
+      await monitor.audit();
+    }
     console.log(`\n${monitor.getStatus()}`);
     return;
   }
 
   if (args.council) {
+    const status = providers.getStatus();
+    const hasApiKey = status.some(s => s.name === 'anthropic' && s.available);
+    
+    if (!hasApiKey) {
+      console.log(`${colors.yellow}⚠️  AI Council requires ANTHROPIC_API_KEY${colors.reset}`);
+      console.log(providers.getSetupInstructions());
+      return;
+    }
+
     const council = new CouncilRunner();
-    const response = await council.deliberate(args.council, args.councilMode || 'decision');
-    console.log(`\n${colors.gold}AI Council Response:${colors.reset}\n`);
-    console.log(response.consensus);
-    console.log(`\n${colors.dim}Votes: ${JSON.stringify(response.votes)}${colors.reset}`);
+    try {
+      const response = await council.deliberate(args.council, args.councilMode || 'decision');
+      console.log(`\n${colors.gold}AI Council Response:${colors.reset}\n`);
+      console.log(response.consensus);
+      console.log(`\n${colors.dim}Votes: ${JSON.stringify(response.votes)}${colors.reset}`);
+    } catch (error) {
+      console.error(`${colors.red}Council error: ${error}${colors.reset}`);
+    }
     return;
   }
 
@@ -117,7 +131,7 @@ async function main() {
     return;
   }
 
-  // Default: show help
+  // Default: show help + provider status
   console.log(`
 ${colors.bold}Usage:${colors.reset}
   duck run "task"           Run a task
@@ -128,11 +142,47 @@ ${colors.bold}Usage:${colors.reset}
   duck security audit       Run security audit
   duck council "question"   Ask AI Council
 
+${colors.bold}Provider Status:${colors.reset}`);
+  printProviderStatus(providers);
+  
+  console.log(`
 ${colors.dim}Examples:${colors.reset}
   duck run "Fix the login bug"
   duck -i
   duck council "Should we refactor the auth system?"
 `);
+}
+
+function printProviderStatus(providers: ProviderManager): void {
+  const status = providers.getStatus();
+  const available = providers.listAvailable();
+
+  for (const s of status) {
+    if (s.available) {
+      console.log(`  ${colors.green}✓${colors.reset} ${s.name} - ready`);
+    } else if (s.requiresKey && !s.keyConfigured) {
+      console.log(`  ${colors.dim}○${colors.reset} ${s.name} - configure ${colors.cyan}${getEnvVar(s.name)}${colors.reset}`);
+    } else {
+      console.log(`  ${colors.dim}○${colors.reset} ${s.name} - unavailable`);
+    }
+  }
+
+  if (available.length === 0) {
+    console.log(`\n${colors.yellow}⚠️  No providers available!${colors.reset}`);
+    console.log(providers.getSetupInstructions());
+  } else {
+    console.log(`\n${colors.green}Using: ${available[0]}${colors.reset}`);
+  }
+}
+
+function getEnvVar(provider: string): string {
+  const map: Record<string, string> = {
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+    minimax: 'MINIMAX_API_KEY',
+    lmstudio: 'LMSTUDIO_URL (optional)'
+  };
+  return map[provider] || provider.toUpperCase() + '_API_KEY';
 }
 
 async function runShell() {
@@ -196,7 +246,17 @@ async function handleSkill(input: string, rl: any) {
 }
 
 async function runTask(prompt: string) {
+  const providers = new ProviderManager();
+  await providers.load();
+
+  if (providers.listAvailable().length === 0) {
+    console.log(`${colors.red}✗ No AI providers available!${colors.reset}`);
+    console.log(providers.getSetupInstructions());
+    process.exit(1);
+  }
+
   console.log(`${colors.dim}Initializing agent...${colors.reset}\n`);
+  console.log(`${colors.dim}Using provider: ${providers.listAvailable()[0]}${colors.reset}\n`);
 
   const agent = await createAgent();
   
@@ -206,17 +266,22 @@ async function runTask(prompt: string) {
     console.log(response);
   } catch (error) {
     console.error(`${colors.red}Error: ${error}${colors.reset}`);
+    console.log(`\n${colors.dim}Provider status:${colors.reset}`);
+    printProviderStatus(providers);
     process.exit(1);
   }
 }
 
 async function createAgent(): Promise<Agent> {
-  // Initialize components
   const tools = new ToolRegistry();
   await tools.load();
 
   const providers = new ProviderManager();
   await providers.load();
+
+  if (providers.listAvailable().length === 0) {
+    throw new Error('No AI providers available. Configure an API key or start LM Studio.');
+  }
 
   const mcp = new MCPManager();
   await mcp.load();
@@ -234,7 +299,6 @@ async function createAgent(): Promise<Agent> {
 }
 
 async function loadSystemPrompt(): Promise<string> {
-  // Load main system prompt from sources
   const fs = await import('fs');
   const path = await import('path');
   
@@ -244,9 +308,8 @@ async function loadSystemPrompt(): Promise<string> {
     return fs.readFileSync(promptPath, 'utf-8');
   }
 
-  // Fallback minimal prompt
   return `You are Duck CLI, an expert coding assistant.
-Be concise. Focus on the task.`;
+Be concise. Focus on the task. Use available tools efficiently.`;
 }
 
 // Run
