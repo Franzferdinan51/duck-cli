@@ -85,7 +85,7 @@ class MiniMaxProvider implements Provider {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-          model: 'MiniMax-M2.5',
+          model: 'MiniMax-M2.7',
           messages: opts.messages.map((m: any) => ({
             role: m.role,
             content: typeof m.content === 'string' ? m.content.replace(/\n/g, ' ') : m.content

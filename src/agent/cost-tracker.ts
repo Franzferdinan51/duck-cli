@@ -36,7 +36,7 @@ export interface ModelPricing {
 // Model pricing database (updated regularly)
 const MODEL_PRICING: Record<string, ModelPricing> = {
   // MiniMax
-  'MiniMax-M2.5': { provider: 'minimax', model: 'MiniMax-M2.5', inputCostPer1K: 0.5, outputCostPer1K: 0.5, isFree: false },
+  'MiniMax-M2.7': { provider: 'minimax', model: 'MiniMax-M2.5', inputCostPer1K: 0.5, outputCostPer1K: 0.5, isFree: false },
   'abab6.5-chat': { provider: 'minimax', model: 'abab6.5-chat', inputCostPer1K: 0.3, outputCostPer1K: 0.3, isFree: false },
   
   // OpenAI
