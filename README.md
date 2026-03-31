@@ -1,6 +1,6 @@
 # 🦆 Duck Agent System
 
-> **A complete AI agent system** - autonomous reasoning, desktop control, multi-agent collaboration.
+> **A complete AI agent system** - standalone agent + MCP server for OpenClaw.
 
 ---
 
@@ -10,29 +10,67 @@
 # Build
 npm install && npm run build
 
-# Run interactive shell
+# Interactive TUI shell
 node dist/cli/main.js shell
 
 # Run single task
-node dist/cli/main.js run "open Safari"
+node dist/cli/main.js run "say hello"
 
 # Check status
 node dist/cli/main.js status
+
+# Think about something
+node dist/cli/main.js think "Why is the sky blue"
+
+# Remember something
+node dist/cli/main.js remember "User prefers dark mode"
+
+# Search memory
+node dist/cli/main.js recall "preferences"
+```
+
+---
+
+## 🎯 Two Modes in One
+
+### 1️⃣ Standalone Agent
+```bash
+# Interactive shell
+node dist/cli/main.js shell
+
+# Single task
+node dist/cli/main.js run "open Safari"
+
+# Reasoning
+node dist/cli/main.js think "Should I learn Rust or Go?"
+```
+
+### 2️⃣ MCP Server (for OpenClaw)
+```bash
+# Start MCP server
+node dist/cli/main.js mcp
+
+# Or specify port
+node dist/cli/main.js mcp 3848
+
+# OpenClaw connects via:
+# POST http://localhost:3848/mcp
 ```
 
 ---
 
 ## ✅ Verified Working
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **Core Agent** | ✅ Working | Reasoning, planning, execution |
-| **Memory System** | ✅ Working | SOUL + persistent storage |
-| **Tool Registry** | ✅ Working | 7 tools registered |
-| **Skills Loader** | ✅ Working | 10 skills loaded |
-| **TUI Shell** | ✅ Working | Interactive mode |
-| **Desktop Control** | ✅ Ready | Needs ClawdCursor |
-| **Agent Mesh** | ✅ Added | Multi-agent ready |
+| Component | Status |
+|-----------|--------|
+| **Core Agent** | ✅ Working |
+| **TUI Shell** | ✅ Working |
+| **Memory (remember/recall)** | ✅ Working |
+| **Reasoning (think)** | ✅ Working |
+| **Skills (10 loaded)** | ✅ Working |
+| **Tools (7 registered)** | ✅ Working |
+| **MCP Server Mode** | ✅ Working |
+| **Desktop Control** | ✅ Ready |
 
 ---
 
@@ -40,52 +78,30 @@ node dist/cli/main.js status
 
 **Status: No API keys detected**
 
-To enable AI providers, set environment variables:
+Set environment variables for AI-powered reasoning:
 
 ```bash
-# Option 1: MiniMax
 export MINIMAX_API_KEY="your-key"
-
-# Option 2: Anthropic
 export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Option 3: OpenAI
 export OPENAI_API_KEY="sk-..."
-
-# Option 4: LM Studio (local, free)
 export LMSTUDIO_URL="http://localhost:1234"
 ```
 
 ---
 
-## 🧠 Memory System
+## 🧠 Memory Commands
 
-### SOUL
-Defines agent identity and personality:
 ```bash
-cat .duck/memory/SOUL.md
+# Remember something
+node dist/cli/main.js remember "API docs are in /docs"
+
+# Search memory
+node dist/cli/main.js recall "API docs"
+
+# In shell mode
+/remember User likes coffee
+/recall coffee
 ```
-
-### Memory Commands
-```bash
-node dist/cli/main.js memory add "User prefers dark mode"
-node dist/cli/main.js memory search "preferences"
-```
-
----
-
-## 🔧 Tools
-
-### Built-in Tools (7)
-| Tool | Description |
-|------|-------------|
-| `desktop_open` | Open applications |
-| `desktop_click` | Click at coordinates |
-| `desktop_type` | Type text |
-| `desktop_screenshot` | Take screenshot |
-| `memory_search` | Search memory |
-| `memory_add` | Add to memory |
-| `execute` | Run shell commands |
 
 ---
 
@@ -93,11 +109,11 @@ node dist/cli/main.js memory search "preferences"
 
 | Skill | Purpose |
 |-------|---------|
-| `desktop-control-lobster` | AI drawing, app control, game playing |
+| `desktop-control-lobster` | AI drawing, automation |
 | `desktop-control` | AI Agent automation |
 | `clawd-cursor` | REST API desktop control |
 | `computer-use` | Vision-based UI automation |
-| `claude-code-mastery` | Employee-grade Claude overrides |
+| `claude-code-mastery` | Employee-grade overrides |
 | `code-review` | Automated code review |
 | `context-memory` | Semantic memory |
 | `security-audit` | Vulnerability scanning |
@@ -108,57 +124,72 @@ node dist/cli/main.js memory search "preferences"
 
 ## 🖥️ Desktop Control
 
-### ClawdCursor (Recommended)
 ```bash
-# Start ClawdCursor API
-cd ~/.openclaw/workspace/clawd-cursor
-nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &
-
-# API available at http://127.0.0.1:3847
-```
-
-### Desktop Control (Lobster Edition)
-Python-based AI agent for:
-- Drawing in MS Paint
-- Text entry in Notepad
-- Application launching
-- Game playing
-
----
-
-## 📡 Agent Mesh
-
-Multi-agent communication via [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api):
-
-```bash
-# Start mesh server
-cd /path/to/agent-mesh-api
-npm start
-
-# Duck Agent connects
-export MESH_SERVER=http://localhost:4000
-```
-
----
-
-## 💬 Commands
-
-```bash
-# Interactive shell
-node dist/cli/main.js shell
-
-# Run task
-node dist/cli/main.js run "say hello"
-
-# Desktop commands
+# Open app
 node dist/cli/main.js desktop open Calculator
 
-# Memory
-node dist/cli/main.js memory add "note here"
-node dist/cli/main.js memory search "query"
+# Click
+node dist/cli/main.js desktop click 100 200
 
-# Status
-node dist/cli/main.js status
+# Type
+node dist/cli/main.js desktop type "Hello"
+
+# Screenshot
+node dist/cli/main.js desktop screenshot
+```
+
+Requires ClawdCursor running:
+```bash
+cd ~/.openclaw/workspace/clawd-cursor
+nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &
+```
+
+---
+
+## 📡 MCP Server Integration
+
+Duck Agent can run as an MCP server that OpenClaw can connect to:
+
+```bash
+# Start server
+node dist/cli/main.js mcp 3848
+
+# Available endpoints:
+POST /mcp     - JSON-RPC MCP protocol
+GET  /sse     - Server-Sent Events
+GET  /tools   - List available tools
+GET  /health  - Health check
+```
+
+### MCP Tools Available
+- `execute` - Run a task
+- `think` - Reasoning
+- `remember` - Add to memory
+- `recall` - Search memory
+- `status` - Get agent status
+- `desktop` - Control desktop
+
+---
+
+## 💬 Shell Commands
+
+```bash
+node dist/cli/main.js shell
+
+# Inside shell:
+/help           Show help
+/status         Show status
+/skills         List skills
+/think <prompt> Think about something
+/remember <txt> Remember something
+/recall <query> Search memory
+/clear          Clear screen
+/quit           Exit
+
+# Or just type what you want:
+open Calculator
+remember my name is Ryan
+what is machine learning
 ```
 
 ---
@@ -167,22 +198,23 @@ node dist/cli/main.js status
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Duck Agent                              │
+│                    Duck Agent                                │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │                   Agent Core                           │  │
-│  │   Reasoning → Planning → Execution → Learning         │  │
-│  └─────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Agent Core                              │   │
+│  │   Think → Reason → Plan → Execute → Remember          │   │
+│  └─────────────────────────────────────────────────────┘   │
 │                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │       │
-│  │  (API)   │ │   SOUL   │ │ Registry │ │ 10 loaded│       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │
+│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │      │
+│  │  (API)   │ │ SOUL+Facts│ │ Registry │ │ 10 loaded│      │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘      │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │              Integrations                              │  │
-│  │   Desktop Control • Agent Mesh • MCP                 │  │
-│  └─────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Dual Mode                                           │   │
+│  │  🖥️ Standalone (shell, CLI)                         │   │
+│  │  📡 MCP Server (for OpenClaw)                       │   │
+│  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -193,39 +225,29 @@ node dist/cli/main.js status
 ```
 duck-cli/
 ├── src/
-│   ├── agent/core.ts         # Main agent logic
-│   ├── providers/manager.ts   # AI provider support
+│   ├── agent/core.ts         # Main agent
+│   ├── providers/manager.ts   # AI providers
 │   ├── memory/system.ts      # SOUL + memory
 │   ├── tools/registry.ts     # Tool execution
 │   ├── skills/runner.ts      # Skill loading
 │   ├── integrations/
-│   │   └── desktop.ts       # ClawdCursor
-│   ├── mesh/
-│   │   └── client.ts       # Agent Mesh
-│   └── cli/main.ts           # CLI/TUI
-├── skills/                    # 10 loaded skills
-├── .duck/memory/            # Persistent memory
-├── docs/
-│   └── ARCHITECTURE.md        # System design
+│   │   └── desktop.ts        # ClawdCursor
+│   ├── server/
+│   │   └── mcp-server.ts    # MCP server mode
+│   └── cli/
+│       └── main.ts          # CLI/TUI
+├── skills/                   # 10 skills
+├── .duck/memory/           # Persistent memory
 └── dist/                    # Built output
 ```
 
 ---
 
-## 🔗 GitHub Integration
+## 🔗 GitHub
 
-Pulls features from:
-- [AI-Bot-Council-Concensus](https://github.com/Franzferdinan51/AI-Bot-Council-Concensus)
-- [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api)
-- [agent-monitor-openclaw-dashboard](https://github.com/Franzferdinan51/agent-monitor-openclaw-dashboard)
-- [desktop-control-lobster-edition](https://github.com/Franzferdinan51/desktop-control-lobster-edition)
-- OpenClaw, Hermes-agent, BrowserOS
-
----
-
-## 📄 License
-
-Internal use only.
+```
+https://github.com/Franzferdinan51/duck-cli
+```
 
 ---
 

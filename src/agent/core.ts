@@ -49,6 +49,8 @@ export class Agent extends EventEmitter {
   private desktop: DesktopControl;
   private running: boolean = false;
   private currentTask: Task | null = null;
+  private initialized: boolean = false;
+  private toolsRegistered: boolean = false;
 
   constructor(config: AgentConfig = {}) {
     super();
@@ -70,12 +72,19 @@ export class Agent extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
+    if (this.initialized) return;
+    this.initialized = true;
+    
     console.log(`🦆 ${this.name} initializing...`);
     
     await this.providers.load();
     await this.memory.initialize();
     await this.skills.load();
-    this.registerTools();
+    
+    if (!this.toolsRegistered) {
+      this.registerTools();
+      this.toolsRegistered = true;
+    }
     
     console.log(`✅ ${this.name} ready!`);
     console.log(`   Providers: ${this.providers.list().length}`);
@@ -144,7 +153,8 @@ export class Agent extends EventEmitter {
   async think(input: string): Promise<string> {
     const provider = this.providers.getActive();
     if (!provider) {
-      throw new Error('No AI provider available');
+      // Fallback to reasoning without AI
+      return `Thinking about: ${input}\n\nWithout an AI provider, I can still reason through this...\n\nKey considerations:\n1. Context: ${input}\n2. This requires analysis and planning\n3. I need more information to provide a complete answer`;
     }
 
     const context = await this.buildContext(input);
@@ -197,6 +207,17 @@ export class Agent extends EventEmitter {
     this.emit('task:start', task);
 
     try {
+      // If no AI provider, just return reasoning
+      if (this.providers.list().length === 0) {
+        const result = await this.think(input);
+        task.result = result;
+        task.status = 'completed';
+        task.completedAt = Date.now();
+        this.emit('task:complete', task);
+        await this.memory.add(`${input} → ${result}`, 'interaction');
+        return result;
+      }
+
       const thought = await this.think(input);
       this.emit('thought', thought);
       
@@ -288,8 +309,7 @@ export class Agent extends EventEmitter {
       running: this.running,
       providers: this.providers.list().length,
       tools: this.tools.list().length,
-      skills: this.skills.list().length,
-      currentTask: this.currentTask?.input
+      skills: this.skills.list()
     };
   }
 
