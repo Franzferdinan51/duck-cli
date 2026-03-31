@@ -1,7 +1,7 @@
 {
   "name": "duck-agent",
   "version": "0.1.0",
-  "type": "module",
+  
   "description": "🦆 Duck Agent - A complete AI agent system with desktop control",
   "main": "dist/agent/core.js",
   "bin": {
