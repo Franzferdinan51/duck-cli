@@ -7,6 +7,7 @@
 
 import { Agent } from '../agent/core.js';
 import * as readline from 'readline';
+import { meshCommand } from './mesh-cmd.js';
 
 // Colors
 const c = {
@@ -169,6 +170,13 @@ async function main() {
       await teamCommand(args);
       break;
 
+    case 'rl':
+      await rlCommand(args);
+      break;
+
+    case 'mesh':
+      await meshCommand(args);
+      break;
     default:
       await runTask(command + ' ' + args.join(' '));
   }
@@ -1363,4 +1371,110 @@ async function teamCommand(args: string[]) {
       default:
         console.log(`${c.yellow}Usage: duck team [create|spawn|list]${c.reset}`);
     }
+}
+
+// ============ OPENCLAW-RL COMMANDS ============
+
+/**
+ * duck rl [status|enable|disable|stats|connect <url>]
+ * Optional Reinforcement Learning integration with OpenClaw-RL.
+ *
+ * Default: RL is DISABLED. Agent operates normally without training.
+ * When enabled, conversations are routed through the RL server for
+ * Binary RL (GRPO + PRM) or On-Policy Distillation (OPD) training.
+ */
+async function rlCommand(args: string[]) {
+  const [subCmd, ...subArgs] = args;
+  const { getTrainingManager } = await import('../rl/index.js');
+
+  const tm = await getTrainingManager();
+  const c = { reset: '[0m', bold: '[1m', dim: '[2m', red: '[31m', green: '[32m', yellow: '[33m', blue: '[34m', cyan: '[36m', magenta: '[35m' };
+
+  if (!subCmd || subCmd === 'status') {
+    tm.printStatus();
+    return;
+  }
+
+  switch (subCmd) {
+    case 'enable': {
+      const result = await tm.enable();
+      if (!result.success) {
+        console.log(`\n${c.red}✗ Failed to enable RL:${c.reset} ${result.error}`);
+        console.log(`\n${c.yellow}To connect to an RL server first:${c.reset}`);
+        console.log(`  ${c.bold}duck rl connect http://<host>:30000${c.reset}`);
+        console.log(`\nOr start the OpenClaw-RL server:`);
+        console.log(`  cd OpenClaw-RL/slime`);
+        console.log(`  bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh`);
+      }
+      break;
+    }
+
+    case 'disable': {
+      await tm.disable();
+      break;
+    }
+
+    case 'stats': {
+      tm.printStats();
+      break;
+    }
+
+    case 'connect': {
+      const serverUrl = subArgs[0];
+      if (!serverUrl) {
+        console.log(`\n${c.red}Usage: duck rl connect <server-url>${c.reset}`);
+        console.log(`\n${c.bold}Example:${c.reset}`);
+        console.log(`  ${c.cyan}duck rl connect http://192.168.1.100:30000${c.reset}`);
+        console.log(`\n${c.dim}The default port for OpenClaw-RL is 30000.${c.reset}`);
+        return;
+      }
+      console.log(`${c.cyan}Connecting to RL server: ${serverUrl}${c.reset}`);
+      const result = await tm.connect(serverUrl);
+      if (result.success) {
+        console.log(`\n${c.green}✓ Connected to OpenClaw-RL server!${c.reset}`);
+        console.log(`\nEnable RL training:`);
+        console.log(`  ${c.bold}duck rl enable${c.reset}`);
+      } else {
+        console.log(`\n${c.red}✗ Connection failed:${c.reset} ${result.error}`);
+      }
+      break;
+    }
+
+    case 'disconnect': {
+      const current = tm.getServerUrl();
+      if (!current) {
+        console.log(`${c.yellow}Not connected to any RL server.${c.reset}`);
+        return;
+      }
+      console.log(`${c.green}✓ Disconnected from RL server.${c.reset}`);
+      if (tm.isEnabled()) {
+        await tm.disable();
+      }
+      break;
+    }
+
+    default: {
+      console.log(`\n${c.yellow}Unknown RL command: ${subCmd}${c.reset}`);
+      console.log(`\n${c.bold}Usage: duck rl [status|enable|disable|stats|connect]${c.reset}`);
+      console.log(`\n${c.bold}Commands:${c.reset}`);
+      console.log(`  ${c.green}status${c.reset}      Show RL status (default)`);
+      console.log(`  ${c.green}enable${c.reset}     Enable RL training`);
+      console.log(`  ${c.green}disable${c.reset}    Disable RL training`);
+      console.log(`  ${c.green}stats${c.reset}      Show training statistics`);
+      console.log(`  ${c.green}connect${c.reset}    <url>  Connect to RL server`);
+      console.log(`  ${c.green}disconnect${c.reset} Remove RL server connection`);
+      console.log(`\n${c.dim}RL is OPTIONAL and disabled by default.${c.reset}`);
+      console.log(`${c.dim}No training occurs unless you explicitly enable it.${c.reset}`);
+    }
+  }
+}
+
+// ============ RL ENABLE / DISABLE (shorthand) ============
+
+async function rlEnableCommand(): Promise<void> {
+  await rlCommand(['enable']);
+}
+
+async function rlDisableCommand(): Promise<void> {
+  await rlCommand(['disable']);
 }

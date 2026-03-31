@@ -334,6 +334,43 @@ duck council "Should we refactor the auth module?"
 | 🤔 Skeptic | Critical analysis |
 | 🛡️ Sentinel | Risk assessment |
 
+
+### 🌐 Agent Mesh
+**Inter-agent communication network**
+
+```bash
+duck mesh register          # Join the mesh network
+duck mesh list             # Discover all agents
+duck mesh send <agent> <msg>  # Send message
+duck mesh inbox            # Check messages
+duck mesh health           # Health dashboard
+duck mesh broadcast <msg>  # Send to all agents
+duck mesh capabilities     # Discover skills
+```
+
+| Command | Description |
+|---------|------------|
+| `register` | Join mesh, get agent ID, connect WebSocket |
+| `list` | Discover all agents and their capabilities |
+| `send <id> <msg>` | Send message to specific agent |
+| `inbox` | Check unread messages |
+| `health` | View mesh health dashboard |
+| `broadcast <msg>` | Send to all mesh agents |
+| `capabilities` | Map skills to agents |
+| `catastrophe` | Check active catastrophe events |
+| `status` | Ping mesh server |
+
+**Requirements:**
+```bash
+cd /Users/duckets/Desktop/agent-mesh-api
+npm install
+npm start
+```
+
+**Environment:**
+- `AGENT_MESH_URL` - Server URL (default: http://localhost:4000)
+- `AGENT_MESH_API_KEY` - API key (default: openclaw-mesh-default-key)
+
 ---
 
 ## ⏰ Cron Automation
