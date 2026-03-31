@@ -837,7 +837,7 @@ Duck Agent and OpenClaw use completely different ports — they are fully indepe
 duck unified                    # Starts: 3850, 18792, 18794, 18796
 
 # Terminal 2: OpenClaw (separate install)
-openclaw unified              # Starts: 3850, 18792, 18794, 18796
+openclaw unified              # Starts: 3848, 18789, 18790, 18791
 
 # Both systems run independently with no conflicts!
 ```
