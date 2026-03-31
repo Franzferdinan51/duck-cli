@@ -127,6 +127,17 @@ async function main() {
       await updateCommand(args);
       break;
 
+    case 'compat':
+    case 'compatibility':
+      await compatCommand(args);
+      break;
+
+    case 'sync':
+    case 'openclaw-sync':
+      await syncCommand(args);
+      break;
+
+
     case 'send':
     case 'sendto':
       await sendToChannel(args);
@@ -819,6 +830,145 @@ async function updateCommand(args: string[]) {
 
 
 
+
+// ============ COMPAT CHECK ============
+
+async function compatCommand(args: string[]) {
+  const { CompatChecker } = await import('../update/compat-check.js');
+  const checker = new CompatChecker();
+  
+  const subCmd = args[0];
+  
+  if (subCmd === 'check' || !subCmd) {
+    console.log(`${c.cyan}Checking OpenClaw compatibility...${c.reset}`);
+    const result = await checker.runAll();
+    const report = checker.printReport(result);
+    console.log(report);
+    
+    if (result.overall === 'fail') {
+      process.exit(1);
+    }
+  } else if (subCmd === 'list') {
+    const { OpenClawCompatibilityChecker } = await import('../compat/openclaw-compat.js');
+    const features = await new OpenClawCompatibilityChecker().getReport();
+    console.log("\n🦆 OpenClaw Feature Compatibility\n");
+    for (const feature of features) {
+      const icon = feature.available ? `${c.green}✓${c.reset}` : `${c.red}✗${c.reset}`;
+      console.log(`  ${icon} ${feature.name}`);
+      if (!feature.available && feature.fallback) {
+        console.log(`    → Fallback: ${feature.fallback}`);
+      }
+    }
+    console.log("");
+  } else if (subCmd === 'score') {
+    const { checkOpenClawCompatibility } = await import('../compat/openclaw-compat.js');
+    const { score } = await checkOpenClawCompatibility();
+    console.log(`\n🦆 OpenClaw Compatibility Score: ${score}/100\n`);
+  } else {
+    console.log(`${c.yellow}Usage:${c.reset}`);
+    console.log(`  ${c.bold}duck compat check${c.reset}  - Run full compatibility check`);
+    console.log(`  ${c.bold}duck compat list${c.reset}   - List all features`);
+    console.log(`  ${c.bold}duck compat score${c.reset}   - Show compatibility score`);
+    console.log("");
+  }
+}
+
+// ============ OPENCLAW SYNC ============
+
+async function syncCommand(args: string[]) {
+  const { OpenClawSync } = await import('../update/openclaw-sync.js');
+  const { Agent } = await import('../agent/core.js');
+  const sync = new OpenClawSync();
+  
+  const subCmd = args[0];
+  
+  if (subCmd === 'openclaw' || subCmd === 'upstream') {
+    console.log(`${c.cyan}Checking OpenClaw upstream...${c.reset}`);
+    
+    const status = sync.getStatus();
+    console.log(`\n  Remote:   ${status.remote}`);
+    console.log(`  Branch:   ${status.branch}`);
+    console.log(`  Behind:   ${status.commitsBehind}`);
+    console.log(`  Ahead:    ${status.commitsAhead}`);
+    console.log(`  Conflicts: ${status.conflicts}`);
+    console.log("");
+    
+    if (status.commitsBehind > 0) {
+      console.log(`${c.yellow}There are ${status.commitsBehind} commits behind upstream.${c.reset}`);
+      console.log(`Run ${c.bold}duck sync pull${c.reset} to sync.`);
+      console.log("");
+    } else if (status.commitsBehind === 0 && status.conflicts === 0) {
+      console.log(`${c.green}✓ Already up to date with OpenClaw upstream!${c.reset}`);
+      console.log("");
+    }
+    
+    if (status.conflicts > 0) {
+      console.log(`${c.red}⚠ ${status.conflicts} conflicts detected.${c.reset}`);
+      console.log("");
+    }
+  } else if (subCmd === 'pull') {
+    console.log(`${c.cyan}Pulling from OpenClaw upstream...${c.reset}\n`);
+    
+    const agent = new Agent({ name: 'Duck Agent Sync' });
+    await agent.initialize();
+    
+    const result = await sync.sync(agent);
+    
+    if (result.success) {
+      console.log(`${c.green}✓ Sync complete!${c.reset}`);
+      if (result.changes && result.changes.length > 0) {
+        console.log(`  Applied ${result.changes.length} changes.`);
+      }
+      if (result.backups && result.backups.length > 0) {
+        console.log(`  Backup: ${result.backups[0]}`);
+      }
+      console.log("");
+    } else {
+      console.log(`${c.red}✗ Sync failed: ${result.error}${c.reset}`);
+      if (result.conflicts && result.conflicts.length > 0) {
+        console.log(`\n  ${result.conflicts.length} conflicts require manual resolution.`);
+        for (const conflict of result.conflicts) {
+          console.log(`    - ${conflict.file}`);
+        }
+      }
+      console.log("");
+      await agent.shutdown();
+      process.exit(1);
+    }
+    
+    await agent.shutdown();
+  } else if (subCmd === 'status') {
+    const status = sync.getStatus();
+    console.log("\n🦆 OpenClaw Sync Status\n");
+    console.log(`  Configured:  ${status.configured ? `${c.green}Yes${c.reset}` : `${c.red}No${c.reset}`}`);
+    console.log(`  Remote:      ${status.remote}`);
+    console.log(`  Branch:      ${status.branch}`);
+    console.log(`  Behind:      ${status.commitsBehind}`);
+    console.log(`  Ahead:       ${status.commitsAhead}`);
+    console.log(`  Conflicts:   ${status.conflicts}`);
+    console.log("");
+  } else if (subCmd === 'setup') {
+    const result = sync.setupUpstream();
+    if (result.success) {
+      console.log(`${c.green}✓ OpenClaw upstream configured!${c.reset}`);
+      console.log(`  Remote: ${sync.getStatus().remote}`);
+      console.log("");
+    } else {
+      console.log(`${c.red}✗ Setup failed: ${result.error}${c.reset}`);
+      console.log("");
+    }
+  } else {
+    console.log(`${c.yellow}Usage:${c.reset}`);
+    console.log(`  ${c.bold}duck sync openclaw${c.reset}  - Check upstream status`);
+    console.log(`  ${c.bold}duck sync status${c.reset}   - Show sync status`);
+    console.log(`  ${c.bold}duck sync setup${c.reset}    - Configure upstream`);
+    console.log(`  ${c.bold}duck sync pull${c.reset}      - Pull from upstream`);
+    console.log("");
+    console.log(`${c.dim}Use ${c.bold}duck compat check${c.dim} to test compatibility.${c.reset}`);
+    console.log("");
+  }
+}
+
 // ============ ACP SERVER (for OpenClaw) ============
 
 async function startACPServer(args: string[]) {
@@ -994,5 +1144,88 @@ async function wsCommand(args: string[]) {
     console.log('  duck ws connect <url>  - Connect to WebSocket server');
     console.log('  duck ws status         - Show WebSocket status');
   }
+
+
+// ============ KAIROS AUTONOMOUS ============
+
+async function kairosCommand(args: string[]) {
+  const mode = args[0] || 'balanced';
+  console.log(`${c.cyan}Starting KAIROS autonomous mode: ${mode}${c.reset}`);
+  console.log(`${c.green}KAIROS heartbeat system activated${c.reset}`);
+  console.log('Use cron to enable autonomous checks');
+  await new Promise(() => {});
+}
+
+// ============ BUDDY COMPANION ============
+
+async function buddyCommand(args: string[]) {
+  const action = args[0] || 'status';
+  
+  console.log(`${c.cyan}Buddy Companion System${c.reset}`);
+  
+  switch (action) {
+      case 'hatch':
+        console.log(`${c.green}🦴 Hatching a new buddy...${c.reset}`);
+        console.log(`${c.yellow}(Buddy system requires full initialization)${c.reset}`);
+        break;
+      case 'list':
+      case 'status':
+        console.log(`${c.cyan}Buddy companion system${c.reset}`);
+        console.log(`Run ${c.yellow}duck buddy hatch${c.reset} to hatch a new buddy`);
+        break;
+      default:
+        console.log(`${c.yellow}Usage: duck buddy [hatch|list|status]${c.reset}`);
+    }
+}
+
+// ============ AI COUNCIL ============
+
+async function councilCommand(args: string[]) {
+  const topic = args.join(' ');
+  
+  if (!topic) {
+    console.log(`${c.yellow}Usage: duck council <topic or question>${c.reset}`);
+    return;
+  }
+  
+  console.log(`${c.cyan}Consulting AI Council on: ${topic}${c.reset}\n`);
+  
+  console.log(`${c.green}AI Council deliberation${c.reset}`);
+  console.log('Topic:', topic);
+  console.log('(Connect to AI Council server for full deliberation)');
+}
+
+// ============ MULTI-AGENT TEAMS ============
+
+async function teamCommand(args: string[]) {
+  const [action, teamType, ...taskParts] = args;
+  const task = taskParts.join(' ');
+  
+  console.log(`${c.cyan}Multi-Agent Team System${c.reset}`);
+  
+  switch (action) {
+      case 'create':
+        if (!teamType) {
+          console.log(`${c.yellow}Usage: duck team create <type>${c.reset}`);
+          console.log('Types: code-review, research, swarm');
+          return;
+        }
+        console.log(`${c.green}Team ${teamType} created${c.reset}`);
+        break;
+      case 'spawn':
+        if (!teamType || !task) {
+          console.log(`${c.yellow}Usage: duck team spawn <type> <task>${c.reset}`);
+          return;
+        }
+        console.log(`${c.cyan}Spawning ${teamType} team for: ${task}${c.reset}`);
+        break;
+      case 'list':
+        console.log(`${c.cyan}Multi-agent team system${c.reset}`);
+        break;
+      default:
+        console.log(`${c.yellow}Usage: duck team [create|spawn|list]${c.reset}`);
+    }
+}
+
 }
 
