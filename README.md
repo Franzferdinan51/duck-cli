@@ -546,3 +546,98 @@ MIT License - see [LICENSE](LICENSE)
 **KAIROS:** Always-on AI that works while you sleep
 **Security:** NVIDIA NemoClaw-grade protection
 **Automation:** 29 cron jobs for autonomous operation
+
+---
+
+## 🎨 Generative UI (A2UI + Textura + Pretext)
+
+Duck Agent includes advanced generative UI capabilities:
+
+### Google A2UI Protocol
+**Agent-to-User Interface streaming protocol**
+
+```typescript
+import { A2UIRenderer } from './ui/a2ui/renderer.js';
+
+const renderer = new A2UIRenderer(document.getElementById('container'));
+
+// Stream UI from agent
+await renderer.processMessage({
+  type: 'createSurface',
+  surfaceId: 'chat',
+  title: 'Duck Agent Chat'
+});
+
+await renderer.processMessage({
+  type: 'updateComponents',
+  surfaceId: 'chat',
+  components: [
+    { id: 'msg1', type: 'Text', props: { text: 'Hello!' } },
+    { id: 'btn1', type: 'Button', props: { label: 'Click me', onClick: 'action1' } }
+  ]
+});
+```
+
+### Textura Layout Engine
+**DOM-free flexbox + text measurement**
+
+```typescript
+import { TexturaLayout } from './ui/textura/layout-engine.js';
+
+const layout = new TexturaLayout(400);
+const computed = layout.computeLayout({
+  flexDirection: 'column',
+  padding: 16,
+  gap: 12,
+  children: [
+    { text: 'Hello World', font: '24px Inter' },
+    { text: 'This wraps automatically', font: '16px Inter' }
+  ]
+});
+// Returns: { x, y, width, height, lines: [...], children: [...] }
+```
+
+### Pretext Canvas Renderer
+**Character-level Canvas rendering**
+
+```typescript
+import { PretextCanvasRenderer } from './ui/pretext-canvas/pretext-canvas.js';
+
+const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const renderer = new PretextCanvasRenderer(canvas, 400, 600);
+
+// Pre-measure text
+const { height, lines } = renderer.measureText('Hello World', 400);
+
+// Create and render messages
+renderer.createMessage('msg1', 'Hello!', 'agent');
+renderer.createVotePanel('vote1', 'What to build?', ['React', 'Vue', 'Svelte']);
+renderer.spawnParticles(200, 300, 20); // Celebration effect
+renderer.startAnimation();
+```
+
+### UI Components Available
+| Component | Description |
+|-----------|-------------|
+| **Text** | Dynamic text with data binding |
+| **Button** | Clickable buttons with variants |
+| **Card** | Container cards |
+| **Row/Column** | Flexbox layouts |
+| **Image** | Image with dimensions |
+| **Input** | Text inputs |
+| **Badge** | Status badges |
+| **MessageBubble** | Chat messages |
+| **VotePanel** | Voting with progress bars |
+| **ConsensusMeter** | Agreement visualization |
+| **ParticleEmitter** | GPU particles |
+
+### Use Cases
+- AI council voting visualizations
+- Real-time chat with streaming text
+- Interactive dashboards
+- Generative art and animations
+- Pre-measured layouts for zero-jank streaming
+
+---
+
+**🦆 Built with Pretext** - AI controls every pixel via Canvas
