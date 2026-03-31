@@ -1,6 +1,6 @@
 # 🦆 Duck Agent CLI Commands
 
-> **Duck Agent v0.3.1** — Complete CLI reference with Agent Mesh, OpenClaw-RL, ClawHub, Souls Registry, and 45-agent AI Council
+> **Duck Agent v0.3.2** — Complete CLI reference with Agent Mesh, OpenClaw-RL, ClawHub, Souls Registry, and 45-agent AI Council
 
 ---
 
@@ -863,8 +863,8 @@ duck souls publish --description "Coding-optimized DuckBot"
 **Output:**
 ```
 Soul published successfully!
-Soul ID: duckbot-v0.3.1-abc123
-Registry: https://clawhub.example/souls/duckbot-v0.3.1-abc123
+Soul ID: duckbot-v0.3.2-abc123
+Registry: https://clawhub.example/souls/duckbot-v0.3.2-abc123
 ```
 
 ---
@@ -876,7 +876,7 @@ Import and adopt a shared soul as your agent's personality.
 ```bash
 duck souls import <soul_id>
 duck souls import duckbot-researcher
-duck souls import duckbot-v0.3.1-abc123
+duck souls import duckbot-v0.3.2-abc123
 ```
 
 ---

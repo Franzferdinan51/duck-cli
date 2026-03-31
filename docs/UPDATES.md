@@ -1,6 +1,6 @@
 # 🦆 Duck Agent Update Strategy & Changelog
 
-> **Duck Agent v0.3.1** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31
+> **Duck Agent v0.3.2** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31
 
 ---
 
@@ -8,14 +8,14 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **v0.3.1** | 2026-03-31 | Agent Mesh, OpenClaw-RL, 45 councilors, v2026.3.31 compat |
+| **v0.3.2** | 2026-03-31 | Agent Mesh, OpenClaw-RL, 45 councilors, v2026.3.31 compat |
 | **v0.3.0** | 2026-03-15 | KAIROS v2, Claude Code tools, unified server, OpenClaw ACP |
 | **v0.2.x** | 2026-02-xx | Voice/TTS, Buddy, Teams, Cron |
 | **v0.1.x** | 2026-01-xx | Initial release, MCP server |
 
 ---
 
-## v0.3.1 — Complete Feature List
+## v0.3.2 — Complete Feature List
 
 **Released: 2026-03-31**
 
@@ -31,11 +31,11 @@ These are built-in and always operational — no setup required.
 - [x] **Cost Tracking** — Token and cost monitoring per provider
 
 #### Protocols
-- [x] **MCP Server** — Full MCP 2024-11-05 spec, port 3848
-- [x] **Gateway API** — OpenAI-compatible REST, port 18789
+- [x] **MCP Server** — Full MCP 2024-11-05 spec, port 3850
+- [x] **Gateway API** — OpenAI-compatible REST, port 18792
 - [x] **ACP Client** — Spawn Codex, Claude, Cursor, Gemini, Pi, OpenClaw
-- [x] **ACP Server** — Let OpenClaw connect TO you, port 18790
-- [x] **WebSocket Manager** — Bidirectional messaging, port 18791
+- [x] **ACP Server** — Let OpenClaw connect TO you, port 18794
+- [x] **WebSocket Manager** — Bidirectional messaging, port 18796
 - [x] **Unified Server** — All protocols in one command (`duck unified`)
 
 #### AI Systems
@@ -82,7 +82,7 @@ These are built-in and always operational — no setup required.
 
 These require extra setup and are **disabled by default**.
 
-#### 🌐 Agent Mesh (v0.3.1 NEW)
+#### 🌐 Agent Mesh (v0.3.2 NEW)
 - [x] **Mesh Client** — Register, list, send, broadcast, inbox
 - [x] **Capability Registry** — Maps skills to agents
 - [x] **Catastrophe Tracker** — Active event monitoring
@@ -101,7 +101,7 @@ duck mesh catastrophe       # Check events
 duck mesh status            # Ping server
 ```
 
-#### 🧪 OpenClaw-RL (v0.3.1 NEW)
+#### 🧪 OpenClaw-RL (v0.3.2 NEW)
 - [x] **RL Client** — Connect, enable, disable, stats
 - [x] **GRPO Training** — Binary RL (+1/-1/0 rewards)
 - [x] **OPD Training** — On-Policy Distillation (token-level hints)
@@ -122,7 +122,7 @@ duck rl disconnect   # Remove connection
 duck rl stats        # Training statistics
 ```
 
-#### 🏛️ AI Council — 45 Councilors (v0.3.1 NEW)
+#### 🏛️ AI Council — 45 Councilors (v0.3.2 NEW)
 - [x] **45 Specialized Councilors** — Speaker, Technocrat, Ethicist, Skeptic, + 40 more
 - [x] **Deliberation Modes** — Legislative, Deep Research, Swarm Coding, Prediction Market, Inquiry, Deliberation
 - [x] **LM Studio Integration** — Local model inference
@@ -180,11 +180,11 @@ duck council history                    # Past deliberations
 | `README.md` | REWRITTEN — REQUIRED vs OPTIONAL separation, mesh examples, RL examples, 45 councilors |
 | `COMMANDS.md` | REWRITTEN — Full mesh, RL, council command documentation |
 | `ARCHITECTURE.md` | REWRITTEN — New module structure, compat layer, data flow diagrams |
-| `UPDATES.md` | REWRITTEN — Complete v0.3.1 feature list, v0.4.0 roadmap |
+| `UPDATES.md` | REWRITTEN — Complete v0.3.2 feature list, v0.4.0 roadmap |
 | `DESKTOP-UI.md` | NEW — Desktop UI design preview |
 
 ### Feature Enhancements
-| Feature | v0.3.0 | v0.3.1 |
+| Feature | v0.3.0 | v0.3.2 |
 |---------|--------|--------|
 | AI Council | 6 councilors | **45 councilors** |
 | Mesh | Not available | **Full mesh networking** |
@@ -335,8 +335,8 @@ npm run build
 # 2. Test protocols
 duck unified &
 sleep 3
-curl http://localhost:3848/health   # MCP
-curl http://localhost:18789/health  # Gateway
+curl http://localhost:3850/health   # MCP
+curl http://localhost:18792/health  # Gateway
 kill %1
 
 # 3. Test standalone

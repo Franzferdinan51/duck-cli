@@ -553,4 +553,4 @@ npm run desktop:build:all
 ---
 
 **Last Updated:** 2026-03-31  
-**Version:** v0.3.1 (design), v0.4.0 (implementation target)
+**Version:** v0.3.2 (design), v0.4.0 (implementation target)

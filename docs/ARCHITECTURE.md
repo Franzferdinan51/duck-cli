@@ -1,6 +1,6 @@
 # 🦆 Duck Agent Architecture
 
-> **Duck Agent v0.3.1** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31 Compatibility
+> **Duck Agent v0.3.2** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31 Compatibility
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                           Duck Agent v0.3.1                                  │
+│                           Duck Agent v0.3.2                                  │
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
 │  │                        CLI / Shell Layer                                │  │
@@ -36,8 +36,8 @@
 │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────┐                 │  │
 │  │  │   MCP   │  │   ACP   │  │   WS    │  │   Gateway   │                 │  │
 │  │  │ Server  │  │ Client/ │  │ Manager │  │  API (REST) │                 │  │
-│  │  │  3848   │  │ Server  │  │  18791  │  │    18789    │                 │  │
-│  │  │         │  │  18790  │  │         │  │             │                 │  │
+│  │  │  3850   │  │ Server  │  │  18796  │  │    18792    │                 │  │
+│  │  │         │  │  18794  │  │         │  │             │                 │  │
 │  │  └────┬────┘  └────┬────┘  └────┬────┘  └──────┬──────┘                 │  │
 │  └───────┼───────────┼────────────┼───────────────┼────────────────────────┘  │
 └──────────┼───────────┼────────────┼───────────────┼────────────────────────────┘
@@ -51,7 +51,7 @@
 
 ---
 
-## New Module Structure (v0.3.1)
+## New Module Structure (v0.3.2)
 
 ```
 Duck Agent/
@@ -166,13 +166,13 @@ Duck Agent/
 
 ## Protocol Stack
 
-### Layer 1: MCP (Model Context Protocol) — Port 3848
+### Layer 1: MCP (Model Context Protocol) — Port 3850
 
 Full MCP 2024-11-05 spec with JSON-RPC 2.0.
 
 ```
 ┌─────────────────────────────────────┐
-│         MCP Server (3848)           │
+│         MCP Server (3850)           │
 │                                     │
 │  POST /mcp         JSON-RPC 2.0     │
 │  GET  /mcp/sse     SSE streams      │
@@ -186,14 +186,14 @@ Full MCP 2024-11-05 spec with JSON-RPC 2.0.
 
 ---
 
-### Layer 2: ACP (Agent Client Protocol) — Port 18790
+### Layer 2: ACP (Agent Client Protocol) — Port 18794
 
 **Two modes: Server and Client**
 
 ```
 ┌─────────────────────────────────────┐
 │    ACP Server ←── OpenClaw connects │
-│         (18790)                     │
+│         (18794)                     │
 │                                     │
 │  acp.spawn    → Spawn new session   │
 │  acp.cancel   → Cancel session      │
@@ -214,13 +214,13 @@ Full MCP 2024-11-05 spec with JSON-RPC 2.0.
 
 ---
 
-### Layer 3: WebSocket Manager — Port 18791
+### Layer 3: WebSocket Manager — Port 18796
 
 Bidirectional messaging for real-time communication.
 
 ---
 
-### Layer 4: Gateway API — Port 18789
+### Layer 4: Gateway API — Port 18792
 
 OpenAI-compatible REST API.
 
@@ -230,10 +230,10 @@ OpenAI-compatible REST API.
 
 | Port  | Protocol | Purpose                        |
 |-------|----------|--------------------------------|
-| 3848  | MCP      | Model Context Protocol         |
-| 18789 | REST     | Gateway API (OpenAI-compatible)|
-| 18790 | ACP      | Agent Client Protocol (server) |
-| 18791 | WS       | Bidirectional WebSocket        |
+| 3850  | MCP      | Model Context Protocol         |
+| 18792 | REST     | Gateway API (OpenAI-compatible)|
+| 18794 | ACP      | Agent Client Protocol (server) |
+| 18796 | WS       | Bidirectional WebSocket        |
 | 4000  | HTTP     | Agent Mesh Network             |
 | 30000 | HTTP     | OpenClaw-RL Server             |
 
@@ -263,7 +263,7 @@ Duck Agent implements a dedicated **compat layer** (`src/compat/`) to maintain c
 │                        ┌────────▼────────┐   ┌───────▼──────┐    │
 │                        │  OpenClaw       │   │  OpenClaw   │    │
 │                        │  Gateway        │◄──│  MCP        │    │
-│                        │  (port 18789)   │   │  (port 3848)│    │
+│                        │  (port 18792)   │   │  (port 3850)│    │
 │                        └─────────────────┘   └─────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -617,7 +617,7 @@ Identity Files (SOUL.md, IDENTITY.md)
 
 ## Status
 
-✅ **Production Ready** — v0.3.1 with Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, full headless protocol support, and OpenClaw v2026.3.31 compatibility.
+✅ **Production Ready** — v0.3.2 with Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, full headless protocol support, and OpenClaw v2026.3.31 compatibility.
 
 See [COMMANDS.md](COMMANDS.md) for full CLI reference.
 See [DESKTOP-UI.md](DESKTOP-UI.md) for the v0.4.0 Desktop UI preview.

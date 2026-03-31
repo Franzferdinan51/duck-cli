@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Duck Agent v0.3.1** — Super AI Agent with KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
+> **Duck Agent v0.3.2** — Super AI Agent with KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -837,7 +837,7 @@ Duck Agent and OpenClaw use completely different ports — they are fully indepe
 duck unified                    # Starts: 3850, 18792, 18794, 18796
 
 # Terminal 2: OpenClaw (separate install)
-openclaw unified              # Starts: 3848, 18789, 18790, 18791
+openclaw unified              # Starts: 3850, 18792, 18794, 18796
 
 # Both systems run independently with no conflicts!
 ```
@@ -874,7 +874,7 @@ To let OpenClaw spawn Duck Agent sessions:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Duck Agent v0.3.1                        │
+│                         Duck Agent v0.3.2                        │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │                     User Interfaces                       │    │
