@@ -1,0 +1,53 @@
+# 🦆 Duck Agent - AI Provider Policy Preset
+# Controls access to AI model providers
+
+preset:
+  name: ai-providers
+  description: "AI model provider API access"
+
+network_policies:
+  minimax:
+    name: minimax
+    endpoints:
+      - host: api.minimax.io
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        tls: terminate
+        rules:
+          - allow: { method: POST, path: "/v1/**" }
+          - allow: { method: GET, path: "/v1/**" }
+  
+  openai:
+    name: openai
+    endpoints:
+      - host: api.openai.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        tls: terminate
+        rules:
+          - allow: { method: POST, path: "/v1/**" }
+          - allow: { method: GET, path: "/v1/**" }
+  
+  anthropic:
+    name: anthropic
+    endpoints:
+      - host: api.anthropic.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        tls: terminate
+        rules:
+          - allow: { method: POST, path: "/v1/**" }
+  
+  kimi:
+    name: kimi
+    endpoints:
+      - host: api.moonshot.cn
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        tls: terminate
+        rules:
+          - allow: { method: POST, path: "/v1/**" }

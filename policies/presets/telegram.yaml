@@ -1,0 +1,23 @@
+# 🦆 Duck Agent - Telegram Policy Preset
+# Controls Telegram Bot API access
+
+preset:
+  name: telegram
+  description: "Telegram Bot API access for Duck Agent"
+
+network_policies:
+  telegram_bot:
+    name: telegram_bot
+    endpoints:
+      - host: api.telegram.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        tls: terminate
+        rules:
+          - allow: { method: GET, path: "/bot*/**" }
+          - allow: { method: POST, path: "/bot*/**" }
+          - allow: { method: GET, path: "/getUpdates" }
+          - allow: { method: POST, path: "/sendMessage" }
+          - allow: { method: POST, path: "/sendPhoto" }
+          - allow: { method: POST, path: "/sendDocument" }

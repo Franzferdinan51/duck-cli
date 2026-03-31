@@ -1,0 +1,44 @@
+# 🦆 Duck Agent - Browser/Web Policy Preset
+# Controls browser automation and web access
+
+preset:
+  name: browser
+  description: "Browser automation and web access"
+
+network_policies:
+  browseros:
+    name: browseros
+    endpoints:
+      - host: localhost
+        port: 9000
+        protocol: http
+        enforcement: allow
+        note: "BrowserOS local MCP server"
+      - host: localhost
+        port: 9002
+        protocol: http
+        enforcement: allow
+        note: "BrowserOS secondary port"
+
+  web_search:
+    name: web_search
+    endpoints:
+      - host: api.search.brave.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        tls: terminate
+        rules:
+          - allow: { method: GET, path: "/**" }
+  
+  general_web:
+    name: general_web
+    description: "Allow general HTTPS web access for fetch operations"
+    enforcement: log
+    allowed_patterns:
+      - "https://**"
+      - "http://**"
+    blocked_patterns:
+      - "file://**"
+      - "ftp://**"
+      - "data:**"
