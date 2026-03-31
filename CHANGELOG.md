@@ -1,0 +1,99 @@
+# 🦆 Duck Agent Changelog
+
+All notable changes to Duck Agent will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+---
+
+## v0.3.1 — 2026-03-31
+
+### Added
+- **Enhanced Auto-Heal System** — Improved self-recovery for crashed processes, memory leaks, and failed health checks
+- **OpenClaw Compatibility Layer** — Full ACP protocol implementation allowing OpenClaw to spawn/control Duck Agent sessions
+- **Full Protocol Testing Suite** — Comprehensive test coverage for MCP, ACP, WebSocket, and Gateway endpoints
+- **Auto-heal scripts** — Background monitoring with automatic restart capabilities
+- **OpenClaw runtime config** — Ready-to-use configuration for integrating Duck Agent as an OpenClaw ACP backend
+
+### Changed
+- **Unified Server** — All protocol servers start/stop gracefully with proper cleanup
+- **ACP Server** — Improved session management with timeout handling and concurrent session limits (max 8)
+
+### Fixed
+- Session cleanup on unexpected disconnections
+- Graceful shutdown handling for all protocol servers
+- Memory leak in long-running WebSocket connections
+
+---
+
+## v0.3.0 — 2026-03-14
+
+### Added
+- **MCP Server (Model Context Protocol)** — Full MCP 2024-11-05 spec implementation with JSON-RPC 2.0
+- **ACP Client** — Spawn external coding agents (Codex, Claude, Cursor, Gemini, Pi, OpenClaw, OpenCode)
+- **WebSocket Manager** — Bidirectional WebSocket connections with auto-reconnection
+- **Unified Server** — All headless protocols in one command (`duck unified`)
+  - MCP Server (port 3848)
+  - ACP Gateway (port 18790)
+  - WebSocket (port 18791)
+  - Gateway API (port 18789)
+- **Gateway API** — OpenAI-compatible REST API for chat completions
+- **14+ Built-in MCP Tools** — execute, think, remember, recall, kairos_status, kairos_action, desktop_*, get_status, ping, spawn_agent
+- **Claude Code Tools Integration** — 60+ coding tools including file operations, shell, search, LSP
+- **BrowserOS Integration** — 45+ browser automation tools via MCP
+- **Multi-Provider AI** — MiniMax, Kimi, ChatGPT (OAuth), LM Studio, OpenAI Codex
+
+### Added
+- **Desktop Control** — Native macOS/Windows control via ClawdCursor
+- **Preftext Canvas** — Pure canvas text measurement for generative UI
+- **MiniMax Multimodal Toolkit** — TTS, voice cloning, image generation
+- **MiniMax Plus Integration** — Speech (4K chars/day) and image (50/day) generation
+
+### Changed
+- **Web UI** — Full-featured web interface at port 3000
+- **KAIROS Modes** — Three operational modes: aggressive, balanced, conservative
+
+---
+
+## v0.2.0 — 2026-02-25
+
+### Added
+- **Full Web UI** — Complete web interface with chat, dashboard, settings
+- **Buddy System** — AI companion with rarities (common → legendary) and species (duck, blob, cat, dragon, owl, ghost, robot, rabbit, cactus, snail)
+- **KAIROS Proactive AI** — Always-on AI with heartbeat, decision engine, auto-dream at 3AM
+- **AI Council** — Deliberative decision making with 7 councilors (Speaker, Technocrat, Ethicist, Pragmatist, Skeptic, Sentinel + 19 specialists)
+- **Multi-Agent Teams** — Coordinated parallel execution with templates (code-review, research, swarm)
+- **Cron Automation** — 30+ predefined jobs across system, grow, crypto, OSINT, news, weather, home categories
+- **TUI Shell** — Interactive terminal interface
+- **Claude Code Integration** — Full exec mode with approval layers
+- **Memory System** — 3-tier architecture (Identity, Config, Session)
+- **Security Modules** — SSRF validation, credential sanitizer, state manager, network policies
+
+### Changed
+- **Agent Core** — Reasoning engine, task planning, tool orchestration, self-improvement
+- **Provider Manager** — Multi-provider coordination with automatic fallback
+
+---
+
+## v0.1.0 — 2026-01-15
+
+### Added
+- Initial release
+- Core agent architecture
+- Basic CLI interface
+- MiniMax provider integration
+- File operations
+- Shell execution
+- Web search
+- Basic memory (remember/recall)
+- Telegram channel support
+- Discord channel support
+- Docker support
+
+---
+
+## Roadmap
+
+- [ ] v0.4.0 — Voice conversation, vision analysis, autonomous agents
+- [ ] v0.5.0 — Mobile app, cross-device sync
+- [ ] v1.0.0 — Production release with enterprise features
