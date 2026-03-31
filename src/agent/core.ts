@@ -166,33 +166,29 @@ export class Agent extends EventEmitter {
     return response.text || 'No response';
   }
 
-  private async buildContext(input: string): Promise<any[]> {
-    const messages: any[] = [];
+    private async buildContext(input: string): Promise<any[]> {
+    const systemParts: string[] = [];
     
     const soul = this.memory.getSoul();
-    messages.push({ role: 'system', content: soul });
+    systemParts.push(soul.replace(/\n/g, ' '));
 
     const relevantMemory = await this.memory.getRelevant(input);
     if (relevantMemory.length > 0) {
-      messages.push({
-        role: 'system',
-        content: `Relevant memory:\n${relevantMemory.join('\n')}`
-      });
+      systemParts.push(`Memory: ${relevantMemory.join('; ')}`);
     }
 
     const tools = this.tools.list();
     if (tools.length > 0) {
-      messages.push({
-        role: 'system',
-        content: `Tools: ${tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}`
-      });
+      systemParts.push(`Tools: ${tools.map(t => `${t.name}: ${t.description}`).join(', ')}`);
     }
 
-    messages.push({ role: 'user', content: input });
+    const messages: any[] = [
+      { role: 'system', content: systemParts.join(' | ') },
+      { role: 'user', content: input }
+    ];
     return messages;
   }
-
-  async execute(input: string): Promise<string> {
+async execute(input: string): Promise<string> {
     console.log(`\n🦆 Executing: "${input}"`);
     
     const task: Task = {
