@@ -1,7 +1,7 @@
 {
   "name": "duck-agent",
-  "version": "0.3.2",
-  "description": "🦆 Duck Agent v0.3.2 - Super AI Agent with KAIROS, Unified Gateway, Claude Code Tools, Multi-Agent, Voice, Web UI, OpenClaw Compatibility",
+  "version": "0.4.0",
+  "description": "🦆 Duck Agent v0.4.0 - Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS, Agent Mesh, 45-Agent Council",
   "main": "dist/agent/core.js",
   "bin": {
     "duck": "./dist/cli/main.js",
@@ -54,7 +54,10 @@
     "mcp",
     "openclaw",
     "hermes",
-    "browseros"
+    "browseros",
+    "copilotkit",
+    "pretext",
+    "generative-ui"
   ],
   "author": "Ryan (Duckets)",
   "license": "MIT",

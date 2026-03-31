@@ -1,6 +1,6 @@
 # 🦆 Duck Agent Update Strategy & Changelog
 
-> **Duck Agent v0.3.2** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31
+> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, OpenClaw v2026.3.31 compat
 
 ---
 
@@ -8,6 +8,7 @@
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| **v0.4.0** | 2026-03-31 | Desktop UI RUNNABLE, Sub-Conscious, CopilotKit, Pretext Canvas, AI Council votes |
 | **v0.3.2** | 2026-03-31 | Agent Mesh, OpenClaw-RL, 45 councilors, v2026.3.31 compat |
 | **v0.3.0** | 2026-03-15 | KAIROS v2, Claude Code tools, unified server, OpenClaw ACP |
 | **v0.2.x** | 2026-02-xx | Voice/TTS, Buddy, Teams, Cron |
@@ -15,13 +16,11 @@
 
 ---
 
-## v0.3.2 — Complete Feature List
+## v0.4.0 — Complete Feature List
 
 **Released: 2026-03-31**
 
 ### ✅ REQUIRED Features (Always Available)
-
-These are built-in and always operational — no setup required.
 
 #### Core Agent
 - [x] **Agent Core** — Reasoning engine, task planner, tool orchestrator
@@ -30,6 +29,12 @@ These are built-in and always operational — no setup required.
 - [x] **Multi-Provider Routing** — MiniMax, Kimi, ChatGPT, LM Studio, Codex
 - [x] **Cost Tracking** — Token and cost monitoring per provider
 
+#### AI Systems
+- [x] **KAIROS Proactive AI** — Heartbeat, decision engine, auto-dream, modes
+- [x] **Sub-Conscious** — Claude-style self-reflection, 5 whisper triggers (v0.4.0 NEW)
+- [x] **AI Buddy** — Companion with rarities (common → legendary)
+- [x] **Multi-Agent Teams** — Coordinated execution (code-review, research, swarm)
+
 #### Protocols
 - [x] **MCP Server** — Full MCP 2024-11-05 spec, port 3850
 - [x] **Gateway API** — OpenAI-compatible REST, port 18792
@@ -37,11 +42,6 @@ These are built-in and always operational — no setup required.
 - [x] **ACP Server** — Let OpenClaw connect TO you, port 18794
 - [x] **WebSocket Manager** — Bidirectional messaging, port 18796
 - [x] **Unified Server** — All protocols in one command (`duck unified`)
-
-#### AI Systems
-- [x] **KAIROS Proactive AI** — Heartbeat, decision engine, auto-dream, modes
-- [x] **AI Buddy** — Companion with rarities (common → legendary)
-- [x] **Multi-Agent Teams** — Coordinated execution (code-review, research, swarm)
 
 #### Automation & Integration
 - [x] **Cron Scheduler** — 30+ predefined jobs (system, grow, crypto, OSINT, weather)
@@ -80,9 +80,50 @@ These are built-in and always operational — no setup required.
 
 ### 🎁 OPTIONAL Features (Enable When Needed)
 
-These require extra setup and are **disabled by default**.
+#### 🖥️ Desktop UI (v0.4.0 — NOW RUNNABLE!)
+- [x] **Vite + React 19 + TypeScript** — Dev server on port 5173
+- [x] **CopilotKit** — Streaming chat with `@copilotkit/react-core` + `@copilotkit/react-ui`
+- [x] **Pretext Canvas Toolkit** — `@chenglou/pretext` for character-level text measurement
+- [x] **Tailwind CSS** — Dark theme, responsive layout, screen-fit design
+- [x] **Canvas Generative UI** — Metrics, streaming text, particle effects
 
-#### 🌐 Agent Mesh (v0.3.2 NEW)
+**Run:**
+```bash
+cd src/ui/desktop
+npm install
+npm run dev  # http://localhost:5173
+```
+
+**Built:** Chat interface, dashboard with canvas metrics, sidebar navigation, Pretext integration
+
+**Planned:** System tray, mesh visualizer, council panel, notifications, window controls
+
+#### 🎨 Pretext Canvas Toolkit (v0.4.0 NEW)
+- [x] **Pretext Server** — Optional HTTP server on port 3458 (measure, lines, shrinkwrap, float)
+- [x] **Canvas Generator** — `pretext-generator.js` for animated card generation
+- [x] **AI Council Vote Visualization** — Canvas-rendered vote tallies
+- [x] **Weather/Crypto Cards** — Animated backgrounds, bouncing icons, particle effects
+- [x] **Streaming Chat** — Pre-measured text blocks flowing through canvas
+- [x] **Performance:** `prepare()` ~19ms, `layout()` ~0.09ms
+
+#### 🤖 CopilotKit (v0.4.0 NEW)
+- [x] **Generative UI** — AI renders custom React components mid-stream
+- [x] **Shared State** — Agents and UI share reactive context
+- [x] **Human-in-the-Loop** — UI buttons/sliders inject into agent context
+- [x] **Streaming Responses** — Real-time AI text streaming into UI
+
+#### 👻 Sub-Conscious (v0.4.0 NEW)
+- [x] **5 Rule-Based Whisper Triggers:**
+  1. Long task completion → What went well / remember
+  2. Repeated errors → Pattern detected — flag for review
+  3. User correction → Learning moment — update memory
+  4. Multi-provider mix → Efficiency note — optimize routing
+  5. Idle too long → Context stale — offer refresh
+- [x] **Commands:** `duck subconscious status/enable/disable/stats`
+- [x] **Memory Integration:** Writes to SOUL.md, AGENTS.md, MEMORY.md
+- [x] **No external dependencies** — Uses Duck Agent's own models
+
+#### 🌐 Agent Mesh (v0.3.2)
 - [x] **Mesh Client** — Register, list, send, broadcast, inbox
 - [x] **Capability Registry** — Maps skills to agents
 - [x] **Catastrophe Tracker** — Active event monitoring
@@ -101,7 +142,7 @@ duck mesh catastrophe       # Check events
 duck mesh status            # Ping server
 ```
 
-#### 🧪 OpenClaw-RL (v0.3.2 NEW)
+#### 🧪 OpenClaw-RL (v0.3.2)
 - [x] **RL Client** — Connect, enable, disable, stats
 - [x] **GRPO Training** — Binary RL (+1/-1/0 rewards)
 - [x] **OPD Training** — On-Policy Distillation (token-level hints)
@@ -110,7 +151,6 @@ duck mesh status            # Ping server
 - [x] **Session-Aware** — Unique session ID per conversation thread
 - [x] **Turn Classification** — Main turns train, side turns skip
 - [x] **KAIROS Integration** — RL feeds on KAIROS insights
-- [x] **Requires:** OpenClaw-RL server running (`bash run_qwen3_4b_openclaw_rl.sh`)
 
 **Commands:**
 ```bash
@@ -122,14 +162,14 @@ duck rl disconnect   # Remove connection
 duck rl stats        # Training statistics
 ```
 
-#### 🏛️ AI Council — 45 Councilors (v0.3.2 NEW)
+#### 🏛️ AI Council — 45 Councilors (v0.3.2)
 - [x] **45 Specialized Councilors** — Speaker, Technocrat, Ethicist, Skeptic, + 40 more
 - [x] **Deliberation Modes** — Legislative, Deep Research, Swarm Coding, Prediction Market, Inquiry, Deliberation
 - [x] **LM Studio Integration** — Local model inference
 - [x] **Voting System** — Approve/Reject/Abstain with tally
+- [x] **Canvas Vote Bars** — Animated approval/rejection bar charts (v0.4.0)
 - [x] **Council History** — Searchable past deliberations
 - [x] **Summon Specific** — Call individual councilors
-- [x] **Requires:** Council server + LM Studio models configured
 
 **Commands:**
 ```bash
@@ -142,114 +182,76 @@ duck council vote approve                # Cast vote
 duck council history                    # Past deliberations
 ```
 
-#### 🖥️ Desktop UI (v0.4.0 — PLANNED)
-- [x] **Design Complete** — See [DESKTOP-UI.md](DESKTOP-UI.md)
-- [ ] **Not yet built** — Coming in v0.4.0
-
 ---
 
-## Changes Since v0.3.0
+## Changes Since v0.3.2
 
-### Protocol Changes
-| Change | Description |
-|--------|-------------|
-| **Agent Mesh** | NEW — Inter-agent communication network on port 4000 |
-| **OpenClaw-RL** | NEW — RL client connecting to port 30000 |
-| **45 Councilors** | NEW — Expanded from 6 to 45 specialized councilors |
-| **OpenClaw compat** | NEW — `src/compat/v2026_3_31/` layer for v2026.3.31 compatibility |
-| **ACP enhancements** | Improved session management, max 8 concurrent sessions |
-| **Mesh commands** | NEW — `duck mesh register/list/send/broadcast/inbox/capabilities/catastrophe/status` |
-| **RL commands** | NEW — `duck rl connect/enable/disable/stats/disconnect/status` |
-| **Council expansion** | NEW — `duck council list/summon/mode/members/vote/history` |
+### v0.4.0 Major Additions
 
-### Module Changes
+| Addition | Description |
+|----------|-------------|
+| **Desktop UI** | ✅ NOW RUNNABLE — Vite + React + CopilotKit + Pretext Canvas on port 5173 |
+| **Sub-Conscious** | NEW — Claude-style self-reflection with 5 whisper triggers |
+| **Pretext Canvas** | NEW — Generative UI toolkit for Canvas rendering |
+| **CopilotKit** | NEW — Streaming chat + generative UI in React |
+| **AI Council Votes** | NEW — Canvas-rendered vote tally visualization |
+
+### Module Changes (v0.4.0)
+
 | Module | Change |
 |--------|--------|
-| `src/mesh/` | NEW — Complete mesh networking client |
-| `src/rl/` | NEW — OpenClaw-RL client and trainer |
-| `src/council/` | NEW — 45 councilors with LM Studio integration |
-| `src/compat/` | NEW — OpenClaw v2026.3.31 compatibility layer |
-| `src/ui/desktop/` | NEW — Desktop UI source (for v0.4.0) |
-| `src/commands/mesh.ts` | NEW — CLI mesh commands |
-| `src/commands/rl.ts` | NEW — CLI RL commands |
-| `src/commands/council.ts` | ENHANCED — Expanded with 45 councilors |
+| `src/ui/desktop/` | **MAJOR UPDATE** — Now runnable, CopilotKit, Pretext, Tailwind |
+| `src/subconscious/` | **NEW** — Sub-Conscious whisper layer |
+| `src/ui/pretext-canvas/` | **NEW** — Pretext Canvas toolkit |
+| `src/council/` | **UPDATED** — Canvas vote visualization |
+| `docs/` | Updated — DESKTOP-UI.md marked RUNNABLE |
 
-### Documentation Changes
+### Documentation Changes (v0.4.0)
+
 | Doc | Change |
 |-----|--------|
-| `README.md` | REWRITTEN — REQUIRED vs OPTIONAL separation, mesh examples, RL examples, 45 councilors |
-| `COMMANDS.md` | REWRITTEN — Full mesh, RL, council command documentation |
-| `ARCHITECTURE.md` | REWRITTEN — New module structure, compat layer, data flow diagrams |
-| `UPDATES.md` | REWRITTEN — Complete v0.3.2 feature list, v0.4.0 roadmap |
-| `DESKTOP-UI.md` | NEW — Desktop UI design preview |
-
-### Feature Enhancements
-| Feature | v0.3.0 | v0.3.2 |
-|---------|--------|--------|
-| AI Council | 6 councilors | **45 councilors** |
-| Mesh | Not available | **Full mesh networking** |
-| RL Training | Not available | **OpenClaw-RL integration** |
-| OpenClaw compat | v2026.2.x | **v2026.3.31** |
-| Council modes | Basic deliberation | **6 modes** |
-| Mesh tools | None | **8 commands** |
-| RL tools | None | **6 commands** |
+| `README.md` | **REWRITTEN** — Desktop UI RUNNABLE section, Sub-Conscious, Pretext Canvas, CopilotKit, updated feature table |
+| `docs/DESKTOP-UI.md` | **REWRITTEN** — Status changed to ✅ RUNNABLE, tech stack, CopilotKit, Pretext |
+| `docs/UPDATES.md` | **REWRITTEN** — v0.4.0 complete feature list, roadmap update |
+| `package.json` | **VERSION BUMP** — 0.3.2 → 0.4.0, keywords updated |
 
 ---
 
-## v0.4.0 Roadmap
+## v0.5.0 Roadmap
 
-**Target: TBD**
-
-### 🖥️ Desktop UI (PRIORITY 1)
-
-Native desktop application built from `src/ui/desktop/`. See full design in [DESKTOP-UI.md](DESKTOP-UI.md).
-
-**Components:**
-- [ ] `main.ts` — Desktop entry point, window management
-- [ ] `tray.ts` — System tray with quick actions
-- [ ] `dashboard.ts` — Real-time agent stats (CPU, RAM, tokens)
-- [ ] `chat.ts` — Live chat interface
-- [ ] `mesh-view.ts` — Visual mesh network graph
-- [ ] `council-panel.ts` — Council deliberation UI
-- [ ] `notifications.ts` — System notification center
-
-**Features:**
-- [ ] Native window with system tray
-- [ ] Real-time agent dashboard
-- [ ] Live chat interface
+### 🖥️ Desktop UI Enhancements (v0.5.0)
+- [ ] System tray integration with quick actions
+- [ ] Native window controls (minimize, maximize, close)
 - [ ] Mesh network visualizer
-- [ ] Council deliberation panel
-- [ ] Desktop control widget
+- [ ] Council deliberation panel with vote canvas
 - [ ] Notification center
 - [ ] Auto-start on login
+- [ ] Desktop control widget
 
-**Tech Stack:**
-- Electron or Tauri (TBD)
-- Pretext + Canvas for generative UI
-- System tray integration
-
----
-
-### 🌐 Agent Mesh Enhancements (PRIORITY 2)
+### 🌐 Agent Mesh Enhancements (v0.5.0)
 - [ ] Mesh web UI — Visual agent map
 - [ ] Capability discovery — Auto-detect agent skills
 - [ ] Mesh relay — Route messages through other agents
 - [ ] Mesh persistence — Store messages on mesh server
 - [ ] ACL — Access control lists for mesh messages
 
-### 🧪 OpenClaw-RL Enhancements (PRIORITY 2)
+### 🧪 OpenClaw-RL Enhancements (v0.5.0)
 - [ ] Multi-model RL — Train on multiple RL servers simultaneously
 - [ ] RL web UI — Training dashboard with real-time charts
 - [ ] Reward tuning — Adjust reward signals per conversation type
 - [ ] RL export — Export trained model checkpoints
 - [ ] OPD enhancements — Token-level hint interface
 
-### 🏛️ AI Council Enhancements (PRIORITY 3)
+### 🏛️ AI Council Enhancements (v0.5.0)
 - [ ] Council web UI — Visual deliberation interface
 - [ ] Custom councilors — Define your own specialist agents
 - [ ] Council memory — Remember past deliberations
-- [ ] Council voting dashboard — Real-time vote tallies
 - [ ] Expert pools — Groups of specialized agents per domain
+
+### 👻 Sub-Conscious Enhancements (v0.5.0)
+- [ ] Configurable whisper triggers
+- [ ] Memory layer export to vector store
+- [ ] Sub-Conscious web UI for reviewing whispers
 
 ### 🔧 Core Improvements (ONGOING)
 - [ ] Performance — Faster tool execution, lower latency
@@ -261,7 +263,7 @@ Native desktop application built from `src/ui/desktop/`. See full design in [DES
 
 ## Update Philosophy
 
-Duck Agent pulls features from multiple upstream sources while maintaining its unique identity:
+Duck Agent pulls features from multiple upstream sources while maintaining its unique identity.
 
 ### Upstream Sources
 
@@ -276,6 +278,8 @@ Duck Agent pulls features from multiple upstream sources while maintaining its u
 | **OpenCrabs** | Local voice, hybrid memory | As needed |
 | **TrinityClaw** | ChromaDB, identity system | As needed |
 | **FlowlyAI** | @mention routing, skills hub | As needed |
+| **Pretext** | Text measurement library | Stable |
+| **CopilotKit** | Generative UI, streaming chat | Active development |
 | **OpenClaw-RL** | Reinforcement learning self-improvement | Active development |
 | **agent-mesh-api** | Agent mesh networking | Active development |
 
@@ -307,8 +311,6 @@ Duck Agent is designed to be **compatible but not dependent** on OpenClaw.
 
 ## Version Strategy
 
-Duck Agent uses a hybrid versioning approach:
-
 ```
 DUCK_MAJOR.OPENCLAW_COMPAT.DATE
      │           │           │
@@ -326,34 +328,34 @@ DUCK_MAJOR.OPENCLAW_COMPAT.DATE
 
 ## Testing After Update
 
-Always run after updating:
-
 ```bash
-# 1. Build
+# 1. Build core
 npm run build
 
-# 2. Test protocols
+# 2. Build desktop UI
+cd src/ui/desktop && npm run build
+
+# 3. Test protocols
 duck unified &
 sleep 3
 curl http://localhost:3850/health   # MCP
-curl http://localhost:18792/health  # Gateway
+curl http://localhost:18792/health # Gateway
 kill %1
 
-# 3. Test standalone
-duck shell "test"        # Quick TTY test
-duck web                 # Web UI test
+# 4. Test standalone
+duck shell "test"
 
-# 4. Test optional features (if enabled)
-duck mesh status         # Mesh
-duck rl status           # RL
-duck council list        # Council
+# 5. Test optional features
+duck kairos status
+duck subconscious status
+duck mesh status
+duck rl status
+duck council list
 ```
 
 ---
 
 ## Rollback Procedure
-
-If update breaks something:
 
 ```bash
 # 1. Check backup
@@ -362,7 +364,7 @@ ls -la ~/.duck-agent/backups/
 # 2. Restore
 duck update restore
 
-# 3. If that fails, manual restore:
+# 3. Manual restore:
 cd ~/.duck-agent
 git checkout HEAD~1
 npm run build

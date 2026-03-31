@@ -1,6 +1,6 @@
 # 🦆 Duck Agent CLI Commands
 
-> **Duck Agent v0.3.2** — Complete CLI reference with Agent Mesh, OpenClaw-RL, ClawHub, Souls Registry, and 45-agent AI Council
+> **Duck Agent v0.4.0** — Complete CLI reference with Agent Mesh, OpenClaw-RL, ClawHub, Souls Registry, and 45-agent AI Council
 
 ---
 

@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Duck Agent v0.3.2** — Super AI Agent with KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
+> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -25,9 +25,16 @@ duck gateway            # Gateway API (port 18792)
 ```
 
 ### Docker
-## 🖥️ Desktop UI — OPTIONAL
 
-Full-featured desktop shell with sidebar navigation, chat, AI Council, Agent Mesh, and settings panels.
+```bash
+docker-compose up -d
+```
+
+---
+
+## 🖥️ Desktop UI — NOW RUNNABLE
+
+**v0.4.0 brings a fully functional desktop shell** built with Vite + React + CopilotKit + Pretext Canvas.
 
 ```bash
 cd src/ui/desktop
@@ -35,13 +42,190 @@ npm install
 npm run dev
 ```
 
-Build verified ✅ — serves on http://localhost:5173 (or any available port).
+Serves on **http://localhost:5173** — won't conflict with the web UI (port 3001) or gateway (18792).
+
+### What's Included
+
+| Feature | Description |
+|---------|-------------|
+| 🎨 **Pretext Canvas Toolkit** | Character-level canvas text measurement — AI controls every pixel |
+| 💬 **CopilotKit Chat** | Streaming AI chat with generative UI components |
+| 📊 **Canvas Metrics** | GPU-rendered charts and stats panels |
+| 🌤️ **Animated Cards** | Weather and crypto cards with particle effects |
+| 🗳️ **AI Council Votes** | Vote tally visualization on canvas |
+| 🌊 **Streaming Messages** | Pre-measured text flowing through canvas |
+
+### Tech Stack
+
+```
+src/ui/desktop/
+├── Vite + React 19 + TypeScript
+├── Tailwind CSS for layout
+├── Pretext (@chenglou/pretext) for text measurement
+├── CopilotKit (@copilotkit/react-core) for chat
+└── Canvas API for generative UI rendering
+```
+
+### Run Commands
+
+```bash
+cd src/ui/desktop
+npm run dev      # Development server (port 5173)
+npm run build    # Production build
+npm run preview  # Preview production build
+```
 
 ---
 
+## 👻 Sub-Conscious — Claude Subconscious-Style (No Letta)
+
+**v0.4.0 introduces Sub-Conscious** — a lightweight self-reflection layer that runs whisper prompts through your own AI models. Zero external dependencies, no Letta server needed.
+
+### How It Works
+
+Sub-Conscious intercepts your conversations and silently runs reflection prompts through Duck Agent's own memory and models — surfacing insights, patterns, and nudges without interrupting your flow.
+
+### 5 Rule-Based Whisper Triggers
+
+| # | Trigger | Whisper Prompt Theme |
+|---|---------|---------------------|
+| 1 | **Long task completion** | What went well / what to remember |
+| 2 | **Repeated errors** | Pattern detected — flag for review |
+| 3 | **User correction** | Learning moment — update memory |
+| 4 | **Multi-provider mix** | Efficiency note — optimize routing |
+| 5 | **Idle too long** | Context stale — offer refresh |
+
+### Sub-Conscious Commands
 
 ```bash
-docker-compose up -d
+duck subconscious status   # Check enabled/disabled and stats
+duck subconscious enable  # Turn on whisper triggers
+duck subconscious disable # Turn off whisper triggers
+duck subconscious stats   # Show whisper history and patterns
+```
+
+### Example Whisper Output
+
+```
+👻 Sub-Conscious whisper:
+"Detected 3 corrections today about tone — consider adjusting SOUL.md"
+```
+
+### Memory Integration
+
+Sub-Conscious writes its findings directly to Duck Agent's memory layer:
+- SOUL.md adjustments → identity layer
+- Provider patterns → AGENTS.md
+- Learned preferences → MEMORY.md
+
+---
+
+## 🎨 Pretext Canvas — Generative UI Toolkit
+
+**AI measures text → Canvas draws it → You control every pixel.**
+
+Pretext is a text measurement library (no DOM, no CSS) that returns exact pixel positions for any string at any font size. Combined with Canvas, this enables true generative UI — AI controls layout and rendering at the pixel level.
+
+### The Core Pattern
+
+```js
+import { prepare, layout, prepareWithSegments, layoutWithLines } from '@chenglou/pretext'
+
+// 1. Pretext measures (fast!)
+const prepared = prepare('Hello World', 'bold 64px Inter')
+const { height } = layout(prepared, 400, 32) // ~0.09ms
+
+// 2. Canvas draws (GPU!)
+ctx.fillText('Hello World', x, y)
+
+// 3. AI orchestrates everything
+//    — positions, animations, particles
+```
+
+### Pretext Canvas Capabilities
+
+| Feature | Example |
+|---------|---------|
+| 📊 **Metrics** | Live CPU/RAM/token gauges rendered on canvas |
+| 💬 **Streaming Chat** | Pre-measured text blocks flowing into view |
+| 🗳️ **Vote Visualization** | Animated approval/rejection bars |
+| 🌤️ **Weather Cards** | Animated aurora backgrounds, bouncing icons |
+| ₿ **Crypto Cards** | Price charts with particle effects |
+| 🐉 **Theme Cards** | RPG-styled stat cards (OSRS, RS3) |
+
+### Pretext Server (Optional)
+
+```bash
+node ~/.openclaw/workspace/skills/generative-ui/backend/pretext-server.js &
+# Runs on http://localhost:3458
+
+# API:
+# POST /  — measure, lines, shrinkwrap, float
+# GET  /health
+```
+
+### Canvas Generator
+
+```bash
+node ~/.openclaw/workspace/skills/generative-ui/backend/pretext-generator.js "weather 72F sunny Dayton"
+# Generates /tmp/weather-test.html — animated canvas weather card
+```
+
+---
+
+## 🤖 CopilotKit — Generative UI in React
+
+**v0.4.0 integrates CopilotKit** for streaming chat with React-native generative UI components.
+
+### What CopilotKit Enables
+
+| Feature | Description |
+|---------|-------------|
+| 🔄 **Streaming Responses** | AI text streams into UI in real-time |
+| 🎛️ **Shared State** | Agents and UI share reactive state |
+| ✋ **Human-in-the-Loop** | UI buttons/sliders inject into agent context |
+| 🧩 **Generative Components** | AI renders custom React components mid-stream |
+
+### Desktop UI Integration
+
+The `src/ui/desktop/` app uses `@copilotkit/react-core` and `@copilotkit/react-ui`:
+
+```tsx
+import { CopilotKit } from '@copilotkit/react-core'
+import { CopilotSidebar } from '@copilotkit/react-ui'
+
+<CopilotKit>
+  <YourApp>
+    <CopilotSidebar
+      instructions="You are DuckBot — helpful, casual, never corporate."
+    />
+  </YourApp>
+</CopilotKit>
+```
+
+### Shared State Example
+
+```tsx
+// UI shares state with agent
+const [context, setContext] = useState({ meshStatus: 'offline' })
+
+// Agent updates shared context
+agent.updateContext({ meshStatus: 'connected', agents: 3 })
+
+// UI re-renders reactively
+{context.meshStatus === 'connected' && <MeshBadge agents={context.agents} />}
+```
+
+### Human-in-the-Loop
+
+```tsx
+// Agent can surface interactive controls mid-conversation
+<copilotInstructions>
+  When user asks about enabling KAIROS mode,
+  render the KAIROSModes component with mode buttons.
+</copilotInstructions>
+
+<KAIROSModes onSelect={(mode) => agent.updateContext({ kairosMode: mode })} />
 ```
 
 ---
@@ -50,11 +234,10 @@ docker-compose up -d
 
 ### ✅ REQUIRED (Always Available)
 
-These features are built-in and always operational:
-
 | Feature | Description |
 |---------|-------------|
 | 🧠 **KAIROS** | Proactive AI with heartbeat, decision engine, auto-dream |
+| 👻 **Sub-Conscious** | Claude-style self-reflection with 5 whisper triggers |
 | 🤖 **Agent Core** | Reasoning, task planning, tool orchestration |
 | 🛠️ **Claude Code Tools** | 60+ coding tools (read, write, edit, bash, grep, LSP…) |
 | 🌐 **MCP Server** | Full MCP 2024-11-05 spec, port 3850 |
@@ -72,14 +255,14 @@ These features are built-in and always operational:
 
 ### 🎁 OPTIONAL (Enable When Needed)
 
-These features require extra setup and are disabled by default:
-
 | Feature | Description | Setup |
 |---------|-------------|-------|
+| 🖥️ **Desktop UI** | Native desktop application (NOW RUNNABLE!) | `cd src/ui/desktop && npm run dev` |
 | 🌐 **Agent Mesh** | Inter-agent communication network | Start mesh server, set env vars |
 | 🧪 **OpenClaw-RL** | Reinforcement learning self-improvement | Run RL server, connect Duck Agent |
 | 🏛️ **AI Council (45)** | 45-agent deliberative council | LM Studio models, council server |
-| 🖥️ **Desktop UI** | Native desktop application | Build from `src/ui/desktop/` |
+| 🎨 **Pretext Canvas** | Generative UI toolkit | Integrated in Desktop UI |
+| 🤖 **CopilotKit** | Streaming chat + generative UI | Integrated in Desktop UI |
 | 🔧 **ClawHub** | Skill marketplace & sharing | ClawHub server + registry |
 | 🦆 **Souls Registry** | SOUL.md personality sharing | ClawHub souls list/search/activate |
 | 👥 **Teams** | Multi-agent coordinated execution | Templates pre-configured |
@@ -89,8 +272,6 @@ These features require extra setup and are disabled by default:
 
 ## 📡 Port Reference
 
-Duck Agent uses different ports than OpenClaw so both can run side-by-side.
-
 | Protocol | Duck Agent | OpenClaw |
 |----------|-----------|----------|
 | **Gateway API** | 18792 | 18789 |
@@ -98,8 +279,9 @@ Duck Agent uses different ports than OpenClaw so both can run side-by-side.
 | **ACP Server** | 18794 | 18790 |
 | **WebSocket** | 18796 | 18791 |
 | **Web UI** | 3001 | 3000 |
+| **Desktop UI** | 5173 | — |
 
-> 💡 **No conflicts!** Run Duck Agent and OpenClaw simultaneously — they use completely separate ports.
+> 💡 **No conflicts!** Run Duck Agent and OpenClaw simultaneously — all ports are separate.
 
 ---
 
@@ -124,6 +306,27 @@ duck kairos disable         # Disable KAIROS
 | 📝 Action Logs | Append-only audit trail |
 | 🔔 Notifications | Push alerts to Telegram |
 | 🧬 Modes | aggressive, balanced, conservative |
+
+---
+
+## 👻 Sub-Conscious — REQUIRED
+
+**Claude Subconscious-style self-reflection without external dependencies**
+
+```bash
+duck subconscious status   # Check enabled/disabled
+duck subconscious enable  # Enable whisper triggers
+duck subconscious disable # Disable whisper triggers
+duck subconscious stats   # Show whisper history
+```
+
+| # | Trigger | Theme |
+|---|---------|-------|
+| 1 | Long task completion | What went well / remember |
+| 2 | Repeated errors | Pattern detected — flag |
+| 3 | User correction | Learning moment — update memory |
+| 4 | Multi-provider mix | Efficiency note — optimize routing |
+| 5 | Idle too long | Context stale — offer refresh |
 
 ---
 
@@ -202,15 +405,13 @@ duck council summon <role> # Call specific councilor
 
 ## 🌐 Agent Mesh — OPTIONAL
 
-**Inter-agent communication network** — Join a mesh of AI agents, discover capabilities, send messages, and coordinate tasks across agent boundaries.
+**Inter-agent communication network**
 
 ### Setup
 
 ```bash
-# 1. Start the mesh server (in a separate terminal)
-cd /Users/duckets/Desktop/agent-mesh-api
-npm install
-npm start
+# 1. Start the mesh server (separate terminal)
+cd /Users/duckets/Desktop/agent-mesh-api && npm start
 ```
 
 ```bash
@@ -233,32 +434,6 @@ duck mesh capabilities      # Map skills to agents
 duck mesh catastrophe       # Check active catastrophe events
 ```
 
-### Mesh Usage Examples
-
-```bash
-# Register your agent on the mesh
-duck mesh register
-# Returns: Registered as agent_id=duck-abc123 on mesh
-
-# Discover what other agents can do
-duck mesh list
-# Shows: agent_id, name, capabilities[], status
-
-# Send a message to a specific agent
-duck mesh send duck-xyz789 "Hey, can you check the grow tent?"
-
-# Broadcast to all agents
-duck mesh broadcast "System health check starting in 5 minutes"
-
-# Check your inbox for messages
-duck mesh inbox
-# Shows: sender, message, timestamp, read/unread
-
-# See what each agent specializes in
-duck mesh capabilities
-# Maps: agent_id → [coding, research, grow-monitor, ...]
-```
-
 ### Mesh Architecture
 
 ```
@@ -275,30 +450,18 @@ duck mesh capabilities
 │        │                │                │            │
 │        └────────────────┼────────────────┘            │
 │                         │                             │
-│               ┌─────────▼─────────┐                 │
-│               │    Capability      │                 │
-│               │     Registry       │                 │
-│               └────────────────────┘                 │
+│               ┌─────────▼─────────┐                   │
+│               │    Capability     │                   │
+│               │     Registry      │                   │
+│               └───────────────────┘                   │
 └──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🛒 ClawHub Skill Marketplace — FEATURED
+## 🛒 ClawHub Skill Marketplace — OPTIONAL
 
-**clawhub.ai** — The OpenClaw skill registry. Browse, search, and install skills to extend Duck Agent's capabilities.
-
-### What is ClawHub?
-
-ClawHub is the official skill marketplace for OpenClaw-compatible agents. Find skills for:
-- 🌐 Web scraping & browser automation
-- 📊 Data analysis & visualization  
-- 🔧 Development tools & code generators
-- 🤖 AI integrations & model connectors
-- 📱 Mobile & desktop automation
-- 🔒 Security & compliance tools
-
-### ClawHub Commands
+**clawhub.ai** — Browse, search, and install skills to extend Duck Agent.
 
 ```bash
 duck clawhub explore              # Browse the skill catalog
@@ -310,52 +473,11 @@ duck clawhub update [name|--all]  # Update skills
 duck clawhub uninstall <name>     # Remove a skill
 ```
 
-### ClawHub Usage Examples
-
-```bash
-# Browse available skills
-duck clawhub explore
-# Shows featured and latest skills from clawhub.ai
-
-# Search for a specific skill
-duck clawhub search "web scraping"
-# Returns matching skills with descriptions
-
-# Install a skill
-duck clawhub install github        # Install GitHub integration
-duck clawhub install browser       # Install browser automation
-duck clawhub install security     # Install security toolkit
-
-# List installed skills
-duck clawhub list
-# Shows all installed skills with versions
-
-# Update all installed skills
-duck clawhub update --all
-```
-
-### Skill Installation
-
-Skills are installed to `src/skills/` and automatically loaded by Duck Agent. Each skill contains:
-- `SKILL.md` — Skill definition and triggers
-- `scripts/` — Executable scripts
-- `references/` — Documentation and templates
-
-### Skill Discovery
-
-| Command | What it does |
-|---------|--------------|
-| `duck clawhub explore` | Browse featured and latest skills |
-| `duck clawhub search "term"` | Vector search for skills |
-| `duck clawhub featured` | Show top-rated skills |
-
 ---
 
 ## 👻 SOUL Registry — AI Personas
 
-**onlycrabs.ai** — Download and activate AI persona files (SOUL.md) for different personalities and behaviors.
-
-### SOUL Commands
+**onlycrabs.ai** — Download and activate AI persona files (SOUL.md).
 
 ```bash
 duck souls featured               # Show featured SOULs
@@ -366,55 +488,25 @@ duck souls activate <name>        # Activate a SOUL
 duck souls uninstall <name>       # Remove a SOUL
 ```
 
-### SOUL Usage Examples
-
-```bash
-# Browse featured AI personas
-duck souls featured
-
-# Search for a specific persona
-duck souls search "helpful assistant"
-
-# Install and activate a SOUL
-duck souls install my-persona
-duck souls activate my-persona
-```
-
 ---
 
 ## 🧪 OpenClaw-RL — OPTIONAL
 
-**Reinforcement learning-based self-improvement** — Turns every conversation into a training signal. Runs entirely on your own infrastructure. **Disabled by default.**
-
-> ⚠️ **RL is 100% optional and OFF by default.** Duck Agent works identically with or without it.
-
-### What is OpenClaw-RL?
-
-OpenClaw-RL is a fully asynchronous RL framework that turns conversations into training signals. Two learning methods:
-
-| Method | Signal | Best For |
-|--------|--------|----------|
-| **Binary RL (GRPO)** | +1/-1/0 scores | Implicit feedback, task success/failure |
-| **On-Policy Distillation (OPD)** | Token-level hints | Rich textual feedback, directional improvement |
+**Reinforcement learning-based self-improvement**
 
 ### Setup
 
 ```bash
-# 1. Start the OpenClaw-RL server (choose one method)
+# 1. Start the OpenClaw-RL server
 cd OpenClaw-RL/slime
-
-# Method A: Binary RL (GRPO)
-bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh
-
-# Method B: On-Policy Distillation (OPD)
-bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
+bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh  # GRPO
+# or
+bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh # OPD
 ```
 
 ```bash
-# 2. Connect Duck Agent to the RL server
+# 2. Connect Duck Agent
 duck rl connect http://<host>:30000
-
-# 3. Enable RL training
 duck rl enable
 ```
 
@@ -428,161 +520,6 @@ duck rl stats        # Show training statistics
 duck rl connect <url> # Connect to an RL server
 duck rl disconnect   # Remove RL server connection
 ```
-
-### RL Usage Examples
-
-```bash
-# Check status (RL is off by default)
-duck rl status
-# Output: RL enabled: false | RL server: none | Training: idle
-
-# Connect to your RL server
-duck rl connect http://192.168.1.100:30000
-
-# Enable training and chat normally
-duck rl enable
-duck shell
-# Chat normally — training happens in background
-
-# Check training progress
-duck rl stats
-# Output: Sessions: 42 | Turns trained: 847 | Avg reward: +0.73
-
-# Done? Turn it off
-duck rl disable
-```
-
-### How RL Works
-
-```
-User Message
-     │
-     ▼
-┌─────────────────────┐
-│  Duck Agent Core    │
-│  - session_id       │
-│  - turn_type (main) │
-└──────────┬──────────┘
-           │ (turn sent to RL server)
-           ▼
-┌─────────────────────┐
-│  PRM (Process       │
-│  Reward Model)      │
-│  Scores: +1/-1/0   │
-└──────────┬──────────┘
-           │ (reward signal)
-           ▼
-┌─────────────────────┐
-│  Background Policy   │
-│  Update (async)     │
-│  No latency added   │
-└─────────────────────┘
-```
-
----
-
-## 🔧 ClawHub Skill Marketplace — OPTIONAL
-
-**Skill marketplace for discovering, sharing, and installing AI capabilities**
-
-Duck Agent integrates with ClawHub — a community-driven skill registry where you can publish your own skills and install skills built by others.
-
-### ClawHub Commands
-
-```bash
-duck clawhub search <query>     # Search for skills
-duck clawhub install <skill>    # Install a skill
-duck clawhub publish <name>     # Publish your skill
-duck clawhub list               # List installed skills
-duck clawhub info <skill>       # Show skill details
-duck clawhub update <skill>     # Update a skill
-duck clawhub uninstall <skill>  # Remove a skill
-```
-
-### Soul Commands
-
-```bash
-duck souls list           # Browse available souls
-duck souls featured      # Show featured SOULs
-duck souls search <query> # Search for SOULs
-duck souls activate <name> # Activate a SOUL
-```
-
----
-
-### ClawHub Usage Examples
-
-```bash
-# Search for a skill
-duck clawhub search "image generation"
-# Output: skill_name | description | author | downloads
-
-# Install a skill from the marketplace
-duck clawhub install image-gen-skill
-
-# Publish your custom skill
-duck clawhub publish my-custom-skill
-
-# List all installed skills
-duck clawhub list
-
-# Browse featured SOULs
-duck souls featured
-
-# Search for a specific persona
-duck souls search "helpful assistant"
-```
-
-### ClawHub Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│               ClawHub Marketplace                │
-│         (skill registry + souls registry)        │
-│                                                  │
-│   ┌───────────┐  ┌───────────┐  ┌───────────┐ │
-│   │  Skills   │  │  Souls    │  │  Ratings  │ │
-│   │  Registry │  │  Registry │  │  & Reviews │ │
-│   └─────┬─────┘  └─────┬─────┘  └─────┬─────┘ │
-│         │               │               │        │
-│         └───────────────┼───────────────┘        │
-│                         │                        │
-│              ┌──────────▼──────────┐            │
-│              │    Duck Agent         │            │
-│              │  clawhub install      │            │
-│              │  souls list/search   │            │
-│              └──────────────────────┘            │
-└─────────────────────────────────────────────────┘
-```
-
----
-
-## 🦆 Souls Registry
-
-**Share and import AI personalities via SOUL.md**
-
-The Souls Registry lets you publish your agent's personality (SOUL.md) to a shared registry, or import personalities from other agents. Your agent becomes more than just code — it has an identity that can be shared, forked, and remixed.
-
-### Soul Traits
-
-| Trait | Description |
-|-------|-------------|
-| 🧠 **Personality** | Tone, vocabulary, response style |
-| 🎯 **Goals** | What the agent prioritizes |
-| ⚙️ **Preferences** | Learned user preferences |
-| 📝 **Memory** | Important remembered facts |
-| 🎭 **Persona** | Custom emoji, catchphrases, quirks |
-
-### Soul Commands
-
-```bash
-duck souls list           # Browse available souls
-duck souls featured      # Show featured SOULs
-duck souls search <query> # Search for SOULs
-duck souls activate <name> # Activate a SOUL
-```
-
----
 
 ---
 
@@ -603,11 +540,7 @@ duck voice --voice casual "Hi!"    # Different style
 
 ## 🌐 Web UI — REQUIRED
 
-**Full-featured control interface**
-
-```
-http://localhost:3001
-```
+**Full-featured control interface at http://localhost:3001**
 
 | Panel | Features |
 |-------|----------|
@@ -624,26 +557,7 @@ http://localhost:3001
 
 ---
 
-## 🖥️ Desktop UI — OPTIONAL (Planned for v0.4.0)
-
-> **Coming in v0.4.0** — Native desktop application built from `src/ui/desktop/`
-
-See [DESKTOP-UI.md](docs/DESKTOP-UI.md) for the full design preview.
-
-**Preview features:**
-- Native window with system tray
-- Real-time agent dashboard
-- Live chat interface
-- Mesh network visualizer
-- Council deliberation panel
-- Desktop control widget
-- Notification center
-
----
-
 ## 🔌 Headless Protocols — REQUIRED
-
-Duck Agent is **headless-first** — run it as a server and connect via MCP, ACP, WebSocket, or HTTP.
 
 ### 🦆 Unified Server (Recommended)
 
@@ -658,30 +572,13 @@ duck unified
 | 18796 | WebSocket | Bidirectional messaging |
 | 18792 | Gateway API | OpenAI-compatible REST |
 
-### 🔌 MCP Server (Model Context Protocol)
+### 🔌 MCP Server
 
 ```bash
 duck mcp
 ```
 
-**Built-in Tools (14+):**
-
-```
-execute           - Execute a task
-think            - Reasoning mode
-remember         - Store in memory
-recall           - Search memory
-kairos_status    - Get KAIROS state
-kairos_action    - Trigger autonomous action
-desktop_screenshot - Take screenshot
-desktop_open     - Open application
-desktop_click    - Click at coordinates
-desktop_type     - Type text
-get_status       - Agent metrics
-list_tools       - List all tools
-ping             - Latency check
-spawn_agent      - Spawn sub-agent
-```
+**Built-in Tools (14+):** execute, think, remember, recall, kairos_status, kairos_action, desktop_screenshot, desktop_open, desktop_click, desktop_type, get_status, list_tools, ping, spawn_agent
 
 ### 🔗 ACP Client — Spawn External Agents
 
@@ -694,30 +591,6 @@ duck acp claude "Review PR #123"
 
 ```bash
 duck acp-server
-```
-
-OpenClaw configuration:
-
-```json
-{
-  "agents": {
-    "list": [
-      {
-        "id": "duck",
-        "name": "Duck Agent",
-        "workspace": "~/.duck-agent",
-        "runtime": {
-          "type": "acp",
-          "acp": {
-            "agent": "duck",
-            "backend": "acpx",
-            "mode": "persistent"
-          }
-        }
-      }
-    ]
-  }
-}
 ```
 
 ### 🚪 Gateway API
@@ -754,12 +627,6 @@ duck team spawn research        # Spawn workers
 duck team status               # Check progress
 ```
 
-| Template | Purpose |
-|----------|---------|
-| code-review | PR analysis, bug detection |
-| research | Web search, summarization |
-| swarm | Parallel task execution |
-
 ---
 
 ## ⏰ Cron Automation — REQUIRED
@@ -784,40 +651,7 @@ duck cron disable ai-news   # Disable a job
 
 ---
 
-## 🛠️ Tools & Integrations — REQUIRED
-
-### Claude Code Tools (60+)
-
-| Category | Tools |
-|----------|-------|
-| **Files** | read, write, edit, glob, copy, move, delete |
-| **Shell** | bash, powershell, cmd |
-| **Search** | grep, find, findstr |
-| **Code** | lsp, diagnostics, eslint, typescript |
-| **Tasks** | create, list, get, update, stop |
-| **REPL** | node, python, bash, typescript |
-
-### Desktop Control
-
-```bash
-duck desktop open Safari
-duck desktop click 100 200
-duck desktop screenshot
-```
-
-### BrowserOS Integration (45+ tools)
-
-```bash
-browser_navigate url="https://github.com"
-browser_click selector="#submit-button"
-browser_screenshot
-```
-
----
-
 ## 🌐 Multi-Provider Support — REQUIRED
-
-**Use the best model for each job**
 
 | Provider | Models | Status |
 |----------|--------|--------|
@@ -831,12 +665,6 @@ browser_screenshot
 
 ## 🔄 OpenClaw Compatibility
 
-Duck Agent is built alongside OpenClaw and can run **side-by-side** with zero conflicts.
-
-### Dual Operation
-
-Duck Agent and OpenClaw use completely different ports — they are fully independent deployments.
-
 | Protocol | Duck Agent | OpenClaw |
 |----------|-----------|----------|
 | **Gateway** | 18792 | 18789 |
@@ -844,43 +672,18 @@ Duck Agent and OpenClaw use completely different ports — they are fully indepe
 | **ACP** | 18794 | 18790 |
 | **WebSocket** | 18796 | 18791 |
 | **Web UI** | 3001 | 3000 |
+| **Desktop UI** | 5173 | — |
 
 ### Running Alongside OpenClaw
 
 ```bash
 # Terminal 1: Duck Agent
-duck unified                    # Starts: 3850, 18792, 18794, 18796
+duck unified
 
-# Terminal 2: OpenClaw (separate install)
-openclaw unified              # Starts: 3848, 18789, 18790, 18791
+# Terminal 2: OpenClaw
+openclaw unified
 
-# Both systems run independently with no conflicts!
-```
-
-### OpenClaw Configuration (for ACP connections)
-
-To let OpenClaw spawn Duck Agent sessions:
-
-```json
-{
-  "agents": {
-    "list": [
-      {
-        "id": "duck",
-        "name": "Duck Agent",
-        "workspace": "~/.duck-agent",
-        "runtime": {
-          "type": "acp",
-          "acp": {
-            "agent": "duck",
-            "backend": "acpx",
-            "mode": "persistent"
-          }
-        }
-      }
-    ]
-  }
-}
+# Both systems run independently — no conflicts!
 ```
 
 ---
@@ -889,43 +692,43 @@ To let OpenClaw spawn Duck Agent sessions:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Duck Agent v0.3.2                        │
+│                         Duck Agent v0.4.0                        │
 │                                                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                     User Interfaces                       │    │
-│  │   Shell (TUI)  │  Web UI (:3001)  │  Telegram/Discord     │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                   │
-│  ┌───────────────────────────▼─────────────────────────────┐    │
-│  │                      KAIROS Core                          │    │
-│  │   Heartbeat  │  Decision Engine  │  Auto-Dream  │  Modes  │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                   │
-│  ┌────────┐  ┌────────┐  ┌─────────┐  ┌──────────┐  ┌────────┐  │
-│  │  AI   │  │ Agent  │  │ Claude  │  │ Desktop  │  │ Cron   │  │
-│  │Council│  │ Mesh   │  │  Code   │  │ Control  │  │  30+   │  │
-│  │  45   │  │ (opt)  │  │ Tools   │  │ClawdCursor│ │ Jobs   │  │
-│  └────────┘  └────────┘  └─────────┘  └──────────┘  └────────┘  │
-│                              │                                   │
-│  ┌───────────────────────────▼─────────────────────────────┐    │
-│  │              Headless Protocol Servers                   │    │
-│  │   ┌────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐   │    │
-│  │   │  MCP   │  │  ACP   │  │   WS   │  │   Gateway    │   │    │
-│  │   │  3850  │  │ 18794  │  │ 18796  │  │    18792     │   │    │
-│  │   └────────┘  └────────┘  └────────┘  └──────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                              │                                   │
-│  ┌───────────────────────────▼─────────────────────────────┐    │
-│  │                 Multi-Provider AI Stack                  │    │
-│  │   MiniMax  │  Kimi  │  ChatGPT  │  LM Studio  │  Codex  │    │
-│  └─────────────────────────────────────────────────────────┘    │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │                    User Interfaces                          │  │
+│  │  Shell (TUI) │ Web UI (:3001) │ Desktop UI (:5173) │ Chat │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                               │                                 │
+│  ┌───────────────────────────▼──────────────────────────────┐  │
+│  │                    KAIROS Core                             │  │
+│  │  Heartbeat │ Decision Engine │ Auto-Dream │ Modes         │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                               │                                 │
+│  ┌───────────┐  ┌─────────┐  ┌──────────┐  ┌─────────────┐    │
+│  │  AI      │  │ Agent   │  │ Claude   │  │ Desktop     │    │
+│  │  Council │  │ Mesh    │  │  Code    │  │ Control     │    │
+│  │  45      │  │ (opt)   │  │ Tools    │  │ ClawdCursor │    │
+│  └───────────┘  └─────────┘  └──────────┘  └─────────────┘    │
+│                               │                                 │
+│  ┌───────────────────────────▼──────────────────────────────┐  │
+│  │              Headless Protocol Servers                     │  │
+│  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐    │  │
+│  │  │  MCP   │  │  ACP   │  │   WS   │  │   Gateway   │    │  │
+│  │  │  3850  │  │ 18794  │  │ 18796  │  │    18792    │    │  │
+│  │  └────────┘  └────────┘  └────────┘  └──────────────┘    │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                               │                                 │
+│  ┌───────────────────────────▼──────────────────────────────┐  │
+│  │                  Multi-Provider AI Stack                  │  │
+│  │  MiniMax │ Kimi │ ChatGPT │ LM Studio │ Codex            │  │
+│  └───────────────────────────────────────────────────────────┘  │
 │                                                                  │
+│  OPTIONAL LAYERS:                                                │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  Desktop UI (:5173)  │  Sub-Conscious  │  CopilotKit     │  │
+│  │  Pretext Canvas      │  Agent Mesh     │  OpenClaw-RL    │  │
+│  └────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
-
-  OPTIONAL LAYERS (disabled by default):
-  ┌─────────────────────────────────────────────────────────────┐
-  │   Agent Mesh  │  OpenClaw-RL  │  ClawHub  │  Souls Registry  │
-  └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -935,8 +738,9 @@ To let OpenClaw spawn Duck Agent sessions:
 ```
 Duck Agent/
 ├── src/
-│   ├── agent/           # Core AI agent with learning
-│   ├── kairos/         # KAIROS autonomous system
+│   ├── agent/           # Core AI agent
+│   ├── kairos/          # KAIROS autonomous system
+│   ├── subconscious/    # Sub-Conscious whisper layer (v0.4.0 NEW)
 │   ├── mesh/            # Agent Mesh networking 🌐
 │   ├── rl/              # OpenClaw-RL integration 🧪
 │   ├── buddy/           # Buddy companion
@@ -956,15 +760,15 @@ Duck Agent/
 │   ├── clawhub/         # ClawHub skill marketplace 🔧
 │   ├── souls/           # Souls registry 🦆
 │   └── ui/
-│       ├── pretext-canvas/  # Generative UI
+│       ├── pretext-canvas/  # Generative UI (Pretext + Canvas)
 │       ├── a2ui/            # Canvas renderer
-│       └── desktop/         # Desktop UI (v0.4.0) 🖥️
+│       └── desktop/         # Desktop UI (Vite + React + CopilotKit) 🖥️
 ├── web-ui/              # Full Web UI
 ├── docs/                # Documentation
 │   ├── ARCHITECTURE.md
 │   ├── COMMANDS.md
 │   ├── UPDATES.md
-│   └── DESKTOP-UI.md    # Desktop UI preview
+│   └── DESKTOP-UI.md
 └── package.json
 ```
 
@@ -979,57 +783,42 @@ duck run <task>         # Single task
 duck think <prompt>     # Reasoning
 duck status             # Show status
 duck tools              # List tools
-duck history            # View history
 
 # Protocols
 duck unified           # All protocols
 duck mcp [port]        # MCP server (port 3850)
-duck mcp-connect <url> # Connect MCP
-duck acp <agent> [task]# Spawn ACP (CLIENT)
-duck acp-server [port] # ACP server (let OpenClaw connect TO you)
-duck ws connect <url>  # Connect WS
+duck acp <agent> [task]# Spawn ACP
+duck acp-server [port] # ACP server (port 18794)
 duck gateway           # REST API (port 18792)
 
 # AI Systems
 duck kairos [mode]     # KAIROS control
+duck subconscious [cmd] # Sub-Conscious (status/enable/disable/stats)
 duck buddy [action]     # Buddy system
 duck team [action]      # Teams
 duck council [query]    # AI Council
 duck council list       # List 45 councilors
-duck council summon <r> # Summon specific councilor
 
-# OPTIONAL: Mesh 🌐
-duck mesh register      # Join mesh network
+# Optional: Mesh 🌐
+duck mesh register      # Join mesh
 duck mesh list          # Discover agents
 duck mesh send <id> <m> # Send message
 duck mesh broadcast <m> # Broadcast
-duck mesh inbox          # Check inbox
-duck mesh status        # Ping mesh
-duck mesh capabilities  # Map skills
-duck mesh catastrophe   # Check events
+duck mesh inbox         # Check inbox
 
-# OPTIONAL: OpenClaw-RL 🧪
+# Optional: OpenClaw-RL 🧪
 duck rl status          # RL status
 duck rl enable          # Enable RL
 duck rl disable         # Disable RL
 duck rl connect <url>   # Connect RL server
-duck rl disconnect      # Disconnect
-duck rl stats           # Training stats
 
-# OPTIONAL: ClawHub 🔧
-duck clawhub search <q>  # Search skills
+# Optional: ClawHub 🔧
+duck clawhub search <q> # Search skills
 duck clawhub install <s> # Install skill
-duck clawhub publish <n> # Publish skill
-duck clawhub list        # List installed
-duck clawhub info <s>    # Skill details
-duck clawhub update <s> # Update skill
-duck clawhub uninstall <s> # Remove skill
+duck clawhub list       # List installed
 
-# OPTIONAL: Souls 🦆
+# Optional: Souls 🦆
 duck souls list         # Browse souls
-duck souls featured    # Show featured SOULs
-duck souls search <q>  # Search for SOULs
-duck souls install <n> # Install a SOUL
 duck souls activate <n> # Activate a SOUL
 
 # Automation
@@ -1046,8 +835,6 @@ duck memory            # Memory commands
 
 ## 🔐 Security — REQUIRED
 
-**Enterprise-grade features (from NVIDIA NemoClaw)**
-
 - **SSRF Validation** — Blocks private IPs, DNS rebinding
 - **Credential Sanitizer** — Prevents API key leaks
 - **State Manager** — Persistent encrypted state
@@ -1057,39 +844,14 @@ duck memory            # Memory commands
 
 ## 🔄 Update Strategy — REQUIRED
 
-**Multi-source integration**
-
-| Source | Features Integrated |
-|--------|-------------------|
-| **OpenClaw** | Gateway protocol, multi-channel, skills, compat/v2026.3.31 |
-| **Claude Code** | KAIROS, buddy, multi-agent |
-| **Hermes-Agent** | Gateway patterns, FTS5 search |
-| **NemoClaw** | Security (SSRF, credentials) |
-| **Codex CLI** | Exec mode, approval layers |
-| **DroidClaw** | Phone control, workflow/macro |
-| **OpenCrabs** | Local voice, hybrid memory |
-| **TrinityClaw** | ChromaDB, identity system |
-| **FlowlyAI** | @mention routing, skills hub |
-| **OpenClaw-RL** | Reinforcement learning self-improvement |
+**Multi-source integration from OpenClaw, Claude Code, Hermes, NemoClaw, Codex CLI, and more.**
 
 ```bash
 duck update check      # Check for updates
 duck update install   # Install latest
 duck update backup    # Backup first
 duck update restore   # Rollback
-duck update status    # Git status
 ```
-
----
-
-## 🧠 Memory System — REQUIRED
-
-**3-tier architecture**
-
-1. **Identity Files** — SOUL.md, IDENTITY.md
-2. **Config Files** — AGENTS.md, TOOLS.md, KANBAN.md
-3. **Session Memory** — Conversation context
-4. **Learned Patterns** — From interactions
 
 ---
 
@@ -1097,9 +859,9 @@ duck update status    # Git status
 
 | Version | Milestone | Description |
 |---------|-----------|-------------|
-| **v0.4.0** | 🖥️ Desktop UI | Native desktop app with system tray, real-time dashboard, live chat, mesh visualizer, council panel, desktop control widget, notification center |
-| **v0.5.0** | 🔧 ClawHub Integration | Full skill marketplace, SOUL.md sharing, community ratings, skill versioning, one-click install from registry |
-| **v1.0.0** | 🏆 Production Ready | Stabilized APIs, comprehensive tests, performance optimization, full documentation, production deployment guides |
+| **v0.4.0** | ✅ Desktop UI + Sub-Conscious | Vite+React Desktop UI, CopilotKit, Pretext Canvas, Sub-Conscious |
+| **v0.5.0** | 🔧 ClawHub Integration | Full skill marketplace, SOUL.md sharing, community ratings |
+| **v1.0.0** | 🏆 Production Ready | Stabilized APIs, comprehensive tests, full documentation |
 
 ---
 
@@ -1110,7 +872,7 @@ duck update status    # Git status
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [COMMANDS.md](docs/COMMANDS.md) | CLI reference |
 | [UPDATES.md](docs/UPDATES.md) | Version history & roadmap |
-| [DESKTOP-UI.md](docs/DESKTOP-UI.md) | Desktop UI preview (v0.4.0) |
+| [DESKTOP-UI.md](docs/DESKTOP-UI.md) | Desktop UI guide (v0.4.0) |
 
 ---
 
@@ -1120,18 +882,14 @@ duck update status    # Git status
 # Build from source
 npm run build
 
-# Check for issues
-duck update status
-
-# Backup before changes
-duck update backup
-
 # Health check (Duck Agent ports)
 curl http://localhost:18792/health  # Gateway
-curl http://localhost:3850/health    # MCP
-curl http://localhost:18794/health    # ACP
-curl http://localhost:18796/health    # WebSocket
-curl http://localhost:3001/health     # Web UI
+curl http://localhost:3850/health  # MCP
+curl http://localhost:18794/health # ACP
+curl http://localhost:3001/health  # Web UI
+
+# Desktop UI
+cd src/ui/desktop && npm run build
 
 # View logs
 tail -f ~/.duck-agent/logs/*.log
@@ -1149,4 +907,4 @@ MIT License — Ryan (Duckets) 2026
 
 Inspired by and integrating features from:
 
-[OpenClaw](https://github.com/openclaw/openclaw) · [Claude Code](https://github.com/anthropics/claude-code) · [Hermes-Agent](https://github.com/Franzferdinan51/hermes-agent) · [NemoClaw](https://github.com/NVIDIA/NemoClaw) · [Codex CLI](https://github.com/openai/codex) · [DroidClaw](https://github.com/unitedbyai/droidclaw) · [OpenCrabs](https://github.com/adolfousier/opencrabs) · [TrinityClaw](https://github.com/TrinityClaw/trinity-claw) · [FlowlyAI](https://github.com/Nocetic/flowlyai) · [ClawX](https://github.com/ValueCell-ai/ClawX) · [OpenClaw-RL](https://github.com/Franzferdinan51/OpenClaw-RL) · [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api)
+[OpenClaw](https://github.com/openclaw/openclaw) · [Claude Code](https://github.com/anthropics/claude-code) · [Hermes-Agent](https://github.com/Franzferdinan51/hermes-agent) · [NemoClaw](https://github.com/NVIDIA/NemoClaw) · [Codex CLI](https://github.com/openai/codex) · [DroidClaw](https://github.com/unitedbyai/droidclaw) · [OpenCrabs](https://github.com/adolfousier/opencrabs) · [TrinityClaw](https://github.com/TrinityClaw/trinity-claw) · [FlowlyAI](https://github.com/Nocetic/flowlyai) · [ClawX](https://github.com/ValueCell-ai/ClawX) · [OpenClaw-RL](https://github.com/Franzferdinan51/OpenClaw-RL) · [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api) · [Pretext](https://github.com/chenglou/pretext) · [CopilotKit](https://github.com/CopilotKit/CopilotKit)

@@ -1,6 +1,6 @@
 # 🦆 Duck Agent Architecture
 
-> **Duck Agent v0.3.2** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31 Compatibility
+> **Duck Agent v0.4.0** — Agent Mesh, OpenClaw-RL, 45-Agent Council, OpenClaw v2026.3.31 Compatibility
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                           Duck Agent v0.3.2                                  │
+│                           Duck Agent v0.4.0                                  │
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
 │  │                        CLI / Shell Layer                                │  │
