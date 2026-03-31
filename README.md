@@ -1,30 +1,36 @@
-# 🦆 Duck CLI
+# 🦆 Duck Agent System
 
-> **⚠️ INTERNAL USE ONLY** - Personal AI coding agent for Ryan's setup. Not maintained for public distribution.
-
-**The ultimate CLI coding agent** combining Claude Code, OpenClaw, Hermes-agent, and BrowserOS into one powerful tool.
+> **A complete AI agent system** - autonomous reasoning, desktop control, multi-agent collaboration.
 
 ---
 
 ## ⚡ Quick Start
 
 ```bash
-# Clone & build
-git clone https://github.com/Franzferdinan51/duck-cli.git
-cd duck-cli
+# Build
 npm install && npm run build
 
-# Link globally
-npm link
+# Run shell
+node dist/cli/main.js shell
 
-# Configure API keys
-export ANTHROPIC_API_KEY=sk-ant-...
-export MINIMAX_API_KEY=...
+# Run task
+node dist/cli/main.js run "open Safari"
 
-# Run
-duck run "fix the authentication bug"
-duck -i
+# Status
+node dist/cli/main.js status
 ```
+
+---
+
+## 🎯 What It Does
+
+Duck Agent is a **standalone AI agent** that can:
+- 🤖 **Think and reason** autonomously
+- 🖥️ **Control your desktop** via ClawdCursor
+- 🧠 **Remember context** across sessions (SOUL + memory)
+- 📡 **Talk to other agents** via Agent Mesh
+- 🔧 **Use tools** to accomplish tasks
+- 📦 **Load skills** for specialized capabilities
 
 ---
 
@@ -32,159 +38,26 @@ duck -i
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OpenClaw Gateway                          │
-│         (handles all chat channels)                         │
-│    Telegram · Discord · Signal · WhatsApp · WebChat          │
-└────────────────────────────┬────────────────────────────────┘
-                             │ ACP WebSocket
-                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│                        Duck CLI                              │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Go CLI (cmd/duck/) → TypeScript Agent (internal/)    │  │
-│  └──────────────────────────────────────────────────────┘  │
+│                      Duck Agent                              │
 │                                                              │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐        │
-│  │ Providers│ │ Memory  │ │ Skills  │ │ Council │        │
-│  │ Manager  │ │ System  │ │ Runner  │ │ Runner  │        │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘        │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │                   Agent Core                           │  │
+│  │   Reasoning → Planning → Execution → Learning         │  │
+│  └─────────────────────────────────────────────────────┘  │
 │                                                              │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐        │
-│  │   MCP   │ │Security │ │ Channels│ │ Gateway │        │
-│  │ Manager │ │ Monitor │ │  (stub) │ │   ACP   │        │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘        │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │   │
+│  │ MiniMax   │ │   SOUL   │ │ Desktop  │ │ 10 loaded│   │
+│  │ LM Studio │ │  Facts   │ │ Execute  │ │          │   │
+│  │ Anthropic │ │  Context │ │ Files    │ │          │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │              Integrations                              │  │
+│  │   Agent Mesh (multi-agent) • ClawdCursor (desktop)    │  │
+│  │   MCP Servers • OpenClaw Gateway                     │  │
+│  └─────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
-```
-
-**Key principle:** Duck CLI uses OpenClaw for channels (Telegram, Discord). No direct polling = no conflicts.
-
----
-
-## 🤖 AI Providers
-
-**10+ providers** - use the best for each job:
-
-| Provider | Env Variable | Best For |
-|----------|--------------|----------|
-| **Claude Code** | `ANTHROPIC_API_KEY` | Premium coding |
-| **Claude API** | `ANTHROPIC_API_KEY` | Direct API |
-| **MiniMax** | `MINIMAX_API_KEY` | Fast, cheap |
-| **Kimi/Moonshot** | `MOONSHOT_API_KEY` | Long context |
-| **OpenAI** | `OPENAI_API_KEY` | GPT-4 |
-| **Gemini** | `GEMINI_API_KEY` | Google models |
-| **DeepSeek** | `DEEPSEEK_API_KEY` | Coding |
-| **ZAI** | `ZAI_API_KEY` | ZAI models |
-| **LM Studio** | `LMSTUDIO_URL` | Local (free) |
-| **Ollama** | `OLLAMA_HOST` | Local (free) |
-
----
-
-## 🧠 Memory & Identity
-
-| System | File | Purpose |
-|--------|------|---------|
-| **SOUL** | `SOUL.md` | Personality, tone, rules |
-| **MEMORY** | `MEMORY.md` | Facts, learnings, context |
-| **USER** | `USER.md` | User preferences |
-| **FTS5 Search** | SQLite | Full-text session search |
-| **Frozen Snapshots** | Memory | Token-efficient context |
-
-### SOUL.md Example
-```markdown
-## My Personality
-- Tone: casual
-- Swearing: allowed when appropriate
-- Homie mode: true
-- Emoji: yes, but not excessive
-
-## Rules
-- Be direct, no padding
-- Call out bullshit
-- Get the job done
-```
-
----
-
-## 🏛️ Multi-Agent System
-
-### AI Council
-Multi-agent deliberation and voting system:
-```bash
-duck council "Should we refactor the auth system?"
-```
-
-### Delegate Tool
-Spawn subagents with restricted toolsets:
-```bash
-duck agent spawn fix-auth "fix the auth bug"
-```
-
-### Self-Creating Skills
-Agent learns from workflows and creates SKILL.md:
-```bash
-# Agent detects pattern → creates skill automatically
-# Edit skill: ~/.duck/skills/[skill-name]/SKILL.md
-```
-
----
-
-## 🛡️ Security
-
-### DEFCON System
-Threat level monitoring:
-```bash
-duck security defcon     # Show current level
-duck security audit     # Run security scan
-```
-
-### Auth Profiles
-Health checks and auto-rotation:
-- Per-provider credential stores
-- Failure tracking and cooldown
-- Automatic rotation on failure
-
-### Tool Security
-- Path traversal detection
-- Command injection scanning
-- Unsafe execution blocking
-
----
-
-## 🌐 Integrations
-
-### OpenClaw Gateway (Recommended)
-Connect to OpenClaw for channels:
-```bash
-export OPENCLAW_GATEWAY=ws://localhost:18789
-export OPENCLAW_TOKEN=your_token
-duck gateway connect
-```
-
-### MCP Servers
-```bash
-duck mcp list           # List configured servers
-duck mcp add <name> <cmd>  # Add server
-duck mcp remove <name>    # Remove server
-```
-
-### Claude Code Integration
-```typescript
-import { ClaudeCodeIntegration } from './integrations/claude-code';
-const claude = new ClaudeCodeIntegration();
-const result = await claude.run("fix this bug");
-```
-
-### BrowserOS Integration
-53+ browser automation tools:
-```bash
-duck browser nav https://example.com
-duck browser click "#submit"
-duck browser screenshot
-```
-
-### AI Council
-```bash
-duck council "What features should we add?"
 ```
 
 ---
@@ -193,318 +66,181 @@ duck council "What features should we add?"
 
 ```
 duck-cli/
-├── cmd/duck/           # Go CLI wrapper
-│   └── main.go
-├── internal/            # TypeScript agent core
-│   ├── agent/          # Agent core, args, delegate
-│   ├── auth/           # Auth profiles
-│   ├── channels/       # Channel integrations (stub)
-│   ├── cli/            # CLI commands
-│   ├── council/        # AI Council
-│   ├── cron/           # Cron scheduler
-│   ├── gateway/        # ACP client
-│   ├── integrations/    # Claude Code, BrowserOS
-│   ├── memory/         # SOUL, MEMORY, sessions, FTS5
-│   ├── mcp/            # MCP manager
-│   ├── providers/      # AI provider management
-│   ├── security/       # Security monitor
-│   ├── skills/         # Skills runner, self-creator
-│   └── tools/          # Tool registry, toolsets
-├── sources/            # Cloned research repos
-│   ├── claude-code/
-│   ├── gemini-cli/
-│   └── hermes-agent/
-├── skills/             # Duck CLI skills
-│   └── claude-code-mastery/
-├── tools/              # Integrated tools
-│   └── SKILL.md
+├── src/
+│   ├── agent/core.ts         # Main agent logic
+│   ├── providers/manager.ts   # AI providers
+│   ├── memory/system.ts       # SOUL + memory
+│   ├── tools/registry.ts      # Tool execution
+│   ├── skills/runner.ts       # Skill loading
+│   ├── integrations/
+│   │   └── desktop.ts         # ClawdCursor
+│   ├── mesh/
+│   │   └── client.ts          # Agent Mesh
+│   └── cli/main.ts            # CLI entry
+├── skills/                    # Loaded skills
+│   ├── desktop-control/       # AI drawing/automation
+│   ├── clawd-cursor/         # Desktop control
+│   ├── claude-code-mastery/   # Employee overrides
+│   └── ...
 ├── docs/
-│   └── BUILD.md
-├── package.json
-└── README.md
+│   └── ARCHITECTURE.md        # System design
+└── dist/                     # Built output
 ```
 
 ---
 
-## 🚀 Commands
+## 🤖 AI Providers
+
+Set API keys via environment variables:
+
+| Provider | Env Variable | Status |
+|----------|-------------|--------|
+| **MiniMax** | `MINIMAX_API_KEY` | Ready |
+| **LM Studio** | `LMSTUDIO_URL` | Local |
+| **Anthropic** | `ANTHROPIC_API_KEY` | Ready |
+| **OpenAI** | `OPENAI_API_KEY` | Ready |
+
+---
+
+## 🧠 Memory System
+
+### SOUL
+Defines who the agent is:
+```
+.duck/memory/SOUL.md
+```
+
+### Memory Types
+- **facts** - Learned information
+- **interactions** - Past tasks and results
+- **learned** - Self-improvements
+
+---
+
+## 🔧 Tools
+
+Built-in tools:
+- `desktop_open` - Open applications
+- `desktop_click` - Click at coordinates
+- `desktop_type` - Type text
+- `desktop_screenshot` - Take screenshot
+- `memory_search` - Search memory
+- `memory_add` - Add to memory
+- `execute` - Run shell commands
+
+---
+
+## 📦 Skills
+
+Loaded automatically from `skills/` directory:
+
+| Skill | Purpose |
+|-------|---------|
+| **desktop-control** | AI drawing, app control |
+| **clawd-cursor** | REST API desktop control |
+| **claude-code-mastery** | Employee-grade overrides |
+| **code-review** | Automated code review |
+| **context-memory** | Semantic memory |
+| **security-audit** | Vulnerability scanning |
+| **git-workflow** | Smart git operations |
+| **mcp-manager** | MCP server management |
+
+---
+
+## 📡 Agent Mesh
+
+Multi-agent communication via [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api):
 
 ```bash
-# Core
-duck run "task"              # Run a task
-duck -i                       # Interactive shell
+# Start mesh server (on mesh machine)
+cd /path/to/agent-mesh-api
+npm start
 
-# Agents
-duck agent list              # List agents
-duck agent spawn <name> <task>  # Spawn subagent
+# Duck Agent connects to mesh
+export MESH_SERVER=http://localhost:4000
+export MESH_API_KEY=openclaw-mesh-default-key
+
+# Agent can now:
+# - Send messages to other agents
+# - Delegate tasks
+# - Share knowledge
+# - Broadcast announcements
+```
+
+---
+
+## 🖥️ Desktop Control
+
+Uses ClawdCursor API (must be running):
+
+```bash
+# Start ClawdCursor
+cd ~/.openclaw/workspace/clawd-cursor
+nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &
+
+# API available at http://127.0.0.1:3847
+```
+
+---
+
+## 💬 Commands
+
+```bash
+# Interactive shell
+duck shell
+
+# Single task
+duck run "open Safari"
+
+# Desktop control
+duck desktop open Calculator
 
 # Memory
-duck memory list             # List memories
-duck memory add <text>      # Add memory
-duck memory search <query>   # Search memories
+duck memory add "User prefers dark mode"
+duck memory search "preferences"
 
-# Skills
-duck skills list             # List skills
-duck skills create <name>   # Create skill
-
-# Council
-duck council "question"      # Ask AI Council
-
-# Security
-duck security audit         # Run audit
-duck security defcon        # Show DEFCON level
-
-# MCP
-duck mcp list               # List MCP servers
-duck mcp add <name> <cmd>   # Add server
-
-# Gateway
-duck gateway connect        # Connect to OpenClaw
-
-# Import
-duck import <dir>           # Import OpenClaw/Hermes setup
-
-# Channels (via OpenClaw gateway)
-duck channels list          # List configured channels
-duck channels send <ch> <msg>  # Send message
+# Status
+duck status
 ```
 
 ---
 
-## 🔧 Environment Variables
+## 🔐 Security
 
-```bash
-# AI Providers (pick your combination)
-ANTHROPIC_API_KEY=sk-ant-...    # Claude
-OPENAI_API_KEY=sk-...           # OpenAI
-MINIMAX_API_KEY=...             # MiniMax
-MOONSHOT_API_KEY=...            # Kimi
-GEMINI_API_KEY=...              # Gemini
-DEEPSEEK_API_KEY=...            # DeepSeek
+- DEFCON threat levels
+- Path traversal protection
+- Command injection detection
+- Tool sandboxing
 
-# Local Models
-OLLAMA_HOST=http://localhost:11434
-LMSTUDIO_URL=http://localhost:1234
+---
 
-# OpenClaw Gateway (for channels)
-OPENCLAW_GATEWAY=ws://localhost:18789
-OPENCLAW_TOKEN=your_token
+## 📝 GitHub Integration
 
-# MCP Servers
-MCP_SERVERS='{"servers":{"name":{"command":"..."}}}'
+Pulls features from:
+- [AI-Bot-Council-Concensus](https://github.com/Franzferdinan51/AI-Bot-Council-Concensus)
+- [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api)
+- [agent-monitor-openclaw-dashboard](https://github.com/Franzferdinan51/agent-monitor-openclaw-dashboard)
+- OpenClaw, Hermes-agent, BrowserOS
+
+---
+
+## 🚀 Status
+
+```
+Providers: 0 (need API keys)
+Tools: 7 (all registered)
+Skills: 10 (all loaded)
+Memory: Working
+Desktop: Waiting for ClawdCursor
+Mesh: Ready to connect
 ```
 
 ---
 
-## 🛠️ Build from Source
+## 📄 License
 
-```bash
-git clone https://github.com/Franzferdinan51/duck-cli.git
-cd duck-cli
-
-# Install dependencies
-npm install
-
-# Build TypeScript
-npm run build
-
-# Build Go (optional)
-npm run build:go
-
-# Link
-npm link
-
-# Use
-duck run "fix auth bug"
-```
-
-See [docs/BUILD.md](docs/BUILD.md) for details.
+Internal use only.
 
 ---
 
-## 🦆 Claude Code Employee-Grade Overrides
-
-Based on @iamfakeguru's reverse-engineering:
-
-### The 7 Hidden Problems
-1. **Success metric is broken** - bytes hit disk ≠ code compiles
-2. **Context compaction** - loses context at 167K tokens
-3. **Briefness mandate** - fights perfect code
-4. **Swarm unused** - 5 agents = 835K tokens available
-5. **2K line cap** - files silently truncated
-6. **50K result cap** - tool results truncated
-7. **grep ≠ AST** - misses dynamic imports
-
-### Override Checklist
-```bash
-# BEFORE claiming "done":
-npx tsc --noEmit && npx eslint . --quiet
-
-# File >500 LOC? Chunk reads.
-# >5 files? Launch 5-8 parallel agents.
-# 10+ messages? Re-read everything.
-```
-
-Full override in `skills/claude-code-mastery/SKILL.md`
-
----
-
-## 📦 What's Integrated
-
-### From OpenClaw
-- SOUL.md personality system
-- MEMORY.md / USER.md
-- Session pruning
-- Auth profiles
-- MCP registry
-- Security scanner
-- Multi-provider fallback
-
-### From Hermes-Agent
-- FTS5 session search
-- Frozen snapshot memory
-- Self-creating skills
-- Delegate tool
-- Cron scheduler
-- Toolset distributions
-
-### From BrowserOS
-- 53+ browser automation tools
-- OAuth app integrations
-- Tab management
-- JavaScript execution
-
----
-
-## ⚠️ Common Issues
-
-### "getUpdates conflict" on Telegram
-→ Multiple processes polling same bot
-→ Use OpenClaw gateway instead of direct polling
-
-### "Provider not available"
-→ API key not set
-→ Check `duck run` with `--list-providers`
-
-### Build errors
-```bash
-rm -rf node_modules package-lock.json
-npm install && npm run build
-```
-
----
-
-## 📝 License
-
-Internal use only. Not for public distribution.
-
----
-
-## 🔗 Links
-
-- **GitHub:** https://github.com/Franzferdinan51/duck-cli
-- **OpenClaw:** https://github.com/openclaw/openclaw
-- **Hermes-agent:** https://github.com/nousresearch/hermes-agent
-
----
-
-**Built for Ryan's setup · 🦆 Duck CLI v0.1.0**
-
----
-
-## 🖥️ Desktop Control Skills
-
-Duck CLI includes powerful desktop automation skills:
-
-### Desktop Control (Lobster Edition)
-**Location:** `skills/desktop-control/`
-
-AI Desktop Agent for autonomous automation:
-- **Drawing** - "Draw a circle in Paint", "Draw a house"
-- **Text Entry** - "Type Hello in Notepad", "Write an email"
-- **App Control** - "Open Calculator", "Launch File Explorer"
-- **Game Playing** - "Play Solitaire", "Play Minesweeper"
-
-### ClawdCursor
-**Location:** `skills/clawd-cursor/`
-
-AI desktop agent via REST API:
-- Natural language task execution
-- Screenshot analysis and vision
-- Click, type, drag, scroll
-- Works on macOS and Windows
-- Uses Bailian/Kimi for vision
-
-**Start:** `cd ~/.openclaw/workspace/clawd-cursor && nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &`
-
-### Computer Use
-**Location:** `skills/computer-use/`
-
-General computer automation:
-- Browser control
-- Desktop app automation
-- Cross-app workflows
-- Visual verification
-
----
-
-## 📁 Project Structure (Updated)
-
-```
-duck-cli/
-├── cmd/duck/           # Go CLI wrapper
-├── internal/            # TypeScript agent core
-│   ├── agent/          # Agent core, args, delegate
-│   ├── auth/           # Auth profiles
-│   ├── channels/       # Channel integrations
-│   ├── cli/            # CLI commands
-│   ├── config/         # Configuration
-│   ├── council/        # AI Council
-│   ├── cron/           # Cron scheduler
-│   ├── events/         # Event system
-│   ├── gateway/        # ACP client
-│   ├── integrations/    # Claude Code, BrowserOS
-│   ├── memory/         # SOUL, MEMORY, sessions, FTS5
-│   ├── mcp/            # MCP manager
-│   ├── providers/       # AI provider management
-│   ├── security/       # Security monitor
-│   ├── session/        # Session management
-│   ├── skills/         # Skills system
-│   ├── soul/           # Personality system
-│   ├── tools/          # Tool registry, toolsets
-│   └── ui/             # TUI components
-├── skills/             # Duck CLI skills
-│   ├── claude-code-mastery/  # Employee-grade overrides
-│   ├── clawd-cursor/        # Desktop control
-│   ├── computer-use/         # General automation
-│   ├── desktop-control/      # AI Agent drawing/automation
-│   ├── code-review/
-│   ├── context-memory/
-│   ├── git-workflow/
-│   ├── mcp-manager/
-│   └── security-audit/
-├── tools/              # Integrated tools
-├── sources/            # Cloned research repos
-├── docs/              # Documentation
-└── README.md
-```
-
----
-
-## 🧪 Testing
-
-```bash
-# Test MiniMax API
-export MINIMAX_API_KEY="your-key"
-curl -X POST https://api.minimax.io/v1/chat/completions \
-  -H "Authorization: Bearer $MINIMAX_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"abab6.5s-chat","messages":[{"role":"user","content":"hello"}]}'
-
-# Test LM Studio
-curl http://localhost:1234/v1/models
-
-# Run Duck CLI
-npm run build
-npm link
-duck run "say hello"
-```
+**🦆 v0.1.0** - Built by Ryan (Duckets)
