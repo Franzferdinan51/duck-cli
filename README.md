@@ -211,6 +211,7 @@ export AGENT_MESH_API_KEY=openclaw-mesh-default-key
 duck mesh register           # Join mesh, get agent ID
 duck mesh list              # Discover all agents & capabilities
 duck mesh status            # Ping mesh server health
+duck mesh health            # View mesh health dashboard
 duck mesh send <agent> <msg> # Send message to specific agent
 duck mesh broadcast <msg>   # Send message to all agents
 duck mesh inbox             # Check unread messages
@@ -488,10 +489,8 @@ duck clawhub uninstall <skill>  # Remove a skill
 
 ```bash
 duck souls list                 # List shared souls
-duck souls publish              # Publish your SOUL.md
-duck souls import <name>         # Import a soul
-duck souls sync                 # Sync with registry
-duck souls backup               # Backup souls to registry
+duck souls featured             # Show featured SOULs
+duck souls search <query>       # Search for SOULs
 ```
 
 ### ClawHub Usage Examples
@@ -510,12 +509,11 @@ duck clawhub publish my-custom-skill
 # List all installed skills
 duck clawhub list
 
-# Share your SOUL.md personality
-duck souls publish
-# Your agent personality is now available to others
+# Browse featured SOULs
+duck souls featured
 
-# Import someone's soul
-duck souls import DuckBot-Standard
+# Search for a specific persona
+duck souls search "helpful assistant"
 ```
 
 ### ClawHub Architecture

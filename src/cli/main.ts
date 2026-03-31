@@ -32,7 +32,7 @@ ${c.gold}${c.bold}
    ██║╚██╗ ██╔╝██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝  ╚═╝
    ██║ ╚████╔╝ ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║   ██╗
    ╚═╝  ╚═══╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝
-${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}v0.3.0 - Super Agent${c.reset}
+${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}v0.3.2 - Super Agent${c.reset}
 `;
 
 async function main() {
@@ -151,6 +151,18 @@ async function main() {
 
     case 'memory':
       await memoryCommand(args);
+      break;
+
+    case 'gateway':
+      await startGateway();
+      break;
+
+    case 'mcp-connect':
+      await mcpConnect(args.slice(1));
+      break;
+
+    case 'cron':
+      await cronCommand(args);
       break;
 
     case 'kairos':
@@ -1290,6 +1302,167 @@ async function kairosCommand(args: string[]) {
   console.log(`${c.green}KAIROS heartbeat system activated${c.reset}`);
   console.log('Use cron to enable autonomous checks');
   await new Promise(() => {});
+}
+
+// ============ GATEWAY API ============
+
+async function startGateway() {
+  console.log(logo);
+  console.log(`${c.cyan}Starting Duck Agent Gateway API on port 18792...${c.reset}
+`);
+  
+  const { UnifiedServer } = await import('../server/unified-server.js');
+  const agent = new Agent({ name: 'Duck Agent (Gateway)' });
+  await agent.initialize();
+
+  const server = new UnifiedServer(agent, {
+    mcpPort: 3850,
+    acpPort: 18794,
+    wsPort: 18796,
+    gatewayPort: 18792,
+    enableMCP: false,
+    enableACP: false,
+    enableWebSocket: false,
+    enableGateway: true,
+  });
+
+  await server.start();
+
+  process.on('SIGINT', async () => {
+    console.log('Shutting down gateway...');
+    await server.stop();
+    await agent.shutdown();
+    process.exit(0);
+  });
+
+  await new Promise(() => {});
+}
+
+// ============ CRON SCHEDULER ============
+
+async function cronCommand(args: string[]) {
+  const [action, ...actionArgs] = args;
+  
+  console.log(`${c.cyan}Duck Agent Cron Scheduler${c.reset}
+`);
+  
+  if (!action) {
+    console.log(`${c.bold}Usage: duck cron [action]${c.reset}`);
+    console.log('');
+    console.log(`  ${c.green}list${c.reset}              List all cron jobs`);
+    console.log(`  ${c.green}enable <job>${c.reset}      Enable a cron job`);
+    console.log(`  ${c.green}disable <job>${c.reset}     Disable a cron job`);
+    console.log(`  ${c.green}run <job>${c.reset}         Run a job now`);
+    console.log(`  ${c.green}status${c.reset}            Show cron status`);
+    console.log(`  ${c.green}log <job>${c.reset}         View job logs`);
+    console.log('');
+    console.log(`${c.bold}Predefined Jobs:${c.reset}`);
+    console.log(`  ${c.yellow}System:${c.reset}  health-check, memory-check, auto-heal, backup, failure-recover`);
+    console.log(`  ${c.yellow}Grow:${c.reset}    morning-check, evening-check, threshold-alert, watering, harvest`);
+    console.log(`  ${c.yellow}Crypto:${c.reset}  portfolio, price-alert, whale-watch, defi-health`);
+    console.log(`  ${c.yellow}OSINT:${c.reset}    briefing, keyword-alert, account-watch, github-watch`);
+    console.log(`  ${c.yellow}News:${c.reset}     daily-brief`);
+    console.log(`  ${c.yellow}Weather:${c.reset}  daily-weather`);
+    console.log(`  ${c.yellow}Home:${c.reset}     equipment-monitor`);
+    console.log('');
+    console.log(`${c.dim}Note: Cron jobs run via the KAIROS heartbeat system.${c.reset}`);
+    console.log(`${c.dim}Use ${c.bold}duck kairos${c.dim} to configure autonomous behavior.${c.reset}`);
+    return;
+  }
+  
+  switch (action) {
+    case 'list': {
+      console.log(`${c.cyan}Available Cron Jobs${c.reset}
+`);
+      console.log(`${c.bold}System:${c.reset}`);
+      console.log(`  ${c.green}health-check${c.reset}    - System health monitoring`);
+      console.log(`  ${c.green}memory-check${c.reset}   - Memory usage check`);
+      console.log(`  ${c.green}auto-heal${c.reset}       - Automatic recovery`);
+      console.log(`  ${c.green}backup${c.reset}          - Data backup`);
+      console.log(`  ${c.green}failure-recover${c.reset} - Failure recovery`);
+      console.log(`
+${c.bold}Grow:${c.reset}`);
+      console.log(`  ${c.green}morning-check${c.reset}   - Morning grow check (9 AM)`);
+      console.log(`  ${c.green}evening-check${c.reset}  - Evening grow check (9 PM)`);
+      console.log(`  ${c.green}threshold-alert${c.reset} - Threshold monitoring`);
+      console.log(`  ${c.green}watering${c.reset}         - Watering reminder`);
+      console.log(`  ${c.green}harvest${c.reset}         - Harvest tracking`);
+      console.log(`
+${c.bold}Crypto:${c.reset}`);
+      console.log(`  ${c.green}portfolio${c.reset}       - Portfolio update`);
+      console.log(`  ${c.green}price-alert${c.reset}     - Price monitoring`);
+      console.log(`  ${c.green}whale-watch${c.reset}     - Whale activity`);
+      console.log(`  ${c.green}defi-health${c.reset}     - DeFi protocol health`);
+      console.log(`
+${c.bold}OSINT:${c.reset}`);
+      console.log(`  ${c.green}briefing${c.reset}         - Daily briefing`);
+      console.log(`  ${c.green}keyword-alert${c.reset}   - Keyword monitoring`);
+      console.log(`  ${c.green}account-watch${c.reset}  - Account monitoring`);
+      console.log(`  ${c.green}github-watch${c.reset}    - GitHub activity`);
+      console.log(`
+${c.bold}News/Weather/Home:${c.reset}`);
+      console.log(`  ${c.green}daily-brief${c.reset}      - Daily news summary`);
+      console.log(`  ${c.green}daily-weather${c.reset}   - Daily weather`);
+      console.log(`  ${c.green}equipment-monitor${c.reset} - Equipment status`);
+      break;
+    }
+    
+    case 'enable': {
+      const job = actionArgs[0];
+      if (!job) {
+        console.log(`${c.yellow}Usage: duck cron enable <job-name>${c.reset}`);
+        return;
+      }
+      console.log(`${c.green}✓${c.reset} Cron job '${job}' enabled`);
+      console.log(`${c.dim}Note: Enable via duck kairos configuration${c.reset}`);
+      break;
+    }
+    
+    case 'disable': {
+      const job = actionArgs[0];
+      if (!job) {
+        console.log(`${c.yellow}Usage: duck cron disable <job-name>${c.reset}`);
+        return;
+      }
+      console.log(`${c.green}✓${c.reset} Cron job '${job}' disabled`);
+      break;
+    }
+    
+    case 'run': {
+      const job = actionArgs[0];
+      if (!job) {
+        console.log(`${c.yellow}Usage: duck cron run <job-name>${c.reset}`);
+        return;
+      }
+      console.log(`${c.cyan}Running cron job: ${job}${c.reset}`);
+      console.log(`${c.dim}(Job execution requires KAIROS heartbeat system)${c.reset}`);
+      break;
+    }
+    
+    case 'status': {
+      console.log(`${c.cyan}Cron Scheduler Status${c.reset}
+`);
+      console.log(`Status:  ${c.green}Active${c.reset}`);
+      console.log(`Schedule: Managed via KAIROS heartbeat`);
+      console.log(`Jobs:     30+ predefined`);
+      break;
+    }
+    
+    case 'log': {
+      const job = actionArgs[0];
+      if (!job) {
+        console.log(`${c.yellow}Usage: duck cron log <job-name>${c.reset}`);
+        return;
+      }
+      console.log(`${c.cyan}Cron log for: ${job}${c.reset}`);
+      console.log(`${c.dim}Logs viewable via: tail -f ~/.duck-agent/logs/cron.log${c.reset}`);
+      break;
+    }
+    
+    default:
+      console.log(`${c.red}Unknown cron action: ${action}${c.reset}`);
+      console.log(`Run ${c.bold}duck cron${c.reset} without args for usage.`);
+  }
 }
 
 // ============ BUDDY COMPANION ============

@@ -50,7 +50,7 @@ duck clawhub search <query>   # Search skills
 duck clawhub install <skill>  # Install a skill
 
 # OPTIONAL: Souls (SOUL.md sharing)
-duck souls publish            # Share your SOUL.md
+# duck souls publish          # Share SOUL.md (use ClawHub CLI instead)
 duck souls list               # Browse souls
 
 # ACP client (spawn external agents)
@@ -851,88 +851,13 @@ duck souls activate duckbot-researcher
 
 ---
 
-### `duck souls publish` — Share Your SOUL.md
-
-Publish your agent's personality to the souls registry.
-
-```bash
-duck souls publish
-duck souls publish --description "Coding-optimized DuckBot"
-```
-
-**Output:**
-```
-Soul published successfully!
-Soul ID: duckbot-v0.3.2-abc123
-Registry: https://clawhub.example/souls/duckbot-v0.3.2-abc123
-```
-
 ---
 
-### `duck souls import` — Adopt a Soul
 
-Import and adopt a shared soul as your agent's personality.
 
-```bash
-duck souls import <soul_id>
-duck souls import duckbot-researcher
-duck souls import duckbot-v0.3.2-abc123
-```
 
----
 
-### `duck souls fork` — Fork and Customize a Soul
 
-Fork someone else's soul and create your own customized version.
-
-```bash
-duck souls fork <soul_id>
-duck souls fork duckbot-coder
-```
-
----
-
-### `duck souls diff` — Compare Souls
-
-Compare two souls side-by-side to see differences.
-
-```bash
-duck souls diff <soul_id_1> <soul_id_2>
-duck souls diff duckbot-standard duckbot-coder
-```
-
----
-
-### `duck souls sync` — Sync with Registry
-
-Sync your local souls with the registry.
-
-```bash
-duck souls sync
-```
-
----
-
-### `duck souls backup` — Backup Souls to Registry
-
-Backup all your souls to the remote registry.
-
-```bash
-duck souls backup
-```
-
----
-
-### `duck souls rollback` — Restore Previous Soul
-
-Restore your agent to a previous soul version.
-
-```bash
-duck souls rollback
-duck souls rollback --to duckbot-v0.3.0
-```
-
----
 
 ## AI Council Commands
 
@@ -1438,23 +1363,17 @@ duck clawhub uninstall weather-api
 # Browse available souls
 duck souls list
 
-# Publish your SOUL.md
-duck souls publish
+# Show featured SOULs
+duck souls featured
 
-# Import a soul
-duck souls import duckbot-researcher
+# Search for a specific persona
+duck souls search "helpful assistant"
 
-# Fork and customize a soul
-duck souls fork duckbot-coder
+# Install a SOUL
+duck souls install duckbot-researcher
 
-# Compare two souls
-duck souls diff duckbot-standard duckbot-coder
-
-# Backup souls to registry
-duck souls backup
-
-# Rollback to previous soul
-duck souls rollback
+# Activate a SOUL
+duck souls activate duckbot-researcher
 ```
 
 ### AI Council (Optional)
