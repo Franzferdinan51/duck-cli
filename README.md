@@ -1,6 +1,8 @@
 # 🦆 Duck Agent System
 
-> **A complete AI agent system** - standalone agent + MCP server for OpenClaw.
+> **A complete AI agent system** - standalone agent + MCP server + Telegram/Discord channels.
+> 
+> Inspired by OpenClaw, Hermes-Agent, Claude Code, and DuckBot-OS.
 
 ---
 
@@ -16,22 +18,16 @@ node dist/cli/main.js shell
 # Run single task
 node dist/cli/main.js run "say hello"
 
-# Check status
-node dist/cli/main.js status
-
 # Think about something
 node dist/cli/main.js think "Why is the sky blue"
 
-# Remember something
-node dist/cli/main.js remember "User prefers dark mode"
-
-# Search memory
-node dist/cli/main.js recall "preferences"
+# Start with Telegram/Discord
+node dist/cli/main.js channels
 ```
 
 ---
 
-## 🎯 Two Modes in One
+## 🎯 Three Modes in One
 
 ### 1️⃣ Standalone Agent
 ```bash
@@ -48,37 +44,47 @@ node dist/cli/main.js think "Should I learn Rust or Go?"
 ### 2️⃣ MCP Server (for OpenClaw)
 ```bash
 # Start MCP server
-node dist/cli/main.js mcp
-
-# Or specify port
 node dist/cli/main.js mcp 3848
 
 # OpenClaw connects via:
-# POST http://localhost:3848/mcp
+POST http://localhost:3848/mcp
+```
+
+### 3️⃣ Telegram/Discord Bot
+```bash
+# Create channels.json with your bot tokens
+node dist/cli/main.js channels
+
+# Send message directly
+node dist/cli/main.js send telegram 123456789 "Hello!"
 ```
 
 ---
 
-## ✅ Verified Working
+## ✅ Verified Working (v0.3)
 
-| Component | Status |
-|-----------|--------|
-| **Core Agent** | ✅ Working |
-| **TUI Shell** | ✅ Working |
-| **Memory (remember/recall)** | ✅ Working |
-| **Reasoning (think)** | ✅ Working |
-| **Skills (10 loaded)** | ✅ Working |
-| **Tools (7 registered)** | ✅ Working |
-| **MCP Server Mode** | ✅ Working |
-| **Desktop Control** | ✅ Ready |
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Core Agent** | ✅ Working | Multi-turn conversation |
+| **TUI Shell** | ✅ Working | Interactive mode |
+| **MiniMax AI** | ✅ Working | Reasoning + responses |
+| **Memory System** | ✅ Working | Persistent SOUL + facts |
+| **Learning** | ✅ Working | Pattern learning |
+| **Cost Tracking** | ✅ Working | 15+ model pricing |
+| **Skills** | ✅ Working | 10 loaded |
+| **Tools** | ✅ Working | 13 tools |
+| **MCP Server** | ✅ Working | JSON-RPC protocol |
+| **Telegram** | ✅ Ready | Polling bot |
+| **Discord** | ✅ Ready | Slash commands |
+| **Desktop Control** | ✅ Ready | ClawdCursor |
 
 ---
 
 ## 🤖 AI Providers
 
-**Status: No API keys detected**
+**Current:** MiniMax-M2.5 (API key: `sk-cp-f6PbhZ...`)
 
-Set environment variables for AI-powered reasoning:
+Set environment variables:
 
 ```bash
 export MINIMAX_API_KEY="your-key"
@@ -89,18 +95,23 @@ export LMSTUDIO_URL="http://localhost:1234"
 
 ---
 
-## 🧠 Memory Commands
+## 💰 Cost Tracking
+
+Duck Agent tracks costs with 15+ models:
+
+| Provider | Model | Input/1K | Output/1K |
+|----------|-------|----------|------------|
+| MiniMax | MiniMax-M2.5 | $0.50 | $0.50 |
+| OpenAI | gpt-4o | $2.50 | $10.00 |
+| Anthropic | claude-3.5-sonnet | $3.00 | $15.00 |
+| LM Studio | local | FREE | FREE |
 
 ```bash
-# Remember something
-node dist/cli/main.js remember "API docs are in /docs"
+# Check cost
+duck tools | grep cost
 
-# Search memory
-node dist/cli/main.js recall "API docs"
-
-# In shell mode
-/remember User likes coffee
-/recall coffee
+# Get detailed summary
+duck status | grep cost
 ```
 
 ---
@@ -122,74 +133,122 @@ node dist/cli/main.js recall "API docs"
 
 ---
 
+## 🔧 Tools (13 available)
+
+| Tool | Purpose | Danger |
+|------|---------|--------|
+| `desktop_open` | Open applications | - |
+| `desktop_click` | Click coordinates | - |
+| `desktop_type` | Type text | - |
+| `desktop_screenshot` | Take screenshot | - |
+| `memory_remember` | Save memory | - |
+| `memory_recall` | Search memory | - |
+| `shell` | Execute command | ⚠️ |
+| `file_read` | Read files | - |
+| `file_write` | Write files | ⚠️ |
+| `web_search` | Search web | - |
+| `learn_from_feedback` | Learn from feedback | - |
+| `get_metrics` | Performance metrics | - |
+| `get_cost` | Cost tracking | - |
+
+---
+
 ## 🖥️ Desktop Control
 
-```bash
-# Open app
-node dist/cli/main.js desktop open Calculator
-
-# Click
-node dist/cli/main.js desktop click 100 200
-
-# Type
-node dist/cli/main.js desktop type "Hello"
-
-# Screenshot
-node dist/cli/main.js desktop screenshot
-```
-
-Requires ClawdCursor running:
+Requires ClawdCursor:
 ```bash
 cd ~/.openclaw/workspace/clawd-cursor
 nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &
 ```
 
----
-
-## 📡 MCP Server Integration
-
-Duck Agent can run as an MCP server that OpenClaw can connect to:
-
+Commands:
 ```bash
-# Start server
-node dist/cli/main.js mcp 3848
-
-# Available endpoints:
-POST /mcp     - JSON-RPC MCP protocol
-GET  /sse     - Server-Sent Events
-GET  /tools   - List available tools
-GET  /health  - Health check
+duck desktop open Calculator
+duck desktop click 100 200
+duck desktop type "Hello"
+duck desktop screenshot
 ```
 
-### MCP Tools Available
-- `execute` - Run a task
-- `think` - Reasoning
-- `remember` - Add to memory
-- `recall` - Search memory
-- `status` - Get agent status
-- `desktop` - Control desktop
+---
+
+## 📱 Telegram/Discord Integration
+
+### Setup
+
+1. **Telegram:** Create bot via @BotFather, get token
+2. **Discord:** Create app at discord.com/developers, add bot
+
+### Config (`channels.json`)
+```json
+{
+  "telegram": {
+    "botToken": "123456:ABC-DEF...",
+    "allowedUsers": [123456789]
+  },
+  "discord": {
+    "botToken": "abc.def.ghi...",
+    "applicationId": "123456789012345678",
+    "allowedRoles": ["Admin", "DuckBot User"]
+  }
+}
+```
+
+### Discord Slash Commands
+- `/chat <message>` - Chat with Duck Agent
+- `/think <question>` - Reasoning mode
+- `/status` - Bot status
+
+---
+
+## 🧠 Memory System
+
+```bash
+# Remember something
+duck remember "API docs are in /docs"
+
+# Search memory
+duck recall "API docs"
+
+# Or in shell:
+/remember User prefers dark mode
+/recall dark mode
+```
 
 ---
 
 ## 💬 Shell Commands
 
 ```bash
-node dist/cli/main.js shell
+duck shell
 
 # Inside shell:
 /help           Show help
-/status         Show status
-/skills         List skills
-/think <prompt> Think about something
-/remember <txt> Remember something
+/status         Show agent status
+/tools           List available tools
+/history        Show conversation history
+/clear          Clear history
+/think <text>  Think about something
+/remember <text> Remember something
 /recall <query> Search memory
-/clear          Clear screen
 /quit           Exit
+```
 
-# Or just type what you want:
-open Calculator
-remember my name is Ryan
-what is machine learning
+---
+
+## 📡 MCP Server
+
+```bash
+# Start on default port 3848
+duck mcp
+
+# Start on custom port
+duck mcp 4000
+
+# Endpoints:
+POST /mcp     - JSON-RPC
+GET  /sse     - Server-Sent Events
+GET  /tools   - List tools
+GET  /health  - Health check
 ```
 
 ---
@@ -198,23 +257,24 @@ what is machine learning
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Duck Agent                                │
+│                    Duck Agent v0.3                          │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Agent Core                              │   │
-│  │   Think → Reason → Plan → Execute → Remember          │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │              Agent Core                              │  │
+│  │   Think → Reason → Plan → Execute → Learn            │  │
+│  └─────────────────────────────────────────────────────┘  │
 │                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │
-│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │      │
-│  │  (API)   │ │ SOUL+Facts│ │ Registry │ │ 10 loaded│      │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘      │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │   │
+│  │ MiniMax   │ │ SOUL+SQL │ │ 13 tools │ │ 10 loaded│   │
+│  │ LM Studio │ │ Learning │ │ Dangerous│ │ Registry │   │
+│  │ OpenAI    │ │ Patterns │ │ Approvals│ │ Fallback│   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │  Dual Mode                                           │   │
-│  │  🖥️ Standalone (shell, CLI)                         │   │
-│  │  📡 MCP Server (for OpenClaw)                       │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │  Modes                                                  │  │
+│  │  🖥️ Standalone  📡 MCP  📱 Telegram/Discord         │  │
+│  └─────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -225,21 +285,58 @@ what is machine learning
 ```
 duck-cli/
 ├── src/
-│   ├── agent/core.ts         # Main agent
-│   ├── providers/manager.ts   # AI providers
-│   ├── memory/system.ts      # SOUL + memory
-│   ├── tools/registry.ts     # Tool execution
-│   ├── skills/runner.ts      # Skill loading
+│   ├── agent/
+│   │   ├── core.ts          # Main agent logic
+│   │   └── cost-tracker.ts # Cost tracking
+│   ├── providers/
+│   │   └── manager.ts      # AI providers (MiniMax, LM Studio, etc)
+│   ├── memory/
+│   │   └── system.ts       # SOUL + persistent memory
+│   ├── tools/
+│   │   └── registry.ts     # Tool registry + approvals
+│   ├── skills/
+│   │   └── runner.ts       # Skill loader
+│   ├── channels/
+│   │   ├── telegram.ts     # Telegram bot
+│   │   ├── discord.ts      # Discord bot
+│   │   └── manager.ts      # Channel coordinator
 │   ├── integrations/
-│   │   └── desktop.ts        # ClawdCursor
+│   │   └── desktop.ts     # ClawdCursor
 │   ├── server/
-│   │   └── mcp-server.ts    # MCP server mode
+│   │   └── mcp-server.ts  # MCP server
 │   └── cli/
-│       └── main.ts          # CLI/TUI
-├── skills/                   # 10 skills
-├── .duck/memory/           # Persistent memory
-└── dist/                    # Built output
+│       └── main.ts         # CLI/TUI
+├── skills/                  # 10 loaded skills
+├── channels.json.example    # Channel config template
+└── dist/                   # Built output
 ```
+
+---
+
+## 🔗 Features from Source Projects
+
+| Feature | Source |
+|---------|--------|
+| Agent architecture | OpenClaw, Hermes-Agent |
+| Tool registry | Hermes-Agent |
+| Cost tracking | DuckBot-OS |
+| Provider fallback | DuckBot-OS |
+| Learning system | DuckBot-OS |
+| Telegram integration | DuckBot-OS |
+| Discord integration | DuckBot-OS |
+| Desktop control | ClawdCursor |
+| Skills framework | OpenClaw |
+
+---
+
+## 📊 Metrics Tracked
+
+- Total interactions
+- Success/failure rate
+- Cost per provider/model
+- Token usage
+- Learned patterns
+- Cost budget remaining
 
 ---
 
@@ -251,4 +348,5 @@ https://github.com/Franzferdinan51/duck-cli
 
 ---
 
-**🦆 v0.1.0** - Built for Ryan (Duckets)
+**🦆 v0.3.0** - Built for Ryan (Duckets)
+**Inspired by:** OpenClaw, Hermes-Agent, Claude Code, DuckBot-OS
