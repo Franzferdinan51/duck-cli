@@ -408,3 +408,103 @@ Internal use only. Not for public distribution.
 ---
 
 **Built for Ryan's setup · 🦆 Duck CLI v0.1.0**
+
+---
+
+## 🖥️ Desktop Control Skills
+
+Duck CLI includes powerful desktop automation skills:
+
+### Desktop Control (Lobster Edition)
+**Location:** `skills/desktop-control/`
+
+AI Desktop Agent for autonomous automation:
+- **Drawing** - "Draw a circle in Paint", "Draw a house"
+- **Text Entry** - "Type Hello in Notepad", "Write an email"
+- **App Control** - "Open Calculator", "Launch File Explorer"
+- **Game Playing** - "Play Solitaire", "Play Minesweeper"
+
+### ClawdCursor
+**Location:** `skills/clawd-cursor/`
+
+AI desktop agent via REST API:
+- Natural language task execution
+- Screenshot analysis and vision
+- Click, type, drag, scroll
+- Works on macOS and Windows
+- Uses Bailian/Kimi for vision
+
+**Start:** `cd ~/.openclaw/workspace/clawd-cursor && nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &`
+
+### Computer Use
+**Location:** `skills/computer-use/`
+
+General computer automation:
+- Browser control
+- Desktop app automation
+- Cross-app workflows
+- Visual verification
+
+---
+
+## 📁 Project Structure (Updated)
+
+```
+duck-cli/
+├── cmd/duck/           # Go CLI wrapper
+├── internal/            # TypeScript agent core
+│   ├── agent/          # Agent core, args, delegate
+│   ├── auth/           # Auth profiles
+│   ├── channels/       # Channel integrations
+│   ├── cli/            # CLI commands
+│   ├── config/         # Configuration
+│   ├── council/        # AI Council
+│   ├── cron/           # Cron scheduler
+│   ├── events/         # Event system
+│   ├── gateway/        # ACP client
+│   ├── integrations/    # Claude Code, BrowserOS
+│   ├── memory/         # SOUL, MEMORY, sessions, FTS5
+│   ├── mcp/            # MCP manager
+│   ├── providers/       # AI provider management
+│   ├── security/       # Security monitor
+│   ├── session/        # Session management
+│   ├── skills/         # Skills system
+│   ├── soul/           # Personality system
+│   ├── tools/          # Tool registry, toolsets
+│   └── ui/             # TUI components
+├── skills/             # Duck CLI skills
+│   ├── claude-code-mastery/  # Employee-grade overrides
+│   ├── clawd-cursor/        # Desktop control
+│   ├── computer-use/         # General automation
+│   ├── desktop-control/      # AI Agent drawing/automation
+│   ├── code-review/
+│   ├── context-memory/
+│   ├── git-workflow/
+│   ├── mcp-manager/
+│   └── security-audit/
+├── tools/              # Integrated tools
+├── sources/            # Cloned research repos
+├── docs/              # Documentation
+└── README.md
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Test MiniMax API
+export MINIMAX_API_KEY="your-key"
+curl -X POST https://api.minimax.io/v1/chat/completions \
+  -H "Authorization: Bearer $MINIMAX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"abab6.5s-chat","messages":[{"role":"user","content":"hello"}]}'
+
+# Test LM Studio
+curl http://localhost:1234/v1/models
+
+# Run Duck CLI
+npm run build
+npm link
+duck run "say hello"
+```
