@@ -67,7 +67,7 @@ These features require extra setup and are disabled by default:
 | 🏛️ **AI Council (45)** | 45-agent deliberative council | LM Studio models, council server |
 | 🖥️ **Desktop UI** | Native desktop application | Build from `src/ui/desktop/` |
 | 🔧 **ClawHub** | Skill marketplace & sharing | ClawHub server + registry |
-| 🦆 **Souls Registry** | SOUL.md personality sharing | ClawHub souls publish/sync |
+| 🦆 **Souls Registry** | SOUL.md personality sharing | ClawHub souls list/search/activate |
 | 👥 **Teams** | Multi-agent coordinated execution | Templates pre-configured |
 | 🐤 **Buddy** | AI companion with rarities | Pre-configured |
 
@@ -485,13 +485,16 @@ duck clawhub update <skill>     # Update a skill
 duck clawhub uninstall <skill>  # Remove a skill
 ```
 
-### Soul Commands (SOUL.md Sharing)
+### Soul Commands
 
 ```bash
-duck souls list                 # List shared souls
-duck souls featured             # Show featured SOULs
-duck souls search <query>       # Search for SOULs
+duck souls list           # Browse available souls
+duck souls featured      # Show featured SOULs
+duck souls search <query> # Search for SOULs
+duck souls activate <name> # Activate a SOUL
 ```
+
+---/
 
 ### ClawHub Usage Examples
 
@@ -533,7 +536,7 @@ duck souls search "helpful assistant"
 │              ┌──────────▼──────────┐            │
 │              │    Duck Agent         │            │
 │              │  clawhub install      │            │
-│              │  souls publish/sync   │            │
+│              │  souls list/search   │            │
 │              └──────────────────────┘            │
 └─────────────────────────────────────────────────┘
 ```
@@ -560,12 +563,12 @@ The Souls Registry lets you publish your agent's personality (SOUL.md) to a shar
 
 ```bash
 duck souls list           # Browse available souls
-duck souls publish        # Share your SOUL.md
-duck souls import <id>    # Adopt a soul
-duck souls fork <id>      # Fork and customize a soul
-duck souls diff <id>      # Compare souls
-duck souls rollback       # Restore previous soul
+duck souls featured      # Show featured SOULs
+duck souls search <query> # Search for SOULs
+duck souls activate <name> # Activate a SOUL
 ```
+
+---/
 
 ---
 
@@ -1010,12 +1013,10 @@ duck clawhub uninstall <s> # Remove skill
 
 # OPTIONAL: Souls 🦆
 duck souls list         # Browse souls
-duck souls publish      # Share SOUL.md
-duck souls import <id>  # Adopt soul
-duck souls fork <id>    # Fork soul
-duck souls sync         # Sync registry
-duck souls backup       # Backup souls
-duck souls rollback     # Restore
+duck souls featured    # Show featured SOULs
+duck souls search <q>  # Search for SOULs
+duck souls install <n> # Install a SOUL
+duck souls activate <n> # Activate a SOUL
 
 # Automation
 duck cron [action]     # Cron jobs

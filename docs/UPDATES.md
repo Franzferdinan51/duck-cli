@@ -65,7 +65,7 @@ These are built-in and always operational — no setup required.
 - [x] **Version Strategy** — `DUCK_MAJOR.OPENCLAW_COMPAT.DATE` hybrid versioning
 
 #### Web UI
-- [x] **Full Web Interface** — SvelteKit app at `http://localhost:3000`
+- [x] **Full Web Interface** — SvelteKit app at `http://localhost:3001`
 - [x] **Dashboard** — Uptime, cost, tokens, providers
 - [x] **KAIROS Panel** — Toggle, modes, action logs
 - [x] **Buddy Panel** — Hatch, reroll, stats
