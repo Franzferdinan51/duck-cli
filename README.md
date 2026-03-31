@@ -192,6 +192,70 @@ duck acp claude
 
 ---
 
+### 🦆 ACP Server (Be Used BY OpenClaw)
+
+**Duck Agent can act as an ACP backend that OpenClaw connects TO**
+
+```bash
+# Start ACP server (OpenClaw will connect to this)
+duck acp-server
+
+# Custom port
+duck acp-server 3849
+```
+
+**OpenClaw Configuration:**
+
+In your OpenClaw config (`openclaw.json`), add Duck Agent as an ACP runtime agent:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "duck",
+        "name": "Duck Agent",
+        "workspace": "~/.duck-agent",
+        "runtime": {
+          "type": "acp",
+          "acp": {
+            "agent": "duck",
+            "backend": "acpx",
+            "mode": "persistent"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+Then point acpx at your Duck Agent:
+
+```bash
+# acpx connects to Duck Agent's ACP server
+acpx connect ws://localhost:18790/acp --agent duck
+```
+
+**ACP Server Features:**
+- WebSocket endpoint: `ws://localhost:18790/acp`
+- Session management: spawn, cancel, steer, send
+- Supports agents: `duck`, `duck-agent`, `kairos`
+- Max concurrent sessions: 8
+- JSON-RPC 2.0 protocol
+
+**ACP Server Methods:**
+```
+acp.spawn     - Spawn new session
+acp.cancel    - Cancel session
+acp.steer     - Send steering instruction
+acp.send      - Send message to session
+acp.status    - Get session/server status
+acp.sessions  - List all sessions
+```
+
+---
+
 ### 🌐 Bidirectional WebSocket
 
 **Connect IN (server) and OUT (client) simultaneously**
@@ -395,7 +459,8 @@ duck history           # View history
 duck unified           # All protocols
 duck mcp [port]        # MCP server
 duck mcp-connect <url> # Connect MCP
-duck acp <agent> [task]# Spawn ACP
+duck acp <agent> [task]# Spawn ACP (as CLIENT)
+duck acp-server [port] # ACP server (let OpenClaw connect TO you)
 duck ws connect <url>  # Connect WS
 duck gateway           # REST API
 
