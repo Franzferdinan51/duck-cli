@@ -1,10 +1,15 @@
 /**
  * Duck CLI - Multi-Provider Manager
  * 
- * Gracefully handles missing API keys:
- * - Checks for available providers
- * - Falls back to LM Studio local
- * - Provides helpful setup instructions
+ * Full provider support:
+ * - Anthropic (Claude)
+ * - OpenAI (GPT)
+ * - Google Gemini
+ * - Moonshot/Kimi
+ * - MiniMax
+ * - ZAI/LM Studio local
+ * - OpenClaw (agent mesh)
+ * - Custom OpenAI-compatible APIs
  */
 
 export interface ModelResponse {
@@ -47,71 +52,176 @@ export interface ToolDefinition {
 export interface ModelProvider {
   name: string;
   complete(request: CompletionRequest): Promise<ModelResponse>;
-  isAvailable(): boolean;
+  isAvailable(): Promise<boolean>;
 }
 
-export interface ProviderStatus {
+export interface ProviderConfig {
   name: string;
-  available: boolean;
-  requiresKey: boolean;
-  keyConfigured: boolean;
+  baseUrl?: string;
+  apiKey?: string;
+  models?: string[];
 }
 
 export class ProviderManager {
   private providers = new Map<string, ModelProvider>();
+  private configs = new Map<string, ProviderConfig>();
   private defaultProvider = '';
   private availableProviders: string[] = [];
 
   async load(): Promise<void> {
-    // LM Studio (local) - always available if running
-    const lmstudio = new LMStudioProvider(
-      process.env.LMSTUDIO_URL || 'http://localhost:1234',
-      process.env.LMSTUDIO_API_KEY
-    );
-    this.providers.set('lmstudio', lmstudio);
-    
-    const lmAvailable = await lmstudio.isAvailable(); if (lmAvailable) {
-      this.availableProviders.push('lmstudio');
-    } else {
-      this.availableProviders.push('lmstudio'); // Still add - can be started later
-      this.defaultProvider = 'lmstudio';
-      this.availableProviders.push('lmstudio');
+    // Load all available providers
+
+    // 1. LM Studio (local) - primary fallback
+    const lmConfig: ProviderConfig = {
+      name: 'lmstudio',
+      baseUrl: process.env.LMSTUDIO_URL || 'http://localhost:1234',
+      apiKey: process.env.LMSTUDIO_API_KEY,
+      models: ['local-model']
+    };
+    this.configs.set('lmstudio', lmConfig);
+    const lmProvider = new LMStudioProvider(lmConfig);
+    this.providers.set('lmstudio', lmProvider);
+    this.availableProviders.push('lmstudio');
+    this.defaultProvider = 'lmstudio';
+
+    // 2. Moonshot/Kimi - if API key provided
+    if (process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY) {
+      const kimiConfig: ProviderConfig = {
+        name: 'kimi',
+        baseUrl: 'https://api.moonshot.cn/v1',
+        apiKey: process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY,
+        models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-k2.5', 'kimi-k2']
+      };
+      this.configs.set('kimi', kimiConfig);
+      this.providers.set('kimi', new MoonshotProvider(kimiConfig));
+      this.availableProviders.push('kimi');
+      if (process.env.DEFAULT_PROVIDER === 'kimi') this.defaultProvider = 'kimi';
     }
 
-    // Anthropic (if key provided)
-    if (process.env.ANTHROPIC_API_KEY) {
-      const anthropic = new AnthropicProvider(
-        process.env.ANTHROPIC_API_KEY,
-        process.env.ANTHROPIC_BASE_URL
-      );
-      this.providers.set('anthropic', anthropic);
-      this.defaultProvider = 'anthropic';
-      this.availableProviders.push('anthropic');
-    }
-
-    // OpenAI (if key provided)
-    if (process.env.OPENAI_API_KEY) {
-      const openai = new OpenAIProvider(
-        process.env.OPENAI_API_KEY,
-        process.env.OPENAI_BASE_URL
-      );
-      this.providers.set('openai', openai);
-      if (!this.defaultProvider) {
-        this.defaultProvider = 'openai';
-      }
-      this.availableProviders.push('openai');
-    }
-
-    // MiniMax (if key provided)
+    // 3. MiniMax - if API key provided
     if (process.env.MINIMAX_API_KEY) {
-      const minimax = new MiniMaxProvider(process.env.MINIMAX_API_KEY);
-      this.providers.set('minimax', minimax);
+      const miniConfig: ProviderConfig = {
+        name: 'minimax',
+        baseUrl: 'https://api.minimax.io/v1',
+        apiKey: process.env.MINIMAX_API_KEY,
+        models: ['MiniMax-Text-01', 'abab6.5s-chat', 'abab5.5s-chat']
+      };
+      this.configs.set('minimax', miniConfig);
+      this.providers.set('minimax', new MiniMaxProvider(miniConfig));
       this.availableProviders.push('minimax');
+      if (process.env.DEFAULT_PROVIDER === 'minimax') this.defaultProvider = 'minimax';
     }
 
-    // Set default to first available
-    if (!this.defaultProvider && this.availableProviders.length > 0) {
-      this.defaultProvider = this.availableProviders[0];
+    // 4. ZAI (zai.ai) - if API key provided
+    if (process.env.ZAI_API_KEY) {
+      const zaiConfig: ProviderConfig = {
+        name: 'zai',
+        baseUrl: 'https://api.zai.io/v1',
+        apiKey: process.env.ZAI_API_KEY,
+        models: ['qwen3.5-9b', 'qwen3.5-27b', 'glm-4.7-flash']
+      };
+      this.configs.set('zai', zaiConfig);
+      this.providers.set('zai', new OpenAICompatibleProvider(zaiConfig));
+      this.availableProviders.push('zai');
+    }
+
+    // 5. Anthropic (Claude) - if API key provided
+    if (process.env.ANTHROPIC_API_KEY) {
+      const anthropicConfig: ProviderConfig = {
+        name: 'anthropic',
+        baseUrl: process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
+        apiKey: process.env.ANTHROPIC_API_KEY,
+        models: ['claude-3-5-sonnet-20241022', 'claude-3-opus-4-20240229', 'claude-3-haiku-4-20240307']
+      };
+      this.configs.set('anthropic', anthropicConfig);
+      this.providers.set('anthropic', new AnthropicProvider(anthropicConfig));
+      this.availableProviders.push('anthropic');
+      if (process.env.DEFAULT_PROVIDER === 'anthropic') this.defaultProvider = 'anthropic';
+    }
+
+    // 6. OpenAI - if API key provided
+    if (process.env.OPENAI_API_KEY) {
+      const openaiConfig: ProviderConfig = {
+        name: 'openai',
+        baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+        apiKey: process.env.OPENAI_API_KEY,
+        models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo']
+      };
+      this.configs.set('openai', openaiConfig);
+      this.providers.set('openai', new OpenAICompatibleProvider(openaiConfig));
+      this.availableProviders.push('openai');
+      if (process.env.DEFAULT_PROVIDER === 'openai') this.defaultProvider = 'openai';
+    }
+
+    // 7. Google Gemini - if API key provided
+    if (process.env.GEMINI_API_KEY) {
+      const geminiConfig: ProviderConfig = {
+        name: 'gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: process.env.GEMINI_API_KEY,
+        models: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash']
+      };
+      this.configs.set('gemini', geminiConfig);
+      this.providers.set('gemini', new GeminiProvider(geminiConfig));
+      this.availableProviders.push('gemini');
+    }
+
+    // 8. DeepSeek - if API key provided
+    if (process.env.DEEPSEEK_API_KEY) {
+      const deepseekConfig: ProviderConfig = {
+        name: 'deepseek',
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        models: ['deepseek-chat', 'deepseek-coder']
+      };
+      this.configs.set('deepseek', deepseekConfig);
+      this.providers.set('deepseek', new OpenAICompatibleProvider(deepseekConfig));
+      this.availableProviders.push('deepseek');
+    }
+
+    // 9. Ollama (local) - if running
+    if (process.env.OLLAMA_HOST || true) {
+      const ollamaConfig: ProviderConfig = {
+        name: 'ollama',
+        baseUrl: process.env.OLLAMA_HOST || 'http://localhost:11434',
+        models: []
+      };
+      this.configs.set('ollama', ollamaConfig);
+      const ollamaProvider = new OllamaProvider(ollamaConfig);
+      this.providers.set('ollama', ollamaProvider);
+      // Only add if actually available
+      if (await ollamaProvider.isAvailable()) {
+        this.availableProviders.push('ollama');
+      }
+    }
+
+    // 10. Custom providers from env
+    if (process.env.CUSTOM_PROVIDER_URL) {
+      const customConfig: ProviderConfig = {
+        name: 'custom',
+        baseUrl: process.env.CUSTOM_PROVIDER_URL,
+        apiKey: process.env.CUSTOM_PROVIDER_KEY,
+        models: process.env.CUSTOM_PROVIDER_MODELS?.split(',') || []
+      };
+      this.configs.set('custom', customConfig);
+      this.providers.set('custom', new OpenAICompatibleProvider(customConfig));
+      this.availableProviders.push('custom');
+    }
+  }
+
+  // Add custom provider at runtime
+  addProvider(config: ProviderConfig): void {
+    this.configs.set(config.name, config);
+    
+    if (config.baseUrl?.includes('openai') || !config.baseUrl?.includes('anthropic')) {
+      this.providers.set(config.name, new OpenAICompatibleProvider(config));
+    } else {
+      this.providers.set(config.name, new AnthropicProvider(config));
+    }
+    
+    this.availableProviders.push(config.name);
+    if (!this.defaultProvider) {
+      this.defaultProvider = config.name;
     }
   }
 
@@ -122,7 +232,7 @@ export class ProviderManager {
   getDefault(): ModelProvider {
     const provider = this.providers.get(this.defaultProvider);
     if (!provider) {
-      throw new Error('No AI provider available. Please configure an API key or start LM Studio.');
+      throw new Error('No AI provider available');
     }
     return provider;
   }
@@ -135,23 +245,41 @@ export class ProviderManager {
     return this.availableProviders;
   }
 
+  getConfig(name: string): ProviderConfig | undefined {
+    return this.configs.get(name);
+  }
+
+  setDefault(name: string): void {
+    if (this.providers.has(name)) {
+      this.defaultProvider = name;
+    }
+  }
+
   getStatus(): ProviderStatus[] {
     const statuses: ProviderStatus[] = [];
     
-    const configs = [
-      { name: 'anthropic', requiresKey: true, envVar: 'ANTHROPIC_API_KEY' },
-      { name: 'openai', requiresKey: true, envVar: 'OPENAI_API_KEY' },
-      { name: 'minimax', requiresKey: true, envVar: 'MINIMAX_API_KEY' },
-      { name: 'lmstudio', requiresKey: false, envVar: 'LMSTUDIO_URL' }
+    const allProviders = [
+      { name: 'anthropic', envVar: 'ANTHROPIC_API_KEY', docs: 'anthropic.com/claude' },
+      { name: 'openai', envVar: 'OPENAI_API_KEY', docs: 'platform.openai.com' },
+      { name: 'gemini', envVar: 'GEMINI_API_KEY', docs: 'ai.google.dev' },
+      { name: 'kimi', envVar: 'MOONSHOT_API_KEY', docs: 'platform.moonshot.cn' },
+      { name: 'minimax', envVar: 'MINIMAX_API_KEY', docs: 'api.minimax.io' },
+      { name: 'zai', envVar: 'ZAI_API_KEY', docs: 'zai.io' },
+      { name: 'deepseek', envVar: 'DEEPSEEK_API_KEY', docs: 'api.deepseek.com' },
+      { name: 'ollama', envVar: 'OLLAMA_HOST', docs: 'ollama.com (local)' },
+      { name: 'lmstudio', envVar: 'LMSTUDIO_URL', docs: 'lmstudio.ai (local)' }
     ];
 
-    for (const config of configs) {
-      const provider = this.providers.get(config.name);
+    for (const p of allProviders) {
+      const config = this.configs.get(p.name);
+      const available = this.availableProviders.includes(p.name);
+      
       statuses.push({
-        name: config.name,
-        available: provider ? true : false,
-        requiresKey: config.requiresKey,
-        keyConfigured: !!process.env[config.envVar]
+        name: p.name,
+        available,
+        configured: !!process.env[p.envVar] || config?.baseUrl !== undefined,
+        docs: p.docs,
+        models: config?.models || []
       });
     }
 
@@ -160,76 +288,64 @@ export class ProviderManager {
 
   getSetupInstructions(): string {
     const status = this.getStatus();
-    const missing: string[] = [];
+    const unconfigured = status.filter(s => !s.configured);
 
-    for (const s of status) {
-      if (!s.available && s.requiresKey && !s.keyConfigured) {
-        missing.push(s.name);
-      }
+    if (unconfigured.length === 0) {
+      return 'All providers configured!';
     }
 
-    if (missing.length === 0) {
-      return 'All configured!';
+    let instructions = '\n🛠️  Configure a provider:\n\n';
+
+    for (const s of unconfigured) {
+      instructions += `  export ${s.name.toUpperCase()}_API_KEY=your_key   # ${s.docs}\n`;
     }
 
-    return `
-No API keys configured for: ${missing.join(', ')}
-    
-To fix:
-  export ANTHROPIC_API_KEY=sk-ant-...    # For Claude
-  export OPENAI_API_KEY=sk-...          # For GPT
-  export MINIMAX_API_KEY=...            # For MiniMax
-  
-Or start LM Studio locally:
-  - Download from https://lmstudio.ai
-  - Start the server on http://localhost:1234
-`;
+    instructions += `\nOr start a local provider:\n`;
+    instructions += `  • LM Studio: https://lmstudio.ai\n`;
+    instructions += `  • Ollama: https://ollama.com\n\n`;
+    instructions += `Then re-run Duck CLI.\n`;
+
+    return instructions;
   }
 }
 
-// LM Studio Provider (Local) - Always try first
+export interface ProviderStatus {
+  name: string;
+  available: boolean;
+  configured: boolean;
+  docs?: string;
+  models: string[];
+}
+
+// ============= PROVIDER IMPLEMENTATIONS =============
+
+// LM Studio (Local)
 class LMStudioProvider implements ModelProvider {
   name = 'lmstudio';
-  private baseUrl: string;
-  private apiKey?: string;
-  private _available: boolean | null = null;
+  private config: ProviderConfig;
 
-  constructor(baseUrl: string, apiKey?: string) {
-    this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
+  constructor(config: ProviderConfig) {
+    this.config = config;
   }
 
   async isAvailable(): Promise<boolean> {
-    if (this._available !== null) return this._available;
-    
     try {
-      const response = await fetch(`${this.baseUrl}/v1/models`, {
-        method: 'GET',
+      const response = await fetch(`${this.config.baseUrl}/v1/models`, {
         signal: AbortSignal.timeout(2000)
       });
-      this._available = response.ok;
+      return response.ok;
     } catch {
-      this._available = false;
+      return false;
     }
-    return this._available;
   }
 
   async complete(request: CompletionRequest): Promise<ModelResponse> {
-    // Check availability first
-    if (!await this.isAvailable()) {
-      throw new Error('LM Studio not available. Start it from https://lmstudio.ai or configure an API key.');
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    };
-    if (this.apiKey) {
-      headers['Authorization'] = `Bearer ${this.apiKey}`;
-    }
-
-    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+    const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.config.apiKey ? { 'Authorization': `Bearer ${this.config.apiKey}` } : {})
+      },
       body: JSON.stringify({
         model: request.model || 'local-model',
         messages: [
@@ -240,56 +356,199 @@ class LMStudioProvider implements ModelProvider {
         temperature: request.temperature || 0.7,
         tools: request.tools?.map(t => ({
           type: 'function',
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.input_schema
-          }
+          function: { name: t.name, description: t.description, parameters: t.input_schema }
         }))
       })
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`LM Studio error: ${response.status} - ${error}`);
+      throw new Error(`LM Studio error: ${response.status}`);
     }
 
     const data: any = await response.json();
-    
     return {
       text: data.choices?.[0]?.message?.content,
       toolCalls: data.choices?.[0]?.message?.tool_calls?.map((c: any) => ({
         id: c.id,
         name: c.function.name,
         arguments: typeof c.function.arguments === 'string' 
-          ? JSON.parse(c.function.arguments) 
-          : c.function.arguments || {}
+          ? JSON.parse(c.function.arguments) : c.function.arguments || {}
       }))
     };
   }
 }
 
-// Anthropic Provider
-class AnthropicProvider implements ModelProvider {
-  name = 'anthropic';
-  private apiKey: string;
-  private baseUrl: string;
+// Moonshot/Kimi
+class MoonshotProvider implements ModelProvider {
+  name = 'kimi';
+  private config: ProviderConfig;
 
-  constructor(apiKey: string, baseUrl?: string) {
-    this.apiKey = apiKey;
-    this.baseUrl = baseUrl || 'https://api.anthropic.com';
+  constructor(config: ProviderConfig) {
+    this.config = config;
   }
 
-  isAvailable(): boolean {
-    return !!this.apiKey;
+  async isAvailable(): Promise<boolean> {
+    return !!this.config.apiKey;
   }
 
   async complete(request: CompletionRequest): Promise<ModelResponse> {
-    const response = await fetch(`${this.baseUrl}/v1/messages`, {
+    const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: request.model || 'moonshot-v1-32k',
+        messages: [
+          ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
+          ...request.messages
+        ],
+        max_tokens: request.maxTokens || 4096,
+        temperature: request.temperature || 0.7,
+        tools: request.tools?.map(t => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.input_schema }
+        }))
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Kimi/Moonshot error: ${response.status} - ${err}`);
+    }
+
+    const data: any = await response.json();
+    return {
+      text: data.choices?.[0]?.message?.content,
+      toolCalls: data.choices?.[0]?.message?.tool_calls?.map((c: any) => ({
+        id: c.id,
+        name: c.function.name,
+        arguments: typeof c.function.arguments === 'string' 
+          ? JSON.parse(c.function.arguments) : c.function.arguments || {}
+      }))
+    };
+  }
+}
+
+// MiniMax
+class MiniMaxProvider implements ModelProvider {
+  name = 'minimax';
+  private config: ProviderConfig;
+
+  constructor(config: ProviderConfig) {
+    this.config = config;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return !!this.config.apiKey;
+  }
+
+  async complete(request: CompletionRequest): Promise<ModelResponse> {
+    const response = await fetch(`${this.config.baseUrl}/text/chatcompletion_v2`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: request.model || 'MiniMax-Text-01',
+        messages: [
+          ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
+          ...request.messages
+        ],
+        max_tokens: request.maxTokens || 4096,
+        temperature: request.temperature || 0.7
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`MiniMax error: ${response.status} - ${err}`);
+    }
+
+    const data: any = await response.json();
+    return {
+      text: data.choices?.[0]?.message?.content
+    };
+  }
+}
+
+// OpenAI-Compatible (ZAI, DeepSeek, Custom, etc.)
+class OpenAICompatibleProvider implements ModelProvider {
+  name: string;
+  private config: ProviderConfig;
+
+  constructor(config: ProviderConfig) {
+    this.name = config.name;
+    this.config = config;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return !!this.config.apiKey || !!this.config.baseUrl;
+  }
+
+  async complete(request: CompletionRequest): Promise<ModelResponse> {
+    const url = `${this.config.baseUrl}/chat/completions`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.config.apiKey ? { 'Authorization': `Bearer ${this.config.apiKey}` } : {})
+      },
+      body: JSON.stringify({
+        model: request.model || this.config.models?.[0] || 'default',
+        messages: [
+          ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
+          ...request.messages
+        ],
+        max_tokens: request.maxTokens || 4096,
+        temperature: request.temperature || 0.7,
+        tools: request.tools?.map(t => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.input_schema }
+        }))
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`${this.name} error: ${response.status} - ${err}`);
+    }
+
+    const data: any = await response.json();
+    return {
+      text: data.choices?.[0]?.message?.content,
+      toolCalls: data.choices?.[0]?.message?.tool_calls?.map((c: any) => ({
+        id: c.id,
+        name: c.function.name,
+        arguments: typeof c.function.arguments === 'string' 
+          ? JSON.parse(c.function.arguments) : c.function.arguments || {}
+      }))
+    };
+  }
+}
+
+// Anthropic (Claude)
+class AnthropicProvider implements ModelProvider {
+  name = 'anthropic';
+  private config: ProviderConfig;
+
+  constructor(config: ProviderConfig) {
+    this.config = config;
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return !!this.config.apiKey;
+  }
+
+  async complete(request: CompletionRequest): Promise<ModelResponse> {
+    const response = await fetch(`${this.config.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.config.apiKey!,
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'tool'
       },
@@ -311,12 +570,11 @@ class AnthropicProvider implements ModelProvider {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Anthropic API error: ${response.status} - ${error}`);
+      const err = await response.text();
+      throw new Error(`Anthropic error: ${response.status} - ${err}`);
     }
 
     const data: any = await response.json();
-    
     return {
       text: data.content?.[0]?.text,
       toolCalls: data.content?.filter((c: any) => c.type === 'tool_use').map((c: any) => ({
@@ -329,107 +587,110 @@ class AnthropicProvider implements ModelProvider {
   }
 }
 
-// OpenAI Provider
-class OpenAIProvider implements ModelProvider {
-  name = 'openai';
-  private apiKey: string;
-  private baseUrl: string;
+// Google Gemini
+class GeminiProvider implements ModelProvider {
+  name = 'gemini';
+  private config: ProviderConfig;
 
-  constructor(apiKey: string, baseUrl?: string) {
-    this.apiKey = apiKey;
-    this.baseUrl = baseUrl || 'https://api.openai.com';
+  constructor(config: ProviderConfig) {
+    this.config = config;
   }
 
-  isAvailable(): boolean {
-    return !!this.apiKey;
+  async isAvailable(): Promise<boolean> {
+    return !!this.config.apiKey;
   }
 
   async complete(request: CompletionRequest): Promise<ModelResponse> {
-    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify({
-        model: request.model || 'gpt-4o',
-        messages: [
-          ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
-          ...request.messages
-        ],
-        max_tokens: request.maxTokens || 4096,
-        temperature: request.temperature || 0.7,
-        tools: request.tools?.map(t => ({
-          type: 'function',
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.input_schema
-          }
-        }))
-      })
-    });
+    const model = request.model || 'gemini-2.0-flash';
+    const contents = request.messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    const response = await fetch(
+      `${this.config.baseUrl}/models/${model}:generateContent?key=${this.config.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: request.systemPrompt ? { parts: [{ text: request.systemPrompt }] } : undefined,
+          generationConfig: {
+            maxOutputTokens: request.maxTokens || 4096,
+            temperature: request.temperature || 0.7
+          },
+          tools: request.tools?.map(t => ({
+            functionDeclarations: [{
+              name: t.name,
+              description: t.description,
+              parameters: t.input_schema
+            }]
+          }))
+        })
+      }
+    );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
+      const err = await response.text();
+      throw new Error(`Gemini error: ${response.status} - ${err}`);
     }
 
     const data: any = await response.json();
-    
+    const text = data.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
+    const toolCalls = data.candidates?.[0]?.content?.parts?.filter((p: any) => p.functionCall);
+
     return {
-      text: data.choices?.[0]?.message?.content,
-      toolCalls: data.choices?.[0]?.message?.tool_calls?.map((c: any) => ({
-        id: c.id,
-        name: c.function.name,
-        arguments: typeof c.function.arguments === 'string' 
-          ? JSON.parse(c.function.arguments) 
-          : c.function.arguments || {}
+      text,
+      toolCalls: toolCalls?.map((c: any, i: number) => ({
+        id: `call_${i}`,
+        name: c.functionCall.name,
+        arguments: c.functionCall.args || {}
       }))
     };
   }
 }
 
-// MiniMax Provider
-class MiniMaxProvider implements ModelProvider {
-  name = 'minimax';
-  private apiKey: string;
+// Ollama (Local)
+class OllamaProvider implements ModelProvider {
+  name = 'ollama';
+  private config: ProviderConfig;
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
+  constructor(config: ProviderConfig) {
+    this.config = config;
   }
 
-  isAvailable(): boolean {
-    return !!this.apiKey;
+  async isAvailable(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.config.baseUrl}/api/tags`, {
+        signal: AbortSignal.timeout(2000)
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   async complete(request: CompletionRequest): Promise<ModelResponse> {
-    const response = await fetch('https://api.minimax.io/v1/text/chatcompletion_v2', {
+    const response = await fetch(`${this.config.baseUrl}/api/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: request.model || 'MiniMax-Text-01',
+        model: request.model || 'llama3.2',
         messages: [
-          ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
-          ...request.messages
+          ...(request.systemPrompt ? [{ role: 'system', content: request.systemPrompt }] : []),
+          ...request.messages.map(m => ({ role: m.role, content: m.content }))
         ],
-        max_tokens: request.maxTokens || 4096,
-        temperature: request.temperature || 0.7
+        stream: false
       })
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`MiniMax error: ${response.status} - ${error}`);
+      throw new Error(`Ollama error: ${response.status}`);
     }
 
     const data: any = await response.json();
-    
     return {
-      text: data.choices?.[0]?.message?.content
+      text: data.message?.content
     };
   }
 }
