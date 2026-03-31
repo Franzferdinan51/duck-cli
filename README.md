@@ -350,3 +350,52 @@ https://github.com/Franzferdinan51/duck-cli
 
 **🦆 v0.3.0** - Built for Ryan (Duckets)
 **Inspired by:** OpenClaw, Hermes-Agent, Claude Code, DuckBot-OS
+## 🌐 BrowserOS Integration
+
+Duck Agent can connect to [BrowserOS](https://github.com/browseros-ai/BrowserOS) for 45+ browser automation tools!
+
+### What is BrowserOS?
+- **Privacy-first AI browser** built on Chromium
+- **53+ automation tools** - navigate, click, type, extract data
+- **MCP Server** - Control browser from any MCP client
+- **Local models** - Run AI locally via Ollama/LM Studio
+
+### Setup
+
+1. **Download BrowserOS:** https://files.browseros.com
+2. **Start BrowserOS** and note the port (default 9100)
+3. **Set environment:**
+```bash
+export BROWSEROS_HOST=127.0.0.1
+export BROWSEROS_PORT=9100
+```
+
+### BrowserOS Tools (45+)
+
+| Category | Tools |
+|----------|-------|
+| **Navigation** | list_pages, get_active_page, navigate, new_page, close_page, show_page |
+| **Observation** | take_snapshot, take_enhanced_snapshot, get_page_content, get_page_links, search_dom, take_screenshot, evaluate_script |
+| **Input** | click, click_at, hover, type, fill, press_key, scroll, clear, check, uncheck, select_option |
+| **Page Actions** | save_pdf, save_screenshot, download_file |
+| **Bookmarks** | get_bookmarks, create_bookmark, remove_bookmark, search_bookmarks |
+| **History** | get_recent_history, search_history, delete_history_url |
+| **Windows** | list_windows, create_window, close_window |
+| **Tab Groups** | list_tab_groups, group_tabs, ungroup_tabs |
+
+### Usage Example
+
+```typescript
+const browserOS = provider.getBrowserOS();
+if (browserOS) {
+  // Navigate to a page
+  await browserOS.navigate('https://example.com');
+  
+  // Take screenshot
+  const { screenshot } = await browserOS.takeScreenshot();
+  
+  // Extract content
+  const { content } = await browserOS.getPageContent();
+}
+```
+
