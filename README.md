@@ -73,6 +73,58 @@ docker-compose up -d
 - ⚙️ Settings panel
 - 📋 Log viewer
 
+### 🔌 Deep MCP Server (Streamable HTTP + WebSocket)
+**Full MCP 2024-11-05 spec with bidirectional communication**
+
+```bash
+duck mcp [port]        # Start MCP server (default: 3848)
+duck mcp-connect <url> # Connect to external MCP server
+```
+
+**Features:**
+- Streamable HTTP (MCP 2024-11-05)
+- WebSocket bidirectional
+- SSE for server→client push
+- 14+ built-in tools (execute, think, remember, recall, desktop_*, kairos_*)
+- External MCP server federation
+
+### 🔗 ACP Client (Agent Client Protocol)
+**Spawn external coding agents via acpx**
+
+```bash
+duck acp codex "fix the bug"  # Spawn Codex session
+duck acp claude "review PR"   # Spawn Claude Code
+```
+
+**Supports:** codex, claude, cursor, gemini, pi, openclaw, opencode
+
+### 🌐 Bidirectional WebSocket Manager
+**Connect IN and OUT**
+
+```bash
+duck ws connect <url>  # Connect to external WebSocket
+duck ws status        # Show connection status
+```
+
+**Features:**
+- Server mode (accept connections)
+- Client mode (connect externally)
+- Auto-reconnection
+- Channel-based message routing
+
+### 🦆 Unified Headless Server
+**All protocols in one**
+
+```bash
+duck unified  # Start MCP + ACP + WebSocket + Gateway
+```
+
+Ports:
+- MCP: 3848
+- ACP Gateway: 18790
+- WebSocket: 18791
+- Gateway API: 18789
+
 ### 🐤 Buddy Companion
 **AI companion system with rarities**
 
@@ -199,14 +251,20 @@ Duck Agent
 ```bash
 # Core
 duck shell           # Interactive TUI shell
-duck run <task>      # Execute a single task
-duck think <prompt>  # Reasoning mode
-duck status          # Show agent status
-duck tools          # List available tools
-duck history        # Show conversation history
+duck run <task>     # Execute a single task
+duck think <prompt> # Reasoning mode
+duck status         # Show agent status
+duck tools         # List available tools
+duck history       # Show conversation history
+
+# Headless Protocols
+duck mcp [port]         # Start MCP server (default: 3848)
+duck mcp-connect <url>  # Connect to external MCP
+duck acp <agent> <task># Spawn ACP session (codex/claude/etc)
+duck ws connect <url>  # Connect to WebSocket server
+duck unified           # All protocols + Gateway API
 
 # Advanced
-duck mcp [port]     # Start MCP server (default: 3848)
 duck memory          # Memory commands
 duck channels       # Start Telegram/Discord
 duck desktop        # Desktop control
