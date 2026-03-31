@@ -1,6 +1,6 @@
 {
   "name": "duck-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "🦆 Duck Agent - Super AI Agent with KAIROS Proactive AI, Voice/TTS, Web UI, Claude Code Tools",
   "main": "dist/agent/core.js",
   "bin": {
