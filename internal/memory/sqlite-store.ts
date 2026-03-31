@@ -1,13 +1,10 @@
 /**
  * Duck CLI - SQLite Session Store with FTS5
  * 
- * Based on Hermes Agent's hermes_state.py:
- * - WAL mode for concurrent readers
- * - FTS5 full-text search
- * - Session tracking with tokens/usage
+ * Uses better-sqlite3 for Node.js compatibility
  */
 
-import { Database } from 'bun:sqlite';
+import Database from 'better-sqlite3';
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -36,7 +33,7 @@ export interface Message {
 }
 
 export class SessionStore {
-  private db: Database;
+  private db: Database.Database;
   private dbPath: string;
 
   constructor(dbPath?: string) {
@@ -44,7 +41,7 @@ export class SessionStore {
     mkdir(join(this.dbPath, '..'), { recursive: true }).catch(() => {});
     
     this.db = new Database(this.dbPath);
-    this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.pragma('journal_mode = WAL');
     this.init();
   }
 
@@ -85,25 +82,28 @@ export class SessionStore {
       CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, timestamp);
     `);
 
-    // FTS5 virtual table
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-        content,
-        content=messages,
-        content_rowid=id
-      )
-    `);
+    // FTS5 virtual table (optional - may not work on all systems)
+    try {
+      this.db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+          content,
+          content=messages,
+          content_rowid=id
+        )
+      `);
+    } catch {
+      // FTS not available, use LIKE search
+    }
   }
 
   createSession(source: string, model: string): Session {
     const id = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
 
-    this.db.exec(
+    this.db.prepare(
       `INSERT INTO sessions (id, source, model, started_at, message_count, tool_call_count)
-       VALUES (?, ?, ?, ?, 0, 0)`,
-      [id, source, model, now]
-    );
+       VALUES (?, ?, ?, ?, 0, 0)`
+    ).run(id, source, model, now);
 
     return { id, source, model, startedAt: now, messageCount: 0, toolCallCount: 0, inputTokens: 0, outputTokens: 0 };
   }
@@ -112,31 +112,27 @@ export class SessionStore {
     const now = Date.now();
     const toolCallsJson = toolCalls ? JSON.stringify(toolCalls) : null;
 
-    this.db.exec(
+    this.db.prepare(
       `INSERT INTO messages (session_id, role, content, tool_calls, timestamp)
-       VALUES (?, ?, ?, ?, ?)`,
-      [sessionId, role, content, toolCallsJson, now]
-    );
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(sessionId, role, content, toolCallsJson, now);
 
     // Update session counters
-    this.db.exec(
-      `UPDATE sessions SET message_count = message_count + 1 WHERE id = ?`,
-      [sessionId]
-    );
+    this.db.prepare(
+      `UPDATE sessions SET message_count = message_count + 1 WHERE id = ?`
+    ).run(sessionId);
 
     if (toolCalls) {
-      this.db.exec(
-        `UPDATE sessions SET tool_call_count = tool_call_count + ? WHERE id = ?`,
-        [toolCalls.length, sessionId]
-      );
+      this.db.prepare(
+        `UPDATE sessions SET tool_call_count = tool_call_count + ? WHERE id = ?`
+      ).run(toolCalls.length, sessionId);
     }
   }
 
   getMessages(sessionId: string): Message[] {
-    const rows = this.db.query(
-      `SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp`,
-      [sessionId]
-    ).all() as any[];
+    const rows = this.db.prepare(
+      `SELECT * FROM messages WHERE session_id = ? ORDER BY timestamp`
+    ).all(sessionId) as any[];
 
     return rows.map(r => ({
       id: r.id,
@@ -151,14 +147,14 @@ export class SessionStore {
 
   search(query: string, limit: number = 10): { sessionId: string; content: string; rank: number }[] {
     try {
-      const rows = this.db.query(`
+      const rows = this.db.prepare(`
         SELECT messages.session_id, messages.content, messages_fts.rank
         FROM messages_fts
         JOIN messages ON messages_fts.rowid = messages.id
         WHERE messages_fts MATCH ?
         ORDER BY rank
         LIMIT ?
-      `, [query, limit]).all(query, limit) as any[];
+      `).all(query, limit) as any[];
 
       return rows.map(r => ({
         sessionId: r.session_id,
@@ -166,13 +162,13 @@ export class SessionStore {
         rank: r.rank
       }));
     } catch {
-      // FTS might not be available, fallback to LIKE
-      const rows = this.db.query(`
+      // FTS not available, fallback to LIKE
+      const rows = this.db.prepare(`
         SELECT session_id, content, 0 as rank
         FROM messages
         WHERE content LIKE ?
         LIMIT ?
-      `, [`%${query}%`, limit]).all(`%${query}%`, limit) as any[];
+      `).all(`%${query}%`, limit) as any[];
 
       return rows.map(r => ({
         sessionId: r.session_id,
@@ -183,9 +179,8 @@ export class SessionStore {
   }
 
   getRecentSessions(limit: number = 10): Session[] {
-    const rows = this.db.query(
-      `SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?`,
-      [limit]
+    const rows = this.db.prepare(
+      `SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?`
     ).all(limit) as any[];
 
     return rows.map(r => ({
@@ -203,10 +198,9 @@ export class SessionStore {
   }
 
   endSession(sessionId: string): void {
-    this.db.exec(
-      `UPDATE sessions SET ended_at = ? WHERE id = ?`,
-      [Date.now(), sessionId]
-    );
+    this.db.prepare(
+      `UPDATE sessions SET ended_at = ? WHERE id = ?`
+    ).run(Date.now(), sessionId);
   }
 
   close(): void {
