@@ -1,6 +1,6 @@
 # 🦆 Duck Agent CLI Commands
 
-> **Duck Agent v0.3.1** — Complete CLI reference with Agent Mesh, OpenClaw-RL, and 45-agent AI Council
+> **Duck Agent v0.3.1** — Complete CLI reference with Agent Mesh, OpenClaw-RL, ClawHub, Souls Registry, and 45-agent AI Council
 
 ---
 
@@ -11,11 +11,13 @@
 - [Protocol Commands](#protocol-commands)
 - [Agent Mesh Commands](#agent-mesh-commands)
 - [OpenClaw-RL Commands](#openclaw-rl-commands)
+- [ClawHub Commands](#clawhub-commands)
+- [Souls Commands](#souls-commands)
 - [AI Council Commands](#ai-council-commands)
 - [AI System Commands](#ai-system-commands)
 - [Automation Commands](#automation-commands)
 - [Integration Commands](#integration-commands)
-- [Protocol Details](#protocol-details)
+- [System Commands](#system-commands)
 - [Examples](#examples)
 
 ---
@@ -26,10 +28,10 @@
 # REQUIRED: Start Duck Agent
 duck shell              # Interactive TUI shell
 duck run <task>         # Single task execution
-duck web [port]         # Web UI (http://localhost:3000)
+duck web [port]         # Web UI (http://localhost:3001)
 duck unified            # All protocols (MCP + ACP + WS + Gateway)
-duck mcp                # MCP server only (port 3848)
-duck gateway            # Gateway API (port 18789)
+duck mcp                # MCP server only (port 3850)
+duck gateway            # Gateway API (port 18792)
 
 # OPTIONAL: Mesh (requires mesh server running)
 duck mesh register      # Join mesh network
@@ -43,12 +45,34 @@ duck rl enable          # Enable training
 duck council list       # List 45 councilors
 duck council summon <r> # Summon specific councilor
 
+# OPTIONAL: ClawHub (skill marketplace)
+duck clawhub search <query>   # Search skills
+duck clawhub install <skill>  # Install a skill
+
+# OPTIONAL: Souls (SOUL.md sharing)
+duck souls publish            # Share your SOUL.md
+duck souls list               # Browse souls
+
 # ACP client (spawn external agents)
 duck acp <agent> [task] # Spawn external agent (Codex, Claude, etc.)
 
 # ACP server (let OpenClaw connect TO this)
-duck acp-server         # ACP server (port 18790)
+duck acp-server         # ACP server (port 18794)
 ```
+
+---
+
+## Port Reference
+
+Duck Agent uses different ports than OpenClaw so both can run side-by-side.
+
+| Protocol | Duck Agent | OpenClaw |
+|----------|-----------|----------|
+| **Gateway API** | 18792 | 18789 |
+| **MCP Server** | 3850 | 3848 |
+| **ACP Server** | 18794 | 18790 |
+| **WebSocket** | 18796 | 18791 |
+| **Web UI** | 3001 | 3000 |
 
 ---
 
@@ -127,11 +151,6 @@ duck speak "I'm sad..." sad
 
 **Voices:** `narrator`, `casual`, `sad` (or any MiniMax voice)
 
-**Environment Variables:**
-```bash
-export MINIMAX_API_KEY="your-api-key"
-```
-
 ---
 
 ### `duck think-speak` — Think + Speak
@@ -207,10 +226,10 @@ duck headless
 
 | Port | Protocol | Endpoint |
 |------|----------|----------|
-| 3848 | MCP Server | http://localhost:3848/mcp |
-| 18789 | Gateway API | http://localhost:18789 |
-| 18790 | ACP Server | ws://localhost:18790/acp |
-| 18791 | WebSocket | ws://localhost:18791 |
+| 3850 | MCP Server | http://localhost:3850/mcp |
+| 18792 | Gateway API | http://localhost:18792 |
+| 18794 | ACP Server | ws://localhost:18794/acp |
+| 18796 | WebSocket | ws://localhost:18796 |
 
 ---
 
@@ -220,29 +239,29 @@ Start the MCP (Model Context Protocol) server.
 
 ```bash
 duck mcp
-duck mcp 3848
+duck mcp 3850
 duck server
 ```
 
-**Default port:** 3848
+**Default port:** 3850
 
 **Built-in Tools:**
 
 ```
-execute           - Execute a task
-think            - Reasoning mode
-remember         - Store in memory
-recall           - Search memory
-kairos_status    - Get KAIROS autonomous state
-kairos_action    - Trigger autonomous action
+execute             - Execute a task
+think              - Reasoning mode
+remember           - Store in memory
+recall             - Search memory
+kairos_status      - Get KAIROS autonomous state
+kairos_action      - Trigger autonomous action
 desktop_screenshot - Take screenshot
-desktop_open     - Open application
-desktop_click    - Click at coordinates
-desktop_type     - Type text
-get_status       - Agent metrics
-list_tools       - List all available tools
-ping             - Latency check
-spawn_agent      - Spawn a sub-agent
+desktop_open       - Open application
+desktop_click      - Click at coordinates
+desktop_type       - Type text
+get_status         - Agent metrics
+list_tools         - List all available tools
+ping               - Latency check
+spawn_agent        - Spawn a sub-agent
 ```
 
 ---
@@ -264,14 +283,14 @@ Start Duck Agent as an ACP server. OpenClaw connects TO this to spawn Duck Agent
 
 ```bash
 duck acp-server
-duck acp-server 3849
+duck acp-server 18794
 duck acpserver
 ```
 
-**Default port:** 18790
+**Default port:** 18794
 
 **Features:**
-- WebSocket endpoint: `ws://localhost:18790/acp`
+- WebSocket endpoint: `ws://localhost:18794/acp`
 - Session management: spawn, cancel, steer, send
 - Max concurrent sessions: 8
 - JSON-RPC 2.0 protocol
@@ -324,7 +343,20 @@ Start the OpenAI-compatible Gateway API server.
 duck gateway
 ```
 
-**Default port:** 18789
+**Default port:** 18792
+
+---
+
+### `duck web` — Web UI
+
+Start the Web UI server.
+
+```bash
+duck web
+duck web 3001
+```
+
+**Default port:** 3001
 
 ---
 
@@ -373,9 +405,9 @@ duck mesh list --verbose
 ┌─────────────────┬────────────────┬──────────────────────────────┐
 │ Agent ID        │ Name           │ Capabilities                 │
 ├─────────────────┼────────────────┼──────────────────────────────┤
-│ duck-abc123     │ Duck Agent     │ coding, reasoning, desktop    │
+│ duck-abc123     │ Duck Agent     │ coding, reasoning, desktop   │
 │ smith-xyz789    │ Agent Smith    │ coding, research, windows     │
-│ openclaw-123    │ OpenClaw       │ gateway, skills, channels    │
+│ openclaw-123    │ OpenClaw       │ gateway, skills, channels   │
 └─────────────────┴────────────────┴──────────────────────────────┘
 ```
 
@@ -464,10 +496,10 @@ duck mesh capabilities --filter coding
 ┌─────────────┬────────────────────────────────────────────────┐
 │ Capability  │ Agents                                        │
 ├─────────────┼────────────────────────────────────────────────┤
-│ coding      │ duck-abc123, smith-xyz789, openclaw-123        │
-│ research    │ smith-xyz789, openclaw-123                     │
-│ desktop     │ duck-abc123                                    │
-│ windows     │ smith-xyz789                                   │
+│ coding      │ duck-abc123, smith-xyz789, openclaw-123       │
+│ research    │ smith-xyz789, openclaw-123                    │
+│ desktop     │ duck-abc123                                   │
+│ windows     │ smith-xyz789                                  │
 │ gateway     │ openclaw-123                                  │
 │ channels    │ openclaw-123, duck-abc123                     │
 └─────────────┴────────────────────────────────────────────────┘
@@ -626,6 +658,221 @@ Status:              ✅ Training active
 
 ---
 
+## ClawHub Commands
+
+> 🔧 **OPTIONAL** — Requires ClawHub server and registry
+
+### `duck clawhub search` — Search Skills
+
+Search the skill marketplace for available skills.
+
+```bash
+duck clawhub search <query>
+duck clawhub search "image generation"
+duck clawhub search "web scraping"
+duck clawhub search "code review"
+```
+
+**Output:**
+```
+┌──────────────────────┬─────────────────────────────────┬─────────┬───────────┐
+│ Skill                │ Description                     │ Author  │ Downloads │
+├──────────────────────┼─────────────────────────────────┼─────────┼───────────┤
+│ minimax-image       │ Image generation via MiniMax    │ DuckBot │ 1,234     │
+│ weather-api         │ Weather alerts and forecasts    │ DuckBot │ 856       │
+│ github-clone        │ Clone and setup GitHub repos    │ DuckBot │ 432       │
+└──────────────────────┴─────────────────────────────────┴─────────┴───────────┘
+```
+
+---
+
+### `duck clawhub install` — Install a Skill
+
+Install a skill from the marketplace.
+
+```bash
+duck clawhub install <skill_name>
+duck clawhub install minimax-image
+duck clawhub install weather-api
+```
+
+---
+
+### `duck clawhub publish` — Publish a Skill
+
+Publish your custom skill to the marketplace.
+
+```bash
+duck clawhub publish <skill_name>
+duck clawhub publish my-custom-skill
+```
+
+---
+
+### `duck clawhub list` — List Installed Skills
+
+Show all skills currently installed.
+
+```bash
+duck clawhub list
+```
+
+**Output:**
+```
+Installed Skills:
+✅ minimax-image      - Image generation
+✅ weather-api        - Weather integration
+✅ github-clone       - GitHub repository setup
+✅ minimax-speech     - Text-to-speech
+✅ desktop-control    - ClawdCursor integration
+```
+
+---
+
+### `duck clawhub info` — Show Skill Details
+
+View detailed information about a skill.
+
+```bash
+duck clawhub info <skill_name>
+duck clawhub info minimax-image
+```
+
+---
+
+### `duck clawhub update` — Update a Skill
+
+Update a skill to the latest version.
+
+```bash
+duck clawhub update <skill_name>
+duck clawhub update minimax-image
+```
+
+---
+
+### `duck clawhub uninstall` — Remove a Skill
+
+Uninstall a skill from your agent.
+
+```bash
+duck clawhub uninstall <skill_name>
+duck clawhub uninstall weather-api
+```
+
+---
+
+## Souls Commands
+
+> 🦆 **OPTIONAL** — Requires ClawHub souls registry
+
+### `duck souls list` — Browse Available Souls
+
+View all shared agent personalities (SOUL.md) in the registry.
+
+```bash
+duck souls list
+duck souls list --popular
+duck souls list --recent
+```
+
+**Output:**
+```
+┌──────────────────────────┬─────────────────────────────────┬─────────┐
+│ Soul ID                  │ Description                     │ Author  │
+├──────────────────────────┼─────────────────────────────────┼─────────┤
+│ duckbot-standard         │ Standard DuckBot personality    │ DuckBot │
+│ duckbot-researcher       │ Deep research focus             │ DuckBot │
+│ duckbot-coder            │ Coding-optimized persona       │ DuckBot │
+│ agent-smith-production    │ Production agent persona       │ Smith   │
+└──────────────────────────┴─────────────────────────────────┴─────────┘
+```
+
+---
+
+### `duck souls publish` — Share Your SOUL.md
+
+Publish your agent's personality to the souls registry.
+
+```bash
+duck souls publish
+duck souls publish --description "Coding-optimized DuckBot"
+```
+
+**Output:**
+```
+Soul published successfully!
+Soul ID: duckbot-v0.3.1-abc123
+Registry: https://clawhub.example/souls/duckbot-v0.3.1-abc123
+```
+
+---
+
+### `duck souls import` — Adopt a Soul
+
+Import and adopt a shared soul as your agent's personality.
+
+```bash
+duck souls import <soul_id>
+duck souls import duckbot-researcher
+duck souls import duckbot-v0.3.1-abc123
+```
+
+---
+
+### `duck souls fork` — Fork and Customize a Soul
+
+Fork someone else's soul and create your own customized version.
+
+```bash
+duck souls fork <soul_id>
+duck souls fork duckbot-coder
+```
+
+---
+
+### `duck souls diff` — Compare Souls
+
+Compare two souls side-by-side to see differences.
+
+```bash
+duck souls diff <soul_id_1> <soul_id_2>
+duck souls diff duckbot-standard duckbot-coder
+```
+
+---
+
+### `duck souls sync` — Sync with Registry
+
+Sync your local souls with the registry.
+
+```bash
+duck souls sync
+```
+
+---
+
+### `duck souls backup` — Backup Souls to Registry
+
+Backup all your souls to the remote registry.
+
+```bash
+duck souls backup
+```
+
+---
+
+### `duck souls rollback` — Restore Previous Soul
+
+Restore your agent to a previous soul version.
+
+```bash
+duck souls rollback
+duck souls rollback --to duckbot-v0.3.0
+```
+
+---
+
 ## AI Council Commands
 
 > 🏛️ **OPTIONAL** — Requires council server with LM Studio models
@@ -680,15 +927,15 @@ duck council list --verbose
 │ #  │ Name               │ Role        │ Specialty                    │
 ├────┼────────────────────┼─────────────┼──────────────────────────────┤
 │  1 │ 🎤 Speaker         │ Facilitator │ Orchestrates deliberation   │
-│  2 │ 🔬 Technocrat      │ Technical   │ Systems, architecture       │
+│  2 │ 🔬 Technocrat      │ Technical   │ Systems, architecture      │
 │  3 │ ⚖️ Ethicist         │ Moral       │ Ethics, privacy, fairness   │
 │  4 │ 🎯 Pragmatist      │ Practical   │ Feasibility, resources      │
 │  5 │ 🤔 Skeptic          │ Critical    │ Weaknesses, failure modes   │
-│  6 │ 🛡️ Sentinel         │ Risk        │ Security, threats            │
-│  7 │ 📊 Quant            │ Math        │ Statistics, probabilities    │
-│  8 │ 🔮 Futurist         │ Long-term   │ Trends, predictions          │
+│  6 │ 🛡️ Sentinel         │ Risk        │ Security, threats           │
+│  7 │ 📊 Quant            │ Math        │ Statistics, probabilities   │
+│  8 │ 🔮 Futurist         │ Long-term   │ Trends, predictions         │
 │ ...│ ...                │ ...         │ ...                          │
-│ 45 │ 🌟 Sage             │ Wisdom      │ Experience, intuition        │
+│ 45 │ 🌟 Sage             │ Wisdom      │ Experience, intuition       │
 └────┴────────────────────┴─────────────┴──────────────────────────────┘
 ```
 
@@ -858,21 +1105,6 @@ duck cron edit <job>       # Edit job schedule
 
 ---
 
-### `duck update` — Update Management
-
-Manage Duck Agent updates.
-
-```bash
-duck update check      # Check for updates
-duck update install    # Install latest
-duck update backup     # Backup first
-duck update restore    # Rollback
-duck update status     # Git status
-duck update diff       # Show changes
-```
-
----
-
 ## Integration Commands
 
 ### `duck channels` — Enable Channels
@@ -930,30 +1162,73 @@ duck memory clear                           # Clear all memories
 
 ---
 
-## Protocol Details
+## System Commands
 
-### MCP (Model Context Protocol) — Port 3848
+### `duck update` — Update Management
+
+Manage Duck Agent updates.
 
 ```bash
-# HTTP POST
-curl -X POST http://localhost:3848/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-
-# WebSocket
-ws://localhost:3848/ws
-
-# SSE (streaming)
-curl http://localhost:3848/mcp/sse
+duck update check      # Check for updates
+duck update install    # Install latest
+duck update backup     # Backup first
+duck update restore    # Rollback
+duck update status     # Git status
+duck update diff       # Show changes
 ```
 
 ---
 
-### ACP (Agent Client Protocol) — Port 18790
+### `duck compat` — OpenClaw Compatibility
+
+Check and manage OpenClaw compatibility layer.
+
+```bash
+duck compat             # Check compatibility status
+duck compat status      # Show detailed status
+duck compat sync        # Sync with OpenClaw
+duck compat version    # Show version info
+```
+
+---
+
+### `duck sync` — Sync with External Systems
+
+Sync with various external systems.
+
+```bash
+duck sync              # Sync all systems
+duck sync openclaw     # Sync with OpenClaw
+duck sync clawhub      # Sync ClawHub
+duck sync souls        # Sync Souls registry
+```
+
+---
+
+## Protocol Details
+
+### MCP (Model Context Protocol) — Port 3850
+
+```bash
+# HTTP POST
+curl -X POST http://localhost:3850/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# WebSocket
+ws://localhost:3850/ws
+
+# SSE (streaming)
+curl http://localhost:3850/mcp/sse
+```
+
+---
+
+### ACP (Agent Client Protocol) — Port 18794
 
 **Server Mode (OpenClaw connects TO Duck Agent):**
 ```bash
-duck acp-server 18790
+duck acp-server 18794
 ```
 
 **Client Mode (Duck Agent spawns agents):**
@@ -963,19 +1238,32 @@ duck acp codex "fix bug"
 
 ---
 
-### Gateway API — Port 18789
+### Gateway API — Port 18792
 
 ```bash
 # Chat completions
-curl -X POST http://localhost:18789/v1/chat/completions \
+curl -X POST http://localhost:18792/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"Hello"}],"model":"duck-agent"}'
 
 # List models
-curl http://localhost:18789/v1/models
+curl http://localhost:18792/v1/models
 
 # Health check
-curl http://localhost:18789/health
+curl http://localhost:18792/health
+```
+
+---
+
+### WebSocket — Port 18796
+
+```bash
+# Connect via wscat
+wscat -c ws://localhost:18796
+
+# Or via browser JavaScript
+const ws = new WebSocket('ws://localhost:18796');
+ws.send(JSON.stringify({type: 'message', content: 'Hello!'}));
 ```
 
 ---
@@ -1061,6 +1349,53 @@ duck rl stats
 duck rl disable
 ```
 
+### ClawHub Skill Marketplace (Optional)
+
+```bash
+# Search for skills
+duck clawhub search "image generation"
+
+# Install a skill
+duck clawhub install minimax-image
+
+# List installed skills
+duck clawhub list
+
+# Publish your own skill
+duck clawhub publish my-custom-skill
+
+# Update a skill
+duck clawhub update minimax-image
+
+# Uninstall a skill
+duck clawhub uninstall weather-api
+```
+
+### Souls Registry (Optional)
+
+```bash
+# Browse available souls
+duck souls list
+
+# Publish your SOUL.md
+duck souls publish
+
+# Import a soul
+duck souls import duckbot-researcher
+
+# Fork and customize a soul
+duck souls fork duckbot-coder
+
+# Compare two souls
+duck souls diff duckbot-standard duckbot-coder
+
+# Backup souls to registry
+duck souls backup
+
+# Rollback to previous soul
+duck souls rollback
+```
+
 ### AI Council (Optional)
 
 ```bash
@@ -1115,6 +1450,19 @@ duck desktop screenshot
 duck desktop click 500 300
 ```
 
+### OpenClaw Compatibility
+
+```bash
+# Check compatibility
+duck compat status
+
+# Sync with OpenClaw
+duck compat sync
+
+# Show version info
+duck compat version
+```
+
 ---
 
 ## Environment Variables
@@ -1135,15 +1483,31 @@ AGENT_MESH_API_KEY=openclaw-mesh-default-key
 # OpenClaw-RL (Optional)
 OPENCLAW_RL_URL=http://localhost:30000
 
+# ClawHub (Optional)
+CLAWHUB_URL=http://localhost:5000
+CLAWHUB_API_KEY=your-clawhub-key
+
+# Souls Registry (Optional)
+SOULS_REGISTRY_URL=http://localhost:5000
+
 # Channels
 TELEGRAM_BOT_TOKEN=your-telegram-token
 DISCORD_BOT_TOKEN=your-discord-token
 
 # Web UI
-WEB_PORT=3000
+WEB_PORT=3001
 
 # MCP Server
-MCP_PORT=3848
+MCP_PORT=3850
+
+# Gateway
+GATEWAY_PORT=18792
+
+# ACP Server
+ACP_PORT=18794
+
+# WebSocket
+WS_PORT=18796
 ```
 
 ---
@@ -1151,11 +1515,12 @@ MCP_PORT=3848
 ## Troubleshooting
 
 ```bash
-# Health checks
-curl http://localhost:3848/health     # MCP
-curl http://localhost:18789/health     # Gateway
-curl http://localhost:18790/health     # ACP Server
-curl http://localhost:4000/health      # Mesh (if running)
+# Health checks (Duck Agent ports)
+curl http://localhost:3850/health     # MCP
+curl http://localhost:18792/health     # Gateway
+curl http://localhost:18794/health     # ACP Server
+curl http://localhost:18796/health     # WebSocket
+curl http://localhost:3001/health      # Web UI
 
 # View status
 duck status

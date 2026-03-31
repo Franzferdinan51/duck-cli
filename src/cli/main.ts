@@ -177,6 +177,16 @@ async function main() {
     case 'mesh':
       await meshCommand(args);
       break;
+
+    case 'clawhub':
+    case 'skills':
+      await clawhubCommand(args);
+      break;
+
+    case 'souls':
+      await soulsCommand(args);
+      break;
+
     default:
       await runTask(command + ' ' + args.join(' '));
   }

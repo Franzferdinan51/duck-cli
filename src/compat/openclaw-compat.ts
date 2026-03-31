@@ -38,6 +38,20 @@ export interface OpenClawFeatures {
   openclawsExtension: boolean;
   skillHotReload: boolean;
   agentMesh: boolean;
+
+  // v2026.3.31 OpenClaw features
+  /** SQLite-backed task ledger for background tasks */
+  taskLedgerSQLite: boolean;
+  /** Persisted blocked state for tasks */
+  taskBlockedState: boolean;
+  /** Parent-child task flow for orchestrated work */
+  taskParentChildFlow: boolean;
+  /** dangerous-code scanning fails closed by default */
+  dangerousCodeScanning: boolean;
+  /** Node commands require explicit pairing approval */
+  nodePairingApproval: boolean;
+  /** MCP remote HTTP/SSE server support */
+  mcpRemoteHTTP: boolean;
 }
 
 export interface FeatureCheck {
@@ -231,6 +245,70 @@ export class OpenClawCompatibilityChecker extends EventEmitter {
           return false;
         }
       }),
+
+      // v2026.3.31 features
+      taskLedgerSQLite: await this.check('SQLite task ledger', async () => {
+        try {
+          const fs = require('fs');
+          const taskPath = path.join(process.cwd(), 'src', 'tasks', 'task-registry.store.sqlite.js');
+          return fs.existsSync(taskPath);
+        } catch {
+          return false;
+        }
+      }),
+
+      taskBlockedState: await this.check('Task blocked state persistence', async () => {
+        try {
+          const fs = require('fs');
+          const blockedPath = path.join(process.cwd(), 'src', 'tasks', 'task-registry.store.sqlite.js');
+          const content = fs.existsSync(blockedPath) ? fs.readFileSync(blockedPath, 'utf-8') : '';
+          return content.includes('blocked');
+        } catch {
+          return false;
+        }
+      }),
+
+      taskParentChildFlow: await this.check('Parent-child task flow', async () => {
+        try {
+          const fs = require('fs');
+          const flowPath = path.join(process.cwd(), 'src', 'tasks', 'flow-registry.js');
+          return fs.existsSync(flowPath);
+        } catch {
+          return false;
+        }
+      }),
+
+      dangerousCodeScanning: await this.check('Dangerous code scanning', async () => {
+        try {
+          const fs = require('fs');
+          const scanPath = path.join(process.cwd(), 'src', 'security', 'code-scanner.js');
+          return fs.existsSync(scanPath);
+        } catch {
+          return false;
+        }
+      }),
+
+      nodePairingApproval: await this.check('Node pairing approval', async () => {
+        try {
+          const fs = require('fs');
+          const pairingPath = path.join(process.cwd(), 'src', 'security', 'node-pairing.js');
+          return fs.existsSync(pairingPath);
+        } catch {
+          return false;
+        }
+      }),
+
+      mcpRemoteHTTP: await this.check('MCP remote HTTP/SSE', async () => {
+        try {
+          const fs = require('fs');
+          const mcpPath = path.join(process.cwd(), 'src', 'server', 'mcp-server.js');
+          if (!fs.existsSync(mcpPath)) return false;
+          const content = fs.readFileSync(mcpPath, 'utf-8');
+          return content.includes('remote') || content.includes('streamable-http');
+        } catch {
+          return false;
+        }
+      }),
     };
     
     this.checked = true;
@@ -287,6 +365,12 @@ export class OpenClawCompatibilityChecker extends EventEmitter {
       'openclawsExtension',
       'skillHotReload',
       'agentMesh',
+      'taskLedgerSQLite',
+      'taskBlockedState',
+      'taskParentChildFlow',
+      'dangerousCodeScanning',
+      'nodePairingApproval',
+      'mcpRemoteHTTP',
     ];
     
     const fallbacks: Record<string, string> = {

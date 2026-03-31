@@ -46,7 +46,7 @@ These features are built-in and always operational:
 | 🌐 **MCP Server** | Full MCP 2024-11-05 spec, port 3850 |
 | 🚪 **Gateway API** | OpenAI-compatible REST, port 18792 |
 | 📡 **ACP Client** | Spawn Codex, Claude, Cursor, Gemini, Pi, OpenClaw |
-| 🔗 **ACP Server** | Let OpenClaw connect TO you, port 18790 |
+| 🔗 **ACP Server** | Let OpenClaw connect TO you, port 18794 |
 | 🗣️ **Voice / TTS** | MiniMax speech synthesis |
 | ⏰ **Cron Automation** | 30+ predefined jobs |
 | 💾 **Memory System** | 3-tier context + learned patterns |
@@ -66,8 +66,26 @@ These features require extra setup and are disabled by default:
 | 🧪 **OpenClaw-RL** | Reinforcement learning self-improvement | Run RL server, connect Duck Agent |
 | 🏛️ **AI Council (45)** | 45-agent deliberative council | LM Studio models, council server |
 | 🖥️ **Desktop UI** | Native desktop application | Build from `src/ui/desktop/` |
+| 🔧 **ClawHub** | Skill marketplace & sharing | ClawHub server + registry |
+| 🦆 **Souls Registry** | SOUL.md personality sharing | ClawHub souls publish/sync |
 | 👥 **Teams** | Multi-agent coordinated execution | Templates pre-configured |
 | 🐤 **Buddy** | AI companion with rarities | Pre-configured |
+
+---
+
+## 📡 Port Reference
+
+Duck Agent uses different ports than OpenClaw so both can run side-by-side.
+
+| Protocol | Duck Agent | OpenClaw |
+|----------|-----------|----------|
+| **Gateway API** | 18792 | 18789 |
+| **MCP Server** | 3850 | 3848 |
+| **ACP Server** | 18794 | 18790 |
+| **WebSocket** | 18796 | 18791 |
+| **Web UI** | 3001 | 3000 |
+
+> 💡 **No conflicts!** Run Duck Agent and OpenClaw simultaneously — they use completely separate ports.
 
 ---
 
@@ -92,6 +110,79 @@ duck kairos disable         # Disable KAIROS
 | 📝 Action Logs | Append-only audit trail |
 | 🔔 Notifications | Push alerts to Telegram |
 | 🧬 Modes | aggressive, balanced, conservative |
+
+---
+
+## 🏛️ AI Council Chamber — OPTIONAL (45 Councilors)
+
+**Deliberative decision making with 45 specialized AI perspectives**
+
+```bash
+duck council "Should we refactor the auth module?"
+duck council list          # List all 45 councilors
+duck council summon <role> # Call specific councilor
+```
+
+### The 45 Councilors
+
+| # | Name | Role | Specialty |
+|---|------|------|-----------|
+| 1 | 🎤 **Speaker** | Facilitator | Orchestrates deliberation |
+| 2 | 🔬 **Technocrat** | Technical | Systems, architecture, code |
+| 3 | ⚖️ **Ethicist** | Moral | Ethics, privacy, fairness |
+| 4 | 🎯 **Pragmatist** | Practical | Feasibility, resources, timelines |
+| 5 | 🤔 **Skeptic** | Critical | Weaknesses, failure modes |
+| 6 | 🛡️ **Sentinel** | Risk | Security, threats, worst-case |
+| 7 | 📊 **Quant** | Math | Statistics, probabilities, ML |
+| 8 | 🔮 **Futurist** | Long-term | Trends, predictions, 10-year view |
+| 9 | ⚡ **Speedrunner** | Efficiency | Fastest path, shortcuts |
+| 10 | 🔍 **Analyst** | Investigation | Deep dive, root cause |
+| 11 | 💡 **Innovator** | Creative | Novel solutions, out-of-box |
+| 12 | 📖 **Historian** | Context | Past patterns, lessons learned |
+| 13 | 🎨 **Designer** | UX | User experience, accessibility |
+| 14 | 💰 **Economist** | Cost/Benefit | ROI, tradeoffs, budget |
+| 15 | 🌱 **Green** | Sustainability | Environmental impact |
+| 16 | 🌍 **Globalist** | Geopolitics | International, cultural |
+| 17 | ⚙️ **Engineer** | Implementation | Building, shipping, ops |
+| 18 | 🧪 **Tester** | QA | Edge cases, stress testing |
+| 19 | 📚 **Librarian** | Knowledge | Documentation, search |
+| 20 | 🎭 **Devil's Advocate** | Opposition | Steelman the counter-argument |
+| 21 | 🤝 **Mediator** | Conflict | Resolving disagreements |
+| 22 | 📈 **Growth** | Scaling | User growth, retention |
+| 23 | 🔒 **Privacy Officer** | Data | GDPR, data handling |
+| 24 | 🚀 **Launch** | Release | Shipping, deployment |
+| 25 | 🔧 **Maintainer** | Long-term | Tech debt, sustainability |
+| 26 | 🎓 **Teacher** | Explaining | Simplicity, onboarding |
+| 27 | 🎮 **Gamifier** | Engagement | Gamification, motivation |
+| 28 | 🌊 **Flow** | UX | Cognitive load, simplicity |
+| 29 | 🔔 **Alerts** | Monitoring | Metrics, observability |
+| 30 | 🛠️ **Toolsmith** | Automation | Scripting, CI/CD |
+| 31 | 🏗️ **Architect** | Design | System design, patterns |
+| 32 | 🧬 **Evolution** | Change | Migration, upgrades |
+| 33 | 🎪 **Circus** | Chaos | Testing, resilience |
+| 34 | 📝 **Scribe** | Writing | Docs, comments, clarity |
+| 35 | 🔀 **Refactorer** | Code Health | Clean code, simplicity |
+| 36 | 🛡️ **Fortress** | Defense | Security hardening |
+| 37 | 🌐 **Network** | Infra | Networking, distributed |
+| 38 | 📦 **Package** | Dependencies | npm, libraries, versions |
+| 39 | 🧩 **Integration** | APIs | REST, GraphQL, webhooks |
+| 40 | 🗄️ **Storage** | Data | Databases, caching |
+| 41 | 🔥 **Performance** | Speed | Profiling, optimization |
+| 42 | 🧪 **Research** | R&D | Prototyping, experiments |
+| 43 | 🏆 **Champion** | Advocacy | Stakeholder alignment |
+| 44 | 🎯 **Success** | Outcomes | Goals, OKRs, impact |
+| 45 | 🌟 **Sage** | Wisdom | Experience, intuition, judgment |
+
+### Deliberation Modes
+
+| Mode | Use For |
+|------|---------|
+| ⚖️ **Legislative** | Debate & vote on proposals |
+| 🔬 **Deep Research** | Multi-vector investigation |
+| 🐛 **Swarm Coding** | Parallel software engineering |
+| 📊 **Prediction Market** | Probabilistic forecasting |
+| ❓ **Inquiry** | Direct Q&A |
+| 🗣️ **Deliberation** | Roundtable discussion |
 
 ---
 
@@ -158,22 +249,21 @@ duck mesh capabilities
 ```
 ┌──────────────────────────────────────────────────────┐
 │                   Agent Mesh Network                   │
-│                  (port 4000 default)                  │
-│                                                       │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐              │
-│  │ Duck    │  │ OpenClaw│  │ Agent   │              │
-│  │ Agent   │◄─►│ Mesh    │◄─►│ Smith   │              │
-│  │         │  │ Server  │  │         │              │
-│  └────┬────┘  └────┬────┘  └────┬────┘              │
-│       │            │            │                     │
-│  Register│      List │      Send │                   │
-│       │            │            │                     │
-│       └────────────┼────────────┘                   │
-│                    │                                  │
-│            ┌───────▼───────┐                         │
-│            │  Capability    │                         │
-│            │  Registry      │                         │
-│            └───────────────┘                         │
+│                  (port 4000 default)                   │
+│                                                        │
+│   ┌─────────┐      ┌─────────┐      ┌─────────┐      │
+│   │  Duck   │◄────►│  Mesh   │◄────►│ Agent   │      │
+│   │  Agent  │      │ Server  │      │ Smith   │      │
+│   └────┬────┘      └────┬────┘      └────┬────┘      │
+│        │                │                │            │
+│   Register│         List │           Send │            │
+│        │                │                │            │
+│        └────────────────┼────────────────┘            │
+│                         │                             │
+│               ┌─────────▼─────────┐                 │
+│               │    Capability      │                 │
+│               │     Registry       │                 │
+│               └────────────────────┘                 │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -270,7 +360,7 @@ User Message
            │ (reward signal)
            ▼
 ┌─────────────────────┐
-│  Background Policy  │
+│  Background Policy   │
 │  Update (async)     │
 │  No latency added   │
 └─────────────────────┘
@@ -278,76 +368,108 @@ User Message
 
 ---
 
-## 🏛️ AI Council — OPTIONAL (45 Councilors)
+## 🔧 ClawHub Skill Marketplace — OPTIONAL
 
-**Deliberative decision making with 45 specialized AI perspectives**
+**Skill marketplace for discovering, sharing, and installing AI capabilities**
+
+Duck Agent integrates with ClawHub — a community-driven skill registry where you can publish your own skills and install skills built by others.
+
+### ClawHub Commands
 
 ```bash
-duck council "Should we refactor the auth module?"
-duck council list          # List all 45 councilors
-duck council summon <role> # Call specific councilor
+duck clawhub search <query>     # Search for skills
+duck clawhub install <skill>    # Install a skill
+duck clawhub publish <name>     # Publish your skill
+duck clawhub list               # List installed skills
+duck clawhub info <skill>       # Show skill details
+duck clawhub update <skill>     # Update a skill
+duck clawhub uninstall <skill>  # Remove a skill
 ```
 
-### The 45 Councilors
+### Soul Commands (SOUL.md Sharing)
 
-| # | Name | Role | Specialty |
-|---|------|------|-----------|
-| 1 | 🎤 **Speaker** | Facilitator | Orchestrates deliberation |
-| 2 | 🔬 **Technocrat** | Technical | Systems, architecture, code |
-| 3 | ⚖️ **Ethicist** | Moral | Ethics, privacy, fairness |
-| 4 | 🎯 **Pragmatist** | Practical | Feasibility, resources, timelines |
-| 5 | 🤔 **Skeptic** | Critical | Weaknesses, failure modes |
-| 6 | 🛡️ **Sentinel** | Risk | Security, threats, worst-case |
-| 7 | 📊 **Quant** | Math | Statistics, probabilities, ML |
-| 8 | 🔮 **Futurist** | Long-term | Trends, predictions, 10-year view |
-| 9 | ⚡ **Speedrunner** | Efficiency | Fastest path, shortcuts |
-| 10 | 🔍 **Analyst** | Investigation | Deep dive, root cause |
-| 11 | 💡 **Innovator** | Creative | Novel solutions, out-of-box |
-| 12 | 📖 **Historian** | Context | Past patterns, lessons learned |
-| 13 | 🎨 **Designer** | UX | User experience, accessibility |
-| 14 | 💰 **Economist** | Cost/Benefit | ROI, tradeoffs, budget |
-| 15 | 🌱 **Green** | Sustainability | Environmental impact |
-| 16 | 🌍 **Globalist** | Geopolitics | International, cultural |
-| 17 | ⚙️ **Engineer** | Implementation | Building, shipping, ops |
-| 18 | 🧪 **Tester** | QA | Edge cases, stress testing |
-| 19 | 📚 **Librarian** | Knowledge | Documentation, search |
-| 20 | 🎭 **Devil's Advocate** | Opposition | Steelman the counter-argument |
-| 21 | 🤝 **Mediator** | Conflict | Resolving disagreements |
-| 22 | 📈 **Growth** | Scaling | User growth, retention |
-| 23 | 🔒 **Privacy Officer** | Data | GDPR, data handling |
-| 24 | 🚀 **Launch** | Release | Shipping, deployment |
-| 25 | 🔧 **Maintainer** | Long-term | Tech debt, sustainability |
-| 26 | 🎓 **Teacher** | Explaining | Simplicity, onboarding |
-| 27 | 🎮 **Gamifier** | Engagement | Gamification, motivation |
-| 28 | 🌊 **Flow** | UX | Cognitive load, simplicity |
-| 29 | 🔔 **Alerts** | Monitoring | Metrics, observability |
-| 30 | 🛠️ **Toolsmith** | Automation | Scripting, CI/CD |
-| 31 | 🏗️ **Architect** | Design | System design, patterns |
-| 32 | 🧬 **Evolution** | Change | Migration, upgrades |
-| 33 | 🎪 **Circus** | Chaos | Testing, resilience |
-| 34 | 📝 **Scribe** | Writing | Docs, comments, clarity |
-| 35 | 🔀 **Refactorer** | Code Health | Clean code, simplicity |
-| 36 | 🛡️ **Fortress** | Defense | Security hardening |
-| 37 | 🌐 **Network** | Infra | Networking, distributed |
-| 38 | 📦 **Package** | Dependencies | npm, libraries, versions |
-| 39 | 🧩 **Integration** | APIs | REST, GraphQL, webhooks |
-| 40 | 🗄️ **Storage** | Data | Databases, caching |
-| 41 | 🔥 **Performance** | Speed | Profiling, optimization |
-| 42 | 🧪 **Research** | R&D | Prototyping, experiments |
-| 43 | 🏆 **Champion** | Advocacy | Stakeholder alignment |
-| 44 | 🎯 **Success** | Outcomes | Goals, OKRs, impact |
-| 45 | 🌟 **Sage** | Wisdom | Experience, intuition, judgment |
+```bash
+duck souls list                 # List shared souls
+duck souls publish              # Publish your SOUL.md
+duck souls import <name>         # Import a soul
+duck souls sync                 # Sync with registry
+duck souls backup               # Backup souls to registry
+```
 
-### Deliberation Modes
+### ClawHub Usage Examples
 
-| Mode | Use For |
-|------|---------|
-| ⚖️ **Legislative** | Debate & vote on proposals |
-| 🔬 **Deep Research** | Multi-vector investigation |
-| 🐛 **Swarm Coding** | Parallel software engineering |
-| 📊 **Prediction Market** | Probabilistic forecasting |
-| ❓ **Inquiry** | Direct Q&A |
-| 🗣️ **Deliberation** | Roundtable discussion |
+```bash
+# Search for a skill
+duck clawhub search "image generation"
+# Output: skill_name | description | author | downloads
+
+# Install a skill from the marketplace
+duck clawhub install image-gen-skill
+
+# Publish your custom skill
+duck clawhub publish my-custom-skill
+
+# List all installed skills
+duck clawhub list
+
+# Share your SOUL.md personality
+duck souls publish
+# Your agent personality is now available to others
+
+# Import someone's soul
+duck souls import DuckBot-Standard
+```
+
+### ClawHub Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│               ClawHub Marketplace                │
+│         (skill registry + souls registry)        │
+│                                                  │
+│   ┌───────────┐  ┌───────────┐  ┌───────────┐ │
+│   │  Skills   │  │  Souls    │  │  Ratings  │ │
+│   │  Registry │  │  Registry │  │  & Reviews │ │
+│   └─────┬─────┘  └─────┬─────┘  └─────┬─────┘ │
+│         │               │               │        │
+│         └───────────────┼───────────────┘        │
+│                         │                        │
+│              ┌──────────▼──────────┐            │
+│              │    Duck Agent         │            │
+│              │  clawhub install      │            │
+│              │  souls publish/sync   │            │
+│              └──────────────────────┘            │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## 🦆 Souls Registry
+
+**Share and import AI personalities via SOUL.md**
+
+The Souls Registry lets you publish your agent's personality (SOUL.md) to a shared registry, or import personalities from other agents. Your agent becomes more than just code — it has an identity that can be shared, forked, and remixed.
+
+### Soul Traits
+
+| Trait | Description |
+|-------|-------------|
+| 🧠 **Personality** | Tone, vocabulary, response style |
+| 🎯 **Goals** | What the agent prioritizes |
+| ⚙️ **Preferences** | Learned user preferences |
+| 📝 **Memory** | Important remembered facts |
+| 🎭 **Persona** | Custom emoji, catchphrases, quirks |
+
+### Soul Commands
+
+```bash
+duck souls list           # Browse available souls
+duck souls publish        # Share your SOUL.md
+duck souls import <id>    # Adopt a soul
+duck souls fork <id>      # Fork and customize a soul
+duck souls diff <id>      # Compare souls
+duck souls rollback       # Restore previous soul
+```
 
 ---
 
@@ -371,7 +493,7 @@ duck voice --voice casual "Hi!"    # Different style
 **Full-featured control interface**
 
 ```
-http://localhost:3000
+http://localhost:3001
 ```
 
 | Panel | Features |
@@ -432,8 +554,8 @@ duck mcp
 **Built-in Tools (14+):**
 
 ```
-execute          - Execute a task
-think           - Reasoning mode
+execute           - Execute a task
+think            - Reasoning mode
 remember         - Store in memory
 recall           - Search memory
 kairos_status    - Get KAIROS state
@@ -443,8 +565,8 @@ desktop_open     - Open application
 desktop_click    - Click at coordinates
 desktop_type     - Type text
 get_status       - Agent metrics
-list_tools      - List all tools
-ping            - Latency check
+list_tools       - List all tools
+ping             - Latency check
 spawn_agent      - Spawn sub-agent
 ```
 
@@ -594,7 +716,108 @@ browser_screenshot
 
 ---
 
-## 📦 Architecture
+## 🔄 OpenClaw Compatibility
+
+Duck Agent is built alongside OpenClaw and can run **side-by-side** with zero conflicts.
+
+### Dual Operation
+
+Duck Agent and OpenClaw use completely different ports — they are fully independent deployments.
+
+| Protocol | Duck Agent | OpenClaw |
+|----------|-----------|----------|
+| **Gateway** | 18792 | 18789 |
+| **MCP** | 3850 | 3848 |
+| **ACP** | 18794 | 18790 |
+| **WebSocket** | 18796 | 18791 |
+| **Web UI** | 3001 | 3000 |
+
+### Running Alongside OpenClaw
+
+```bash
+# Terminal 1: Duck Agent
+duck unified                    # Starts: 3850, 18792, 18794, 18796
+
+# Terminal 2: OpenClaw (separate install)
+openclaw unified              # Starts: 3848, 18789, 18790, 18791
+
+# Both systems run independently with no conflicts!
+```
+
+### OpenClaw Configuration (for ACP connections)
+
+To let OpenClaw spawn Duck Agent sessions:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "duck",
+        "name": "Duck Agent",
+        "workspace": "~/.duck-agent",
+        "runtime": {
+          "type": "acp",
+          "acp": {
+            "agent": "duck",
+            "backend": "acpx",
+            "mode": "persistent"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         Duck Agent v0.3.1                        │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                     User Interfaces                       │    │
+│  │   Shell (TUI)  │  Web UI (:3001)  │  Telegram/Discord     │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                   │
+│  ┌───────────────────────────▼─────────────────────────────┐    │
+│  │                      KAIROS Core                          │    │
+│  │   Heartbeat  │  Decision Engine  │  Auto-Dream  │  Modes  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                   │
+│  ┌────────┐  ┌────────┐  ┌─────────┐  ┌──────────┐  ┌────────┐  │
+│  │  AI   │  │ Agent  │  │ Claude  │  │ Desktop  │  │ Cron   │  │
+│  │Council│  │ Mesh   │  │  Code   │  │ Control  │  │  30+   │  │
+│  │  45   │  │ (opt)  │  │ Tools   │  │ClawdCursor│ │ Jobs   │  │
+│  └────────┘  └────────┘  └─────────┘  └──────────┘  └────────┘  │
+│                              │                                   │
+│  ┌───────────────────────────▼─────────────────────────────┐    │
+│  │              Headless Protocol Servers                   │    │
+│  │   ┌────────┐  ┌────────┐  ┌────────┐  ┌──────────────┐   │    │
+│  │   │  MCP   │  │  ACP   │  │   WS   │  │   Gateway    │   │    │
+│  │   │  3850  │  │ 18794  │  │ 18796  │  │    18792     │   │    │
+│  │   └────────┘  └────────┘  └────────┘  └──────────────┘   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                              │                                   │
+│  ┌───────────────────────────▼─────────────────────────────┐    │
+│  │                 Multi-Provider AI Stack                  │    │
+│  │   MiniMax  │  Kimi  │  ChatGPT  │  LM Studio  │  Codex  │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+  OPTIONAL LAYERS (disabled by default):
+  ┌─────────────────────────────────────────────────────────────┐
+  │   Agent Mesh  │  OpenClaw-RL  │  ClawHub  │  Souls Registry  │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 Directory Structure
 
 ```
 Duck Agent/
@@ -617,6 +840,8 @@ Duck Agent/
 │   ├── channels/        # Telegram, Discord
 │   ├── prompts/         # System prompts
 │   ├── compat/          # OpenClaw v2026.3.31 compat layer
+│   ├── clawhub/         # ClawHub skill marketplace 🔧
+│   ├── souls/           # Souls registry 🦆
 │   └── ui/
 │       ├── pretext-canvas/  # Generative UI
 │       ├── a2ui/            # Canvas renderer
@@ -626,7 +851,7 @@ Duck Agent/
 │   ├── ARCHITECTURE.md
 │   ├── COMMANDS.md
 │   ├── UPDATES.md
-│   └── DESKTOP-UI.md    # NEW — Desktop UI preview
+│   └── DESKTOP-UI.md    # Desktop UI preview
 └── package.json
 ```
 
@@ -645,12 +870,12 @@ duck history            # View history
 
 # Protocols
 duck unified           # All protocols
-duck mcp [port]        # MCP server
+duck mcp [port]        # MCP server (port 3850)
 duck mcp-connect <url> # Connect MCP
 duck acp <agent> [task]# Spawn ACP (CLIENT)
 duck acp-server [port] # ACP server (let OpenClaw connect TO you)
 duck ws connect <url>  # Connect WS
-duck gateway           # REST API
+duck gateway           # REST API (port 18792)
 
 # AI Systems
 duck kairos [mode]     # KAIROS control
@@ -660,8 +885,8 @@ duck council [query]    # AI Council
 duck council list       # List 45 councilors
 duck council summon <r> # Summon specific councilor
 
-# OPTIONAL: Mesh & RL
-duck mesh register      # Join mesh network 🌐
+# OPTIONAL: Mesh 🌐
+duck mesh register      # Join mesh network
 duck mesh list          # Discover agents
 duck mesh send <id> <m> # Send message
 duck mesh broadcast <m> # Broadcast
@@ -669,12 +894,32 @@ duck mesh inbox          # Check inbox
 duck mesh status        # Ping mesh
 duck mesh capabilities  # Map skills
 duck mesh catastrophe   # Check events
-duck rl status          # RL status 🧪
+
+# OPTIONAL: OpenClaw-RL 🧪
+duck rl status          # RL status
 duck rl enable          # Enable RL
 duck rl disable         # Disable RL
 duck rl connect <url>   # Connect RL server
 duck rl disconnect      # Disconnect
 duck rl stats           # Training stats
+
+# OPTIONAL: ClawHub 🔧
+duck clawhub search <q>  # Search skills
+duck clawhub install <s> # Install skill
+duck clawhub publish <n> # Publish skill
+duck clawhub list        # List installed
+duck clawhub info <s>    # Skill details
+duck clawhub update <s> # Update skill
+duck clawhub uninstall <s> # Remove skill
+
+# OPTIONAL: Souls 🦆
+duck souls list         # Browse souls
+duck souls publish      # Share SOUL.md
+duck souls import <id>  # Adopt soul
+duck souls fork <id>    # Fork soul
+duck souls sync         # Sync registry
+duck souls backup       # Backup souls
+duck souls rollback     # Restore
 
 # Automation
 duck cron [action]     # Cron jobs
@@ -737,6 +982,16 @@ duck update status    # Git status
 
 ---
 
+## 🛤️ Roadmap
+
+| Version | Milestone | Description |
+|---------|-----------|-------------|
+| **v0.4.0** | 🖥️ Desktop UI | Native desktop app with system tray, real-time dashboard, live chat, mesh visualizer, council panel, desktop control widget, notification center |
+| **v0.5.0** | 🔧 ClawHub Integration | Full skill marketplace, SOUL.md sharing, community ratings, skill versioning, one-click install from registry |
+| **v1.0.0** | 🏆 Production Ready | Stabilized APIs, comprehensive tests, performance optimization, full documentation, production deployment guides |
+
+---
+
 ## 📚 Documentation
 
 | Doc | Description |
@@ -760,10 +1015,12 @@ duck update status
 # Backup before changes
 duck update backup
 
-# Health check (various ports)
+# Health check (Duck Agent ports)
 curl http://localhost:18792/health  # Gateway
-curl http://localhost:3850/health     # MCP
-curl http://localhost:4000/health     # Mesh
+curl http://localhost:3850/health    # MCP
+curl http://localhost:18794/health    # ACP
+curl http://localhost:18796/health    # WebSocket
+curl http://localhost:3001/health     # Web UI
 
 # View logs
 tail -f ~/.duck-agent/logs/*.log
