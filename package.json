@@ -1,7 +1,7 @@
 {
   "name": "duck-agent",
   "version": "0.1.0",
-  "description": "🦆 Duck Agent - A complete AI agent system with desktop control",
+  "description": "\ud83e\udd86 Duck Agent - Super AI Agent with KAIROS Proactive AI, Voice/TTS, Web UI, Claude Code Tools",
   "main": "dist/agent/core.js",
   "bin": {
     "duck": "./dist/cli/main.js",
@@ -12,8 +12,16 @@
     "build:watch": "tsc --watch",
     "dev": "tsx src/cli/main.ts",
     "dev:agent": "tsx src/agent/core.ts",
+    "dev:web": "tsx src/web-server.ts",
     "test": "vitest",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "start": "node dist/cli/main.js gateway",
+    "shell": "node dist/cli/main.js shell",
+    "web": "node dist/cli/main.js web",
+    "mcp": "node dist/cli/main.js mcp",
+    "docker:build": "docker build -t duck-agent .",
+    "docker:run": "docker-compose up -d",
+    "docker:logs": "docker logs -f duck-agent"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -35,15 +43,26 @@
     "node": ">=20.0.0"
   },
   "keywords": [
-    "ai",
-    "agent",
-    "claude",
-    "openai",
-    "desktop-control",
-    "automation",
     "ai-agent",
-    "coding-assistant"
+    "claude-code",
+    "duck-agent",
+    "kairos",
+    "tts",
+    "voice",
+    "desktop-control",
+    "mcp",
+    "openclaw",
+    "hermes",
+    "browseros"
   ],
   "author": "Ryan (Duckets)",
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/Franzferdinan51/duck-cli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Franzferdinan51/duck-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Franzferdinan51/duck-cli/issues"
+  }
 }

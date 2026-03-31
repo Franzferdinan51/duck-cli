@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  duck-agent:
+    build: .
+    container_name: duck-agent
+    restart: unless-stopped
+    ports:
+      - "3000:3000"      # Web UI
+      - "3848:3848"      # MCP Server
+      - "18789:18789"    # Gateway
+    environment:
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LMSTUDIO_URL=${LMSTUDIO_URL:-http://host.docker.internal:1234}
+      - BROWSEROS_HOST=${BROWSEROS_HOST:-host.docker.internal}
+      - BROWSEROS_PORT=${BROWSEROS_PORT:-9100}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN:-duck-secret}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - duck-net
+
+networks:
+  duck-net:
+    driver: bridge

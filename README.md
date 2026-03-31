@@ -1,254 +1,108 @@
-# 🦆 Duck Agent System
+# 🦆 Duck Agent
 
-> **A complete AI agent system** - standalone agent + MCP server + Telegram/Discord channels.
-> 
-> Inspired by OpenClaw, Hermes-Agent, Claude Code, and DuckBot-OS.
+> **Super AI Agent** - The ultimate personal AI assistant with KAIROS proactive AI, voice synthesis, web UI, and Claude Code-level tools.
+
+[![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 
 ---
 
-## ⚡ Quick Start
+## 🚀 Quick Start
 
 ```bash
-# Build
+# Install
+git clone https://github.com/Franzferdinan51/duck-cli.git
+cd duck-cli
 npm install && npm run build
 
-# Interactive TUI shell
-node dist/cli/main.js shell
+# Start
+./start.sh shell        # Interactive shell
+./start.sh web          # Web UI (http://localhost:3000)
+./start.sh gateway      # Gateway API
+./start.sh mcp          # MCP Server
 
-# Run single task
-node dist/cli/main.js run "say hello"
-
-# Think about something
-node dist/cli/main.js think "Why is the sky blue"
-
-# Start with Telegram/Discord
-node dist/cli/main.js channels
+# Or with Docker
+docker-compose up -d
 ```
 
 ---
 
-## 🎯 Three Modes in One
+## ✨ Features
 
-### 1️⃣ Standalone Agent
-```bash
-# Interactive shell
-node dist/cli/main.js shell
+### 🧠 KAIROS Proactive AI
+**Always-on AI that acts without being asked**
 
-# Single task
-node dist/cli/main.js run "open Safari"
+- 💭 Heartbeat system (checks "anything worth doing?")
+- 🎯 Smart decision engine
+- 🌙 Auto-dream consolidation (3 AM daily)
+- 📝 Append-only action logs
+- 🔔 Push notifications
+- 🧬 Pattern learning
 
-# Reasoning
-node dist/cli/main.js think "Should I learn Rust or Go?"
-```
+### 🎤 Voice / TTS
+**MiniMax speech synthesis built-in**
 
-### 2️⃣ MCP Server (for OpenClaw)
-```bash
-# Start MCP server
-node dist/cli/main.js mcp 3848
+- Natural voice generation
+- Multiple voice styles (narrator, casual, sad)
+- 4,000 characters/day quota
+- Auto-play on macOS
 
-# OpenClaw connects via:
-POST http://localhost:3848/mcp
-```
+### 🌐 Web UI
+**OpenClaw-inspired interface**
 
-### 3️⃣ Telegram/Discord Bot
-```bash
-# Create channels.json with your bot tokens
-node dist/cli/main.js channels
+- 💬 Chat interface
+- 📊 Status dashboard
+- 🛠️ Tool browser
+- 🎤 Voice panel
+- 🧠 KAIROS controls
+- ⚙️ Settings
 
-# Send message directly
-node dist/cli/main.js send telegram 123456789 "Hello!"
-```
+### 🛠️ Claude Code Tools
+**58+ coding tools from instructkr**
 
----
+| Category | Tools |
+|----------|-------|
+| **Files** | read, write, edit, glob |
+| **Shell** | bash, powershell |
+| **Search** | grep, find |
+| **Code** | lsp, diagnostics |
+| **Tasks** | create, list, update, stop |
+| **REPL** | node, python, bash |
 
-## ✅ Verified Working (v0.3)
+### 🌐 BrowserOS Integration
+**45+ browser automation tools**
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **Core Agent** | ✅ Working | Multi-turn conversation |
-| **TUI Shell** | ✅ Working | Interactive mode |
-| **MiniMax AI** | ✅ Working | Reasoning + responses |
-| **Memory System** | ✅ Working | Persistent SOUL + facts |
-| **Learning** | ✅ Working | Pattern learning |
-| **Cost Tracking** | ✅ Working | 15+ model pricing |
-| **Skills** | ✅ Working | 10 loaded |
-| **Tools** | ✅ Working | 13 tools |
-| **MCP Server** | ✅ Working | JSON-RPC protocol |
-| **Telegram** | ✅ Ready | Polling bot |
-| **Discord** | ✅ Ready | Slash commands |
-| **Desktop Control** | ✅ Ready | ClawdCursor |
+- Navigate, click, type
+- Screenshot, content extraction
+- Bookmarks, history
+- Tab groups, windows
 
----
+### 📱 Channels
+**Telegram + Discord bots**
 
-## 🤖 AI Providers
-
-**Current:** MiniMax-M2.5 (API key: `sk-cp-f6PbhZ...`)
-
-Set environment variables:
-
-```bash
-export MINIMAX_API_KEY="your-key"
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-..."
-export LMSTUDIO_URL="http://localhost:1234"
-```
+- Slash commands
+- Direct messaging
+- Multi-channel support
 
 ---
 
-## 💰 Cost Tracking
-
-Duck Agent tracks costs with 15+ models:
-
-| Provider | Model | Input/1K | Output/1K |
-|----------|-------|----------|------------|
-| MiniMax | MiniMax-M2.5 | $0.50 | $0.50 |
-| OpenAI | gpt-4o | $2.50 | $10.00 |
-| Anthropic | claude-3.5-sonnet | $3.00 | $15.00 |
-| LM Studio | local | FREE | FREE |
+## 📦 Commands
 
 ```bash
-# Check cost
-duck tools | grep cost
-
-# Get detailed summary
-duck status | grep cost
-```
-
----
-
-## 📦 Skills (10 loaded)
-
-| Skill | Purpose |
-|-------|---------|
-| `desktop-control-lobster` | AI drawing, automation |
-| `desktop-control` | AI Agent automation |
-| `clawd-cursor` | REST API desktop control |
-| `computer-use` | Vision-based UI automation |
-| `claude-code-mastery` | Employee-grade overrides |
-| `code-review` | Automated code review |
-| `context-memory` | Semantic memory |
-| `security-audit` | Vulnerability scanning |
-| `git-workflow` | Smart git operations |
-| `mcp-manager` | MCP server management |
-
----
-
-## 🔧 Tools (13 available)
-
-| Tool | Purpose | Danger |
-|------|---------|--------|
-| `desktop_open` | Open applications | - |
-| `desktop_click` | Click coordinates | - |
-| `desktop_type` | Type text | - |
-| `desktop_screenshot` | Take screenshot | - |
-| `memory_remember` | Save memory | - |
-| `memory_recall` | Search memory | - |
-| `shell` | Execute command | ⚠️ |
-| `file_read` | Read files | - |
-| `file_write` | Write files | ⚠️ |
-| `web_search` | Search web | - |
-| `learn_from_feedback` | Learn from feedback | - |
-| `get_metrics` | Performance metrics | - |
-| `get_cost` | Cost tracking | - |
-
----
-
-## 🖥️ Desktop Control
-
-Requires ClawdCursor:
-```bash
-cd ~/.openclaw/workspace/clawd-cursor
-nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &
-```
-
-Commands:
-```bash
-duck desktop open Calculator
-duck desktop click 100 200
-duck desktop type "Hello"
-duck desktop screenshot
-```
-
----
-
-## 📱 Telegram/Discord Integration
-
-### Setup
-
-1. **Telegram:** Create bot via @BotFather, get token
-2. **Discord:** Create app at discord.com/developers, add bot
-
-### Config (`channels.json`)
-```json
-{
-  "telegram": {
-    "botToken": "123456:ABC-DEF...",
-    "allowedUsers": [123456789]
-  },
-  "discord": {
-    "botToken": "abc.def.ghi...",
-    "applicationId": "123456789012345678",
-    "allowedRoles": ["Admin", "DuckBot User"]
-  }
-}
-```
-
-### Discord Slash Commands
-- `/chat <message>` - Chat with Duck Agent
-- `/think <question>` - Reasoning mode
-- `/status` - Bot status
-
----
-
-## 🧠 Memory System
-
-```bash
-# Remember something
-duck remember "API docs are in /docs"
-
-# Search memory
-duck recall "API docs"
-
-# Or in shell:
-/remember User prefers dark mode
-/recall dark mode
-```
-
----
-
-## 💬 Shell Commands
-
-```bash
-duck shell
-
-# Inside shell:
-/help           Show help
-/status         Show agent status
-/tools           List available tools
-/history        Show conversation history
-/clear          Clear history
-/think <text>  Think about something
-/remember <text> Remember something
-/recall <query> Search memory
-/quit           Exit
-```
-
----
-
-## 📡 MCP Server
-
-```bash
-# Start on default port 3848
-duck mcp
-
-# Start on custom port
-duck mcp 4000
-
-# Endpoints:
-POST /mcp     - JSON-RPC
-GET  /sse     - Server-Sent Events
-GET  /tools   - List tools
-GET  /health  - Health check
+duck shell              # Interactive TUI shell
+duck web               # Web UI (port 3000)
+duck gateway           # Gateway API (port 18789)
+duck mcp [port]        # MCP Server (default 3848)
+duck channels          # Telegram/Discord
+duck status            # Show agent status
+duck tools             # List all tools
+duck think "?"         # Reasoning mode
+duck speak "text"      # Text-to-speech
+duck speak "text" casual  # Different voice
+duck history           # Conversation history
+duck memory add "x"   # Remember something
+duck memory search "x" # Search memories
 ```
 
 ---
@@ -257,25 +111,138 @@ GET  /health  - Health check
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Duck Agent v0.3                          │
+│                    Duck Agent v0.6                          │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │              Agent Core                              │  │
-│  │   Think → Reason → Plan → Execute → Learn            │  │
-│  └─────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │              KAIROS Proactive AI                       │ │
+│  │   Heartbeat → Decision → Action → Learn                │ │
+│  └─────────────────────────────────────────────────────┘ │
 │                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
-│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │   │
-│  │ MiniMax   │ │ SOUL+SQL │ │ 13 tools │ │ 10 loaded│   │
-│  │ LM Studio │ │ Learning │ │ Dangerous│ │ Registry │   │
-│  │ OpenAI    │ │ Patterns │ │ Approvals│ │ Fallback│   │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │                    Agent Core                         │ │
+│  │   Think → Reason → Plan → Execute → Remember           │ │
+│  └─────────────────────────────────────────────────────┘ │
 │                                                              │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  Modes                                                  │  │
-│  │  🖥️ Standalone  📡 MCP  📱 Telegram/Discord         │  │
-│  └─────────────────────────────────────────────────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐    │
+│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │    │
+│  │ MiniMax   │ │ Context  │ │ 58+     │ │ 10       │    │
+│  │ LM Studio │ │ Learning │ │ BrowserOS│ │ Registry │    │
+│  │ OpenAI    │ │ Patterns │ │ Claude   │ │          │    │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘    │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │  Interfaces                                            │ │
+│  │  🌐 Web UI  📱 Telegram/Discord  🖥️ CLI  📡 MCP      │ │
+│  └─────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔌 API Endpoints
+
+### Gateway (port 18789)
+```
+GET  /health              # Health check
+GET  /status             # Full status
+GET  /metrics            # Metrics
+POST /v1/chat/completions  # OpenAI-compatible
+GET  /v1/models          # Model list
+```
+
+### Web UI (port 3000)
+```
+GET  /                   # Web UI
+GET  /api/status         # Agent status
+POST /api/chat           # Chat
+GET  /api/tools          # Tool list
+POST /api/tts            # Text-to-speech
+```
+
+### MCP Server (port 3848)
+```
+POST /mcp                # JSON-RPC MCP protocol
+GET  /tools              # List tools
+GET  /health             # Health check
+```
+
+---
+
+## 🛠️ Tools (58+)
+
+### Coding Tools
+| Tool | Description |
+|------|-------------|
+| `file_read` | Read file contents |
+| `file_write` | Write content to file |
+| `file_edit` | Edit specific lines |
+| `bash` | Execute shell commands |
+| `powershell` | Windows PowerShell |
+| `grep` | Search patterns in files |
+| `glob` | Find files by pattern |
+| `lsp` | Language server diagnostics |
+| `repl` | Run code in REPL |
+
+### Task Tools
+| Tool | Description |
+|------|-------------|
+| `task_create` | Create a new task |
+| `task_list` | List all tasks |
+| `task_get` | Get task details |
+| `task_update` | Update task |
+| `task_stop` | Cancel a task |
+
+### BrowserOS Tools
+| Tool | Description |
+|------|-------------|
+| `navigate` | Go to URL |
+| `click` | Click element |
+| `type` | Type text |
+| `screenshot` | Capture page |
+| `get_content` | Extract text |
+| `bookmarks` | Manage bookmarks |
+| `history` | Browse history |
+
+### Duck Tools
+| Tool | Description |
+|------|-------------|
+| `speak` | Text-to-speech |
+| `think` | Reasoning mode |
+| `remember` | Save to memory |
+| `recall` | Search memory |
+| `get_metrics` | System metrics |
+| `get_cost` | Cost tracking |
+
+---
+
+## 🌐 Browser Automation
+
+Connect to BrowserOS for 45+ additional tools:
+
+```bash
+# Install BrowserOS: https://files.browseros.com
+export BROWSEROS_HOST=127.0.0.1
+export BROWSEROS_PORT=9100
+```
+
+---
+
+## 🐳 Docker
+
+```bash
+# Build
+docker build -t duck-agent .
+
+# Run
+docker run -d \
+  -p 3000:3000 \
+  -p 3848:3848 \
+  -p 18789:18789 \
+  -e MINIMAX_API_KEY=your-key \
+  duck-agent
+
+# Or with docker-compose
+docker-compose up -d
 ```
 
 ---
@@ -286,116 +253,121 @@ GET  /health  - Health check
 duck-cli/
 ├── src/
 │   ├── agent/
-│   │   ├── core.ts          # Main agent logic
-│   │   └── cost-tracker.ts # Cost tracking
+│   │   ├── core.ts           # Main agent logic
+│   │   ├── cost-tracker.ts   # Cost tracking
+│   │   └── proactive/
+│   │       └── kairos.ts     # KAIROS AI
 │   ├── providers/
-│   │   └── manager.ts      # AI providers (MiniMax, LM Studio, etc)
-│   ├── memory/
-│   │   └── system.ts       # SOUL + persistent memory
+│   │   ├── manager.ts        # Multi-provider
+│   │   ├── minimax.ts       # MiniMax
+│   │   ├── browseros.ts      # BrowserOS
+│   │   └── ...
 │   ├── tools/
-│   │   └── registry.ts     # Tool registry + approvals
-│   ├── skills/
-│   │   └── runner.ts       # Skill loader
+│   │   ├── registry.ts       # Tool registry
+│   │   ├── tts.ts            # TTS service
+│   │   └── coding/
+│   │       ├── index.ts      # Claude Code tools
+│   │       ├── extended-tools.ts
+│   │       └── powershell.ts
 │   ├── channels/
-│   │   ├── telegram.ts     # Telegram bot
-│   │   ├── discord.ts      # Discord bot
-│   │   └── manager.ts      # Channel coordinator
+│   │   ├── manager.ts       # Channel coordinator
+│   │   ├── telegram.ts
+│   │   └── discord.ts
+│   ├── memory/
+│   │   ├── system.ts        # Memory + learning
+│   │   └── context-manager.ts # Patterns
+│   ├── gateway/
+│   │   └── index.ts         # HTTP/WebSocket gateway
 │   ├── integrations/
-│   │   └── desktop.ts     # ClawdCursor
-│   ├── server/
-│   │   └── mcp-server.ts  # MCP server
-│   └── cli/
-│       └── main.ts         # CLI/TUI
-├── skills/                  # 10 loaded skills
-├── channels.json.example    # Channel config template
-└── dist/                   # Built output
+│   │   └── browseros.ts      # BrowserOS integration
+│   ├── cli/
+│   │   └── main.ts          # CLI commands
+│   └── web-server.ts         # Web UI server
+├── web-ui/
+│   └── index.html            # Web interface
+├── skills/                   # 10 loaded skills
+├── data/                    # Persistent data
+├── docker-compose.yml
+├── Dockerfile
+├── .env.example
+├── start.sh                # Quick start script
+└── package.json
 ```
 
 ---
 
-## 🔗 Features from Source Projects
+## 🔧 Configuration
 
-| Feature | Source |
-|---------|--------|
-| Agent architecture | OpenClaw, Hermes-Agent |
-| Tool registry | Hermes-Agent |
-| Cost tracking | DuckBot-OS |
-| Provider fallback | DuckBot-OS |
-| Learning system | DuckBot-OS |
-| Telegram integration | DuckBot-OS |
-| Discord integration | DuckBot-OS |
-| Desktop control | ClawdCursor |
-| Skills framework | OpenClaw |
+Copy `.env.example` to `.env`:
 
----
-
-## 📊 Metrics Tracked
-
-- Total interactions
-- Success/failure rate
-- Cost per provider/model
-- Token usage
-- Learned patterns
-- Cost budget remaining
-
----
-
-## 🔗 GitHub
-
-```
-https://github.com/Franzferdinan51/duck-cli
-```
-
----
-
-**🦆 v0.3.0** - Built for Ryan (Duckets)
-**Inspired by:** OpenClaw, Hermes-Agent, Claude Code, DuckBot-OS
-## 🌐 BrowserOS Integration
-
-Duck Agent can connect to [BrowserOS](https://github.com/browseros-ai/BrowserOS) for 45+ browser automation tools!
-
-### What is BrowserOS?
-- **Privacy-first AI browser** built on Chromium
-- **53+ automation tools** - navigate, click, type, extract data
-- **MCP Server** - Control browser from any MCP client
-- **Local models** - Run AI locally via Ollama/LM Studio
-
-### Setup
-
-1. **Download BrowserOS:** https://files.browseros.com
-2. **Start BrowserOS** and note the port (default 9100)
-3. **Set environment:**
 ```bash
-export BROWSEROS_HOST=127.0.0.1
-export BROWSEROS_PORT=9100
+# Required
+MINIMAX_API_KEY=sk-cp-your-key
+
+# Optional
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+LMSTUDIO_URL=http://localhost:1234
+
+# BrowserOS
+BROWSEROS_HOST=127.0.0.1
+BROWSEROS_PORT=9100
+
+# Security
+GATEWAY_TOKEN=your-secret-token
 ```
 
-### BrowserOS Tools (45+)
+---
 
-| Category | Tools |
-|----------|-------|
-| **Navigation** | list_pages, get_active_page, navigate, new_page, close_page, show_page |
-| **Observation** | take_snapshot, take_enhanced_snapshot, get_page_content, get_page_links, search_dom, take_screenshot, evaluate_script |
-| **Input** | click, click_at, hover, type, fill, press_key, scroll, clear, check, uncheck, select_option |
-| **Page Actions** | save_pdf, save_screenshot, download_file |
-| **Bookmarks** | get_bookmarks, create_bookmark, remove_bookmark, search_bookmarks |
-| **History** | get_recent_history, search_history, delete_history_url |
-| **Windows** | list_windows, create_window, close_window |
-| **Tab Groups** | list_tab_groups, group_tabs, ungroup_tabs |
+## 📊 Status
 
-### Usage Example
+| Component | Status |
+|-----------|--------|
+| **Agent Core** | ✅ Working |
+| **MiniMax M2.7** | ✅ Working |
+| **KAIROS Proactive AI** | ✅ Built |
+| **Voice/TTS** | ✅ Working |
+| **Web UI** | ✅ Working |
+| **MCP Server** | ✅ Working |
+| **Gateway API** | ✅ Working |
+| **Claude Code Tools** | ✅ 58+ tools |
+| **BrowserOS** | ✅ 45+ tools |
+| **Telegram** | ✅ Ready |
+| **Discord** | ✅ Ready |
+| **Cost Tracking** | ✅ Working |
+| **Learning System** | ✅ Working |
+| **Docker** | ✅ Ready |
 
-```typescript
-const browserOS = provider.getBrowserOS();
-if (browserOS) {
-  // Navigate to a page
-  await browserOS.navigate('https://example.com');
-  
-  // Take screenshot
-  const { screenshot } = await browserOS.takeScreenshot();
-  
-  // Extract content
-  const { content } = await browserOS.getPageContent();
-}
-```
+---
 
+## 🏆 Sources
+
+This project combines the best from:
+
+| Project | Contribution |
+|---------|-------------|
+| **instructkr-claude-code** | Claude Code tools, task system |
+| **OpenClaw** | Gateway architecture, web UI |
+| **Hermes-Agent** | Advanced tools, delegation |
+| **DuckBot-OS** | Features, learning, cost tracking |
+| **BrowserOS** | Browser automation |
+| **Claude Code leak (KAIROS)** | Proactive AI concepts |
+
+---
+
+## 📜 License
+
+MIT License - see [LICENSE](LICENSE)
+
+---
+
+## 🔗 Links
+
+- **GitHub:** https://github.com/Franzferdinan51/duck-cli
+- **Docs:** Coming soon
+- **Issues:** https://github.com/Franzferdinan51/duck-cli/issues
+
+---
+
+**🦆 v0.6.0** - Built for Ryan (Duckets)
+**KAIROS:** Always-on AI that works while you sleep
