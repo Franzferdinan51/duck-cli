@@ -1,168 +1,119 @@
 # 🦆 Duck CLI
 
-**The ultimate AI coding agent** — combining the best of Claude Code, OpenCode, Gemini CLI, and OpenClaw.
+> **⚠️ INTERNAL USE ONLY** - This is a personal AI coding agent for Ryan's setup. Not maintained for public use.
+
+A powerful CLI coding agent that integrates Claude Code, Claude API, Claude SSH, LM Studio, BrowserOS, AI Council, and more into a unified command-line experience.
 
 ## Features
 
-- **10 AI Providers**: Anthropic, OpenAI, Gemini, Moonshot/Kimi, MiniMax, ZAI, DeepSeek, Ollama, LM Studio, Custom
-- **MCP Integration**: Full Model Context Protocol support
-- **Multi-Agent Swarm**: Coordinator pattern with parallel workers
-- **Persistent Memory**: Semantic memory across sessions
-- **DEFCON Security**: Proactive vulnerability scanning
-- **AI Council**: Multi-agent deliberation for decisions
-- **Skills System**: Extensible command system
+### 🤖 AI Providers (10+ Supported)
+- **Claude Code** - Full CLI agent with code editing, git workflows, multi-file refactoring
+- **Claude API** - Direct API access
+- **Claude SSH** - Remote Claude via SSH
+- **MiniMax** - Fast, cheap inference
+- **Kimi/Moonshot** - Long context windows
+- **OpenAI/GPT** - GPT-4, GPT-3.5
+- **Gemini** - Google's models
+- **LM Studio** - Local models (no API cost)
+- **Ollama** - Local models
+- **DeepSeek** - Coding-focused
+- **ZAI** - ZAI models
+
+### 🧠 Memory & Context
+- **SOUL.md** - Agent personality configuration
+- **MEMORY.md** - Persistent facts and learnings
+- **USER.md** - User preferences
+- **Session Search** - FTS5 full-text search across all sessions
+- **Frozen Snapshots** - Token-efficient context injection
+
+### 🏛️ Multi-Agent
+- **AI Council** - Deliberation, voting, consensus
+- **Delegate Tool** - Spawn subagents with restricted toolsets
+- **Skill System** - Auto-create skills from workflows
+
+### 🔒 Security
+- **Auth Profiles** - Health checks, auto-rotation, cooldown
+- **Tool Security** - Path traversal, injection scanning
+- **DEFCON System** - Threat level monitoring
+
+### 🌐 Integrations
+- **BrowserOS** - 53+ browser automation tools
+- **MCP Servers** - Model Context Protocol support
+- **Git Workflows** - Smart commits, PR workflows
 
 ## Quick Start
 
 ```bash
-# Clone
-git clone https://github.com/Franzferdinan51/duck-cli.git
-cd duck-cli
-
 # Install
-npm install
+npm install -g @anthropic-ai/claude-code
 
-# Run
-npx tsx internal/agent/main.ts --run "Fix the login bug"
-npx tsx internal/agent/main.ts -i  # Interactive shell
-```
-
-## Providers
-
-Duck CLI supports multiple AI providers. Set any combination:
-
-```bash
-# Anthropic (Claude) - Recommended for coding
+# Configure API keys
 export ANTHROPIC_API_KEY=sk-ant-...
-
-# OpenAI (GPT)
 export OPENAI_API_KEY=sk-...
 
-# Google Gemini
-export GEMINI_API_KEY=...
+# Run a task
+duck run "fix the authentication bug"
 
-# Moonshot/Kimi - Great for long context
-export MOONSHOT_API_KEY=...
-
-# MiniMax
-export MINIMAX_API_KEY=...
-
-# ZAI
-export ZAI_API_KEY=...
-
-# DeepSeek
-export DEEPSEEK_API_KEY=...
-
-# Set default provider
-export DEFAULT_PROVIDER=kimi
-```
-
-### Local Providers (No API Key Required)
-
-```bash
-# LM Studio - Download from https://lmstudio.ai
-export LMSTUDIO_URL=http://localhost:1234
-
-# Ollama - Download from https://ollama.com
-export OLLAMA_HOST=http://localhost:11434
-```
-
-### Custom Provider
-
-```bash
-export CUSTOM_PROVIDER_URL=https://your-api.com/v1
-export CUSTOM_PROVIDER_KEY=your-key
-export CUSTOM_PROVIDER_MODELS=model1,model2
+# Interactive mode
+duck -i
 ```
 
 ## Commands
 
 ```bash
-# Run a task
-duck run "Fix the login bug"
-duck -i                              # Interactive shell
-
-# Agents
-duck agent spawn <name> <task>       # Spawn agent
-duck agent list                      # List agents
-
-# MCP
-duck mcp list                        # List MCP servers
-duck mcp add <name> <command>        # Add server
-
-# Skills
-duck skills list                     # List skills
-duck skills search <query>           # Search skills
-
-# Security
-duck security audit                  # Run security scan
-duck security defcon                  # Show DEFCON level
-
-# AI Council
-duck council "Should we refactor?"   # Ask the council
+duck run "task"        # Run a task
+duck -i               # Interactive shell
+duck agent spawn <name> <task>  # Spawn subagent
+duck mcp list         # List MCP servers
+duck skills list      # List skills
+duck security audit   # Run security scan
+duck council "question" # Ask AI Council
+duck soul             # Show personality
+duck memory           # Manage memories
+duck import <dir>    # Import OpenClaw setup
 ```
-
-## Skills
-
-| Skill | Description |
-|-------|-------------|
-| `context-memory` | 🔥 Persistent semantic memory |
-| `security-audit` | DEFCON vulnerability scanning |
-| `git-workflow` | Smart git with worktree isolation |
-| `code-review` | Multi-agent verification |
-| `mcp-manager` | MCP server management |
 
 ## Architecture
 
 ```
-duck-cli/
-├── cmd/duck/main.go          # Go CLI entry point
+Duck CLI/
 ├── internal/
-│   ├── agent/                # Core agent loop
-│   ├── tools/                # Tool registry
-│   ├── providers/            # Multi-provider support (10+ providers)
-│   ├── mcp/                  # MCP integration
-│   ├── skills/               # Skills system
-│   ├── security/             # DEFCON monitor
-│   ├── council/              # AI Council
-│   └── memory/               # Semantic memory
-└── skills/                   # Built-in skills
+│   ├── agent/         # Agent core
+│   ├── auth/          # Auth profiles
+│   ├── cli/           # CLI commands
+│   ├── council/        # AI Council
+│   ├── integrations/   # External integrations
+│   ├── memory/        # SOUL, MEMORY, sessions
+│   ├── mcp/           # MCP server management
+│   ├── providers/     # AI provider management
+│   ├── skills/        # Self-creating skills
+│   └── soul/          # Personality system
+├── tools/             # Integrated tools
+└── skills/            # Duck CLI skills
 ```
 
-## Provider Priority
-
-When multiple providers are configured:
-
-1. **Anthropic** (if `DEFAULT_PROVIDER=anthropic`)
-2. **Kimi** (if `DEFAULT_PROVIDER=kimi`)
-3. **MiniMax** (if `DEFAULT_PROVIDER=minimax`)
-4. **LM Studio** (local, fallback)
-
-## Development
+## Environment Variables
 
 ```bash
-# TypeScript
-npm run build     # Compile
-npm run dev       # Run with tsx
+# API Keys
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+MINIMAX_API_KEY=...
+MOONSHOT_API_KEY=...
 
-# Go CLI
-cd cmd/duck && go build -o duck
+# Local Models
+OLLAMA_HOST=http://localhost:11434
+LMSTUDIO_URL=http://localhost:1234
 
-# Link
-npm link
+# MCP Servers
+MCP_SERVERS=...  # JSON config for MCP
 ```
 
-## Sources Referenced
+## Status
 
-| Source | Size | Purpose |
-|--------|------|---------|
-| Claude Code | 33MB | Agent architecture, tools |
-| Charm Crush | 15MB | Go TUI, Bubble Tea |
-| OpenCode | 137MB | MCP management |
-| Gemini CLI | 38MB | Interactive terminal |
-| OpenClaw | 167MB | Skills, agents, sessions |
-| System Prompts | 376KB | 30 Claude Code prompts |
+🟢 **DEFCON 5** - All clear
 
-## License
+---
 
-MIT
+**Built for Ryan's personal setup - Not for public distribution**
