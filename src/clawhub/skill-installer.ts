@@ -3,10 +3,9 @@
  * Install, uninstall, and manage skills from ClawHub
  */
 
-import { readFile, writeFile, mkdir, readdir, rm, copyFile } from 'fs/promises';
+import { readFile, writeFile, mkdir, readdir, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
 export interface InstalledSkill {
   name: string;
@@ -40,24 +39,10 @@ export class SkillInstaller {
   }
 
   /**
-   * Find project root by looking for package.json
+   * Find project root
    */
   private findProjectRoot(): string {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    
-    // Navigate from src/clawhub to project root
-    let dir = __dirname;
-    for (let i = 0; i < 4; i++) {
-      dir = join(dir, '..');
-    }
-    
-    // Check for package.json
-    if (existsSync(join(dir, 'package.json'))) {
-      return dir;
-    }
-    
-    // Fallback to current working directory
+    // Use current working directory as project root
     return process.cwd();
   }
 
@@ -405,11 +390,11 @@ export class DependencyTracker {
   async getDependents(skill: string): Promise<string[]> {
     const deps = await this.load();
     const dependents: string[] = [];
-    for (const [name, value] of deps) {
+    deps.forEach((value, name) => {
       if (value.includes(skill)) {
         dependents.push(name);
       }
-    }
+    });
     return dependents;
   }
 }

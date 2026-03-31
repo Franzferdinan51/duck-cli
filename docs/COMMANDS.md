@@ -816,6 +816,41 @@ duck souls list --recent
 
 ---
 
+### `duck souls featured` — Show Featured SOULs
+
+View featured AI personas from the registry.
+
+```bash
+duck souls featured
+```
+
+---
+
+### `duck souls search` — Search for SOULs
+
+Search for AI personas in the registry.
+
+```bash
+duck souls search <query>
+duck souls search "helpful"
+duck souls search "research"
+```
+
+---
+
+### `duck souls activate` — Activate a SOUL
+
+Activate an installed SOUL as your agent's persona.
+
+```bash
+duck souls activate <soul_name>
+duck souls activate duckbot-researcher
+```
+
+**Note:** Restart the agent for changes to take effect.
+
+---
+
 ### `duck souls publish` — Share Your SOUL.md
 
 Publish your agent's personality to the souls registry.

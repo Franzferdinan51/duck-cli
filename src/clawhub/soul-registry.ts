@@ -3,10 +3,9 @@
  * Manages SOUL.md files from onlycrabs.ai registry
  */
 
-import { readFile, writeFile, mkdir, copyFile } from 'fs/promises';
+import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { SoulRegistryClient, Soul } from './clawhub-client.js';
 
 export interface InstalledSoul {
@@ -43,15 +42,7 @@ export class SoulRegistry {
    * Find project root
    */
   private findProjectRoot(): string {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    let dir = __dirname;
-    for (let i = 0; i < 4; i++) {
-      dir = join(dir, '..');
-    }
-    if (existsSync(join(dir, 'package.json'))) {
-      return dir;
-    }
+    // Use current working directory as project root
     return process.cwd();
   }
 

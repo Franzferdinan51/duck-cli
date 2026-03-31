@@ -3,30 +3,27 @@
  * Client for interacting with ClawHub skill marketplace (clawhub.ai)
  */
 
-import { z } from 'zod';
-
-// ClawHub API types
 export interface ClawHubSkill {
   id: string;
   name: string;
   description: string;
   author: string;
   version: string;
-  tags: string[];
-  downloads: number;
-  rating: number;
+  tags?: string[];
+  downloads?: number;
+  rating?: number;
   sourceUrl?: string;
   readme?: string;
   dependencies?: string[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ClawHubSearchResult {
   skills: ClawHubSkill[];
   total: number;
-  page: number;
-  pageSize: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface ClawHubConfig {
@@ -34,29 +31,7 @@ export interface ClawHubConfig {
   baseUrl?: string;
 }
 
-// API Response schemas
-const SkillSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  author: z.string(),
-  version: z.string(),
-  tags: z.array(z.string()).optional().default([]),
-  downloads: z.number().optional().default(0),
-  rating: z.number().optional().default(0),
-  sourceUrl: z.string().optional(),
-  readme: z.string().optional(),
-  dependencies: z.array(z.string()).optional().default([]),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-});
-
-const SearchResultSchema = z.object({
-  skills: z.array(SkillSchema),
-  total: z.number(),
-  page: z.number().optional().default(1),
-  pageSize: z.number().optional().default(20),
-});
+// ============ ClawHub API Client ============
 
 /**
  * ClawHub API Client
@@ -81,10 +56,7 @@ export class ClawHubClient {
   /**
    * Make authenticated request to ClawHub API
    */
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) || {}),
@@ -125,11 +97,11 @@ export class ClawHubClient {
       params.set('tags', options.tags.join(','));
     }
 
-    const data = await this.request<z.infer<typeof SearchResultSchema>>(
+    const data = await this.request<ClawHubSearchResult>(
       `/skills/search?${params.toString()}`
     );
 
-    return SearchResultSchema.parse(data);
+    return data;
   }
 
   /**
@@ -137,11 +109,11 @@ export class ClawHubClient {
    * GET /api/skills/<name>
    */
   async getSkill(nameOrId: string): Promise<ClawHubSkill> {
-    const data = await this.request<z.infer<typeof SkillSchema>>(
+    const data = await this.request<ClawHubSkill>(
       `/skills/${encodeURIComponent(nameOrId)}`
     );
 
-    return SkillSchema.parse(data);
+    return data;
   }
 
   /**
@@ -149,11 +121,11 @@ export class ClawHubClient {
    * GET /api/skills/featured
    */
   async getFeatured(): Promise<ClawHubSkill[]> {
-    const data = await this.request<{ skills: z.infer<typeof SkillSchema>[] }>(
+    const data = await this.request<{ skills: ClawHubSkill[] }>(
       '/skills/featured'
     );
 
-    return data.skills.map((s) => SkillSchema.parse(s));
+    return data.skills || [];
   }
 
   /**
@@ -166,11 +138,11 @@ export class ClawHubClient {
       limit: String(options.limit || 50),
     });
 
-    const data = await this.request<z.infer<typeof SearchResultSchema>>(
+    const data = await this.request<ClawHubSearchResult>(
       `/skills?${params.toString()}`
     );
 
-    return SearchResultSchema.parse(data);
+    return data;
   }
 
   /**
@@ -182,7 +154,7 @@ export class ClawHubClient {
       '/skills/tags'
     );
 
-    return data.tags;
+    return data.tags || [];
   }
 
   /**
@@ -193,7 +165,7 @@ export class ClawHubClient {
     query: string,
     options: { limit?: number } = {}
   ): Promise<ClawHubSearchResult> {
-    const data = await this.request<z.infer<typeof SearchResultSchema>>(
+    const data = await this.request<ClawHubSearchResult>(
       '/skills/vector-search',
       {
         method: 'POST',
@@ -204,7 +176,7 @@ export class ClawHubClient {
       }
     );
 
-    return SearchResultSchema.parse(data);
+    return data;
   }
 
   /**
@@ -245,7 +217,7 @@ export class ClawHubClient {
       throw new Error('API key required for updating. Set with setApiKey() or DUCK_API_KEY env');
     }
 
-    const data = await this.request<z.infer<typeof SkillSchema>>(
+    const data = await this.request<ClawHubSkill>(
       `/skills/${encodeURIComponent(id)}`,
       {
         method: 'PUT',
@@ -253,7 +225,7 @@ export class ClawHubClient {
       }
     );
 
-    return SkillSchema.parse(data);
+    return data;
   }
 
   /**
@@ -269,15 +241,6 @@ export class ClawHubClient {
       method: 'DELETE',
     });
   }
-
-  /**
-   * Get installed skills (local manifest)
-   * Not an API call - reads from local .duck/skills.json
-   */
-  async getInstalledSkills(): Promise<{ name: string; version: string; path: string }[]> {
-    // This is handled by SkillInstaller
-    return [];
-  }
 }
 
 // ============ SOUL Registry (onlycrabs.ai) ============
@@ -289,10 +252,10 @@ export interface Soul {
   author: string;
   version: string;
   content: string;
-  tags: string[];
-  downloads: number;
-  createdAt: string;
-  updatedAt: string;
+  tags?: string[];
+  downloads?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -349,9 +312,11 @@ export class SoulRegistryClient {
       limit: String(options.limit || 20),
     });
 
-    return this.request<{ souls: Soul[]; total: number }>(
+    const data = await this.request<{ souls: Soul[]; total: number }>(
       `/souls/search?${params.toString()}`
     );
+
+    return data;
   }
 
   /**
@@ -368,7 +333,7 @@ export class SoulRegistryClient {
    */
   async getFeatured(): Promise<Soul[]> {
     const data = await this.request<{ souls: Soul[] }>('/souls/featured');
-    return data.souls;
+    return data.souls || [];
   }
 
   /**
