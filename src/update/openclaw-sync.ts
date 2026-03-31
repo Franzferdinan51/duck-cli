@@ -272,7 +272,9 @@ export class OpenClawSync {
       }
       if (file.startsWith('src/compat/') || file.includes('compat')) {
         areas.push('compatibility');
-        level = Math.max(level === 'low' ? 0 : level === 'medium' ? 1 : level === 'high' ? 2 : 3, 1) as ChangeImpact['level'];
+        const levelMap: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+        const currentLevelNum = levelMap[level] ?? 1;
+        level = (currentLevelNum >= 1 ? level : 'medium') as ChangeImpact['level'];
       }
       if (file.includes('protocol') || file.includes('api')) {
         areas.push('api');
@@ -290,14 +292,20 @@ export class OpenClawSync {
     
     // Check for breaking indicators
     if (commitMessage.toLowerCase().includes('breaking')) {
-      level = Math.max(level === 'low' ? 0 : level === 'medium' ? 1 : level === 'high' ? 2 : 3, 2) as ChangeImpact['level'];
+      const levelMap2: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+        const currentLevelNum2 = levelMap2[level] ?? 2;
+        level = currentLevelNum2 >= 2 ? level : 'high';
+        if (currentLevelNum2 > levelMap2[level]) level = 'high' as ChangeImpact['level'];
       risks.push('Breaking change detected in commit message');
       migrationRequired = true;
     }
     
     // Critical files
     if (files.some(f => f.includes('core') || f.includes('agent'))) {
-      level = Math.max(level === 'low' ? 0 : level === 'medium' ? 1 : level === 'high' ? 2 : 3, 2) as ChangeImpact['level'];
+      const levelMap2: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+        const currentLevelNum2 = levelMap2[level] ?? 2;
+        level = currentLevelNum2 >= 2 ? level : 'high';
+        if (currentLevelNum2 > levelMap2[level]) level = 'high' as ChangeImpact['level'];
       risks.push('Core files modified - high risk');
       migrationRequired = true;
     }

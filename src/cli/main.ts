@@ -127,7 +127,6 @@ async function main() {
       await updateCommand(args);
       break;
 
-
     case 'send':
     case 'sendto':
       await sendToChannel(args);

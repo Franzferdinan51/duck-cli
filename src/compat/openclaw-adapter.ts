@@ -364,11 +364,11 @@ export class OpenClawAdapter extends EventEmitter {
     
     try {
       if (this.acpServer) {
-        // Server mode - create session directly
-        const session = await this.acpServer.spawnSession(duckConfig);
+        // Server mode - Duck Agent IS the ACP server
+        // OpenClaw connects TO us via WebSocket at /acp endpoint
         return {
-          sessionId: session.id,
-          status: 'started',
+          sessionId: `duck_acp_server`,
+          status: 'running'
         };
       }
       
@@ -432,7 +432,7 @@ export class OpenClawAdapter extends EventEmitter {
       if (this.agent) {
         // Duck Agent tool execution - delegate to agent's think method
         const result = await this.agent.think(`Execute tool: ${name} with args: ${JSON.stringify(input)}`);
-        return { result, tool: name };
+        return { output: result };
         return { output: result };
       }
       
@@ -473,7 +473,7 @@ export class OpenClawAdapter extends EventEmitter {
         
         // Duck Agent doesn't support direct message sending to sessions
         // Use acp.send or acp.steer instead
-        return { error: 'sendMessage not supported - use acp.send or acp.steer' };
+        return { error: { code: DuckErrorCodes.DUCK_ERR_NOT_IMPLEMENTED, message: 'sendMessage not supported - use acp.send or acp.steer', openClawCompatible: true } };
       }
       
       // Client mode
