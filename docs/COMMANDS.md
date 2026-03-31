@@ -686,6 +686,32 @@ duck clawhub search "code review"
 
 ---
 
+### `duck clawhub explore` — Browse Skill Catalog
+
+Browse the full skill marketplace catalog.
+
+```bash
+duck clawhub explore
+```
+
+**Output:**
+```
+🦆 ClawHub Skill Marketplace
+clawhub.ai - OpenClaw skill registry
+
+⭐ Featured Skills:
+  github-clone       - Clone and setup GitHub repos
+  minimax-image     - Image generation via MiniMax
+  browser-automation - Full browser control
+
+📚 Latest Skills:
+  security-audit     - Security vulnerability scanner
+  web-scraper       - Advanced web scraping toolkit
+  data-visualizer   - Charts and graphs generator
+```
+
+---
+
 ### `duck clawhub install` — Install a Skill
 
 Install a skill from the marketplace.
