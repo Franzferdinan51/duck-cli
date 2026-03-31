@@ -101,7 +101,7 @@ async function startShell() {
   console.log(`${c.green}Starting Duck Agent shell...${c.reset}`);
   console.log(`${c.dim}Type /help for commands, /quit to exit${c.reset}\n`);
 
-  const agent = new Agent({ name: 'Duck Agent', saveHistory: true });
+  const agent = new Agent({ name: 'Duck Agent',  });
   await agent.initialize();
 
   const rl = readline.createInterface({
@@ -190,7 +190,7 @@ ${c.bold}Just type${c.reset} what you want me to help with!
 
     case 'tools':
       console.log(`\n${c.bold}Available Tools:${c.reset}`);
-      const tools = agent.getStatus().tools;
+      const tools = agent.getStatus().toolList;
       console.log(JSON.stringify(tools, null, 2));
       console.log();
       break;
@@ -312,7 +312,7 @@ async function listTools() {
   
   console.log(`\n${c.bold}Available Tools:${c.reset}\n`);
   
-  const tools = agent.getStatus().tools as any[];
+  const tools = agent.getStatus().toolList as any[];
   for (const tool of tools) {
     const dangerous = tool.dangerous ? ` ${c.red}[DANGEROUS]${c.reset}` : '';
     console.log(`  ${c.cyan}${tool.name}${c.reset} - ${tool.description}${dangerous}`);
