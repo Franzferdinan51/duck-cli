@@ -31,7 +31,7 @@ export interface KAIROSConfig {
 
 export const DEFAULT_KAIROS_CONFIG: KAIROSConfig = {
   enabled: true,
-  tickInterval: 5000,         // 5 seconds
+  tickInterval: 21600000,    // 6 hours (4x daily)
   idleThreshold: 30000,       // 30 seconds idle
   maxActionsPerTick: 3,
   proactiveMode: 'balanced',
