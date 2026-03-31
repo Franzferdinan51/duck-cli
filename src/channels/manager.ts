@@ -83,6 +83,14 @@ export class ChannelManager {
   isRunning(): boolean {
     return this.channels.size > 0;
   }
+
+  getStatus(): any {
+    return {
+      channels: Array.from(this.channels.keys()),
+      count: this.channels.size,
+      running: this.isRunning(),
+    };
+  }
 }
 
 export default ChannelManager;
