@@ -1,7 +1,7 @@
 {
   "name": "duck-agent",
   "version": "0.1.0",
-  "description": "\ud83e\udd86 Duck Agent - Super AI Agent with KAIROS Proactive AI, Voice/TTS, Web UI, Claude Code Tools",
+  "description": "🦆 Duck Agent - Super AI Agent with KAIROS Proactive AI, Voice/TTS, Web UI, Claude Code Tools",
   "main": "dist/agent/core.js",
   "bin": {
     "duck": "./dist/cli/main.js",
@@ -24,6 +24,7 @@
     "docker:logs": "docker logs -f duck-agent"
   },
   "dependencies": {
+    "@chenglou/pretext": "^0.0.3",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.8.0",
     "chalk": "^5.3.0",
@@ -33,7 +34,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^20.19.37",
     "@types/ws": "^8.18.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
