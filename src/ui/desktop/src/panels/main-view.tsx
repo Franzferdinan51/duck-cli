@@ -14,13 +14,16 @@ import CouncilPanel from './council-panel';
 import SettingsPanel from './settings-panel';
 import MeshPanel from './mesh-panel';
 import RlPanel from './rl-panel';
+import ChatCanvas from './ChatCanvas';
+import CouncilCanvas from './CouncilCanvas';
+import MetricsCanvas from './MetricsCanvas';
 import { DuckButton } from '../components/duck-button';
 import { DuckModal } from '../components/duck-modal';
 import { ToastContainer, useToast } from '../components/toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type PanelId = 'chat' | 'kairos' | 'council' | 'mesh' | 'rl' | 'settings';
+type PanelId = 'chat' | 'chat-canvas' | 'kairos' | 'council' | 'council-canvas' | 'metrics-canvas' | 'mesh' | 'rl' | 'settings';
 
 interface NavItem {
   id: PanelId;
@@ -50,7 +53,11 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'council', label: 'Council', icon: '⚖️', badge: 0 },
   { id: 'mesh', label: 'Agent Mesh', icon: '🕸️' },
   { id: 'rl', label: 'RL Status', icon: '🧠' },
+  { id: 'chat-canvas', label: 'Canvas', icon: '🎨' },
+  { id: 'council-canvas', label: 'C-Canvas', icon: '⚖️' },
+  { id: 'metrics-canvas', label: 'Metrics', icon: '📊' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
+
 ];
 
 const HEADER_LINKS = [
@@ -183,6 +190,9 @@ const DuckDesktop: React.FC = () => {
       case 'council':  return <CouncilPanel {...props} />;
       case 'mesh':     return <MeshPanel {...props} />;
       case 'rl':       return <RlPanel {...props} />;
+      case 'chat-canvas':  return <ChatCanvas {...props} />;
+      case 'council-canvas':  return <CouncilCanvas {...props} />;
+      case 'metrics-canvas':  return <MetricsCanvas {...props} />;
       case 'settings':  return <SettingsPanel {...props} />;
       default:         return <ChatPanel {...props} />;
     }

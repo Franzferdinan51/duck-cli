@@ -488,7 +488,6 @@ Show which agents have which capabilities.
 
 ```bash
 duck mesh capabilities
-duck mesh capabilities --filter coding
 ```
 
 **Output:**
