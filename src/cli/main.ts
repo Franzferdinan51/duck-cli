@@ -30,7 +30,7 @@ ${c.gold}${c.bold}
    ██║╚██╗ ██╔╝██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝  ╚═╝
    ██║ ╚████╔╝ ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║   ██╗
    ╚═╝  ╚═══╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝
-${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}v0.2.0 - Full-Featured${c.reset}
+${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}v0.3.0 - Super Agent${c.reset}
 `;
 
 async function main() {

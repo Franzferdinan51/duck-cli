@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Super AI Agent** - The ultimate personal AI assistant with KAIROS proactive AI, voice synthesis, web UI, Claude Code tools, autonomous cron automation, and enterprise-grade security.
+> **Super AI Agent v0.3.0** — The ultimate personal AI assistant with KAIROS proactive AI, unified gateway, Claude Code tools, autonomous cron automation, multi-agent orchestration, and enterprise-grade security.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -36,11 +36,19 @@ docker-compose up -d
 **Always-on AI that acts without being asked**
 
 - 💭 Heartbeat system (checks "anything worth doing?")
-- 🎯 Smart decision engine
+- 🎯 Smart decision engine with pattern learning
 - 🌙 Auto-dream consolidation (3 AM daily)
 - 📝 Append-only action logs
 - 🔔 Push notifications
-- 🧬 Pattern learning
+- 🧬 Proactive modes: aggressive, balanced, conservative
+
+### 🚪 Unified Gateway
+**Multi-source gateway architecture inspired by OpenClaw, Hermes, NemoClaw**
+
+- 🌐 WebSocket control plane (port 18789)
+- 📡 Multi-channel support (Telegram, Discord ready)
+- 🔗 Device nodes (macOS, iOS, Android)
+- 🛠️ First-class tools: exec, browser, canvas, nodes, cron, sessions
 
 ### 🎤 Voice / TTS
 **MiniMax speech synthesis built-in**
@@ -51,14 +59,72 @@ docker-compose up -d
 - Auto-play on macOS
 
 ### 🌐 Web UI
-**OpenClaw-inspired interface**
+**Full-featured control interface**
 
 - 💬 Chat interface with typing indicators
 - 📊 Status dashboard (uptime, cost, tokens)
 - 🛠️ Tool browser with categories
 - 🎤 Voice panel with quota display
 - 🧠 KAIROS controls
+- 👥 Team management
+- 🏛️ AI Council
+- ⏰ Cron scheduler
+- 💾 Memory viewer
 - ⚙️ Settings panel
+- 📋 Log viewer
+
+### 🐤 Buddy Companion
+**AI companion system with rarities**
+
+- 🥚 Hatch buddies with unique species
+- ⭐ Rarity tiers: common, uncommon, rare, epic, legendary
+- 🎨 10 species: duck, blob, cat, dragon, owl, ghost, robot, rabbit, cactus, snail
+- 💫 Stats: DEBUGGING, PATIENCE, CHAOS, WISDOM, SNARK
+
+### 👥 Multi-Agent Teams
+**Coordinated agent groups**
+
+- 🎯 Role-based teams (code review, research, swarm)
+- 🤖 Spawn workers for parallel execution
+- 📊 Task coordination and result aggregation
+- 🔄 Session management
+
+### 🏛️ AI Council
+**Deliberative decision making**
+
+- ⚖️ Multiple councilors with specializations
+- 🎤 Speaker (facilitator)
+- 🔬 Technocrat (technical analysis)
+- ⚖️ Ethicist (moral reasoning)
+- 🎯 Pragmatist (practical focus)
+- 🤔 Skeptic (critical analysis)
+- 🛡️ Sentinel (risk assessment)
+
+### ⏰ Cron Automation
+**30+ predefined automation jobs**
+
+| Category | Jobs |
+|---------|------|
+| **System** | health-check, memory-check, auto-heal, backup, failure-recover |
+| **Grow** | morning/evening-check, threshold-alert, watering, harvest, monthly-report |
+| **Crypto** | portfolio, price-alert, whale-watch, defi-health, news-scan |
+| **OSINT** | briefing, keyword-alert, account-watch, github-watch, reddit-digest |
+| **News** | daily-brief |
+| **Weather** | daily-weather |
+| **Home** | equipment-monitor |
+
+### 🔄 Update System
+**Multi-source update compatibility**
+
+```bash
+duck update check     # Check for updates
+duck update install  # Install latest
+duck update backup   # Create backup
+duck update restore  # Restore from backup
+duck update status  # Git status
+```
+
+Sources: OpenClaw (primary), Claude Code, Hermes-Agent, NemoClaw, Codex
 
 ### 🛠️ Claude Code Tools
 **60+ coding tools from instructkr**
@@ -98,638 +164,143 @@ docker-compose up -d
 ### 🤖 Agent Orchestration
 **Multi-agent task coordination**
 
-- Task decomposition into parallel subtasks
-- Subagent workspace creation
-- Progress tracking and result consolidation
+---
 
-### ⏰ Autonomous Cron System
-**29 automation scripts from OpenClaw**
+## 📦 Architecture
 
-| Category | Scripts |
-|----------|---------|
-| **Grow** | morning-check, evening-check, threshold-alert, harvest-countdown, monthly-report, watering-tracker |
-| **Crypto** | portfolio, price-alert, whale-watch, news-scan, defi-health |
-| **OSINT** | briefing, keyword-alert, account-watch, github-watch, reddit-digest |
-| **System** | health-check, auto-heal, backup, memory-check, failure-recover, auto-commit |
-| **News** | daily-brief |
-| **Weather** | daily |
-
-### 🗂️ Tool Registry & Toolsets
-**Organized tools by category and purpose**
-
-Toolsets: `minimal`, `file`, `web`, `vision`, `voice`, `terminal`, `coding`, `browser`, `memory`, `planning`, `delegation`, `duck`, `full`
+```
+Duck Agent
+├── src/
+│   ├── agent/         # Core AI agent with learning
+│   ├── kairos/        # KAIROS autonomous system
+│   ├── buddy/         # Buddy companion
+│   ├── council/       # AI Council deliberation
+│   ├── multiagent/    # Team coordination
+│   ├── cron/          # Cron scheduler
+│   ├── commands/      # CLI commands
+│   ├── providers/     # Multi-provider AI
+│   ├── tools/         # Tool registry + TTS
+│   ├── security/      # Security modules
+│   ├── ui/            # Pretext Canvas, A2UI
+│   ├── server/        # MCP server
+│   ├── memory/        # Context manager
+│   ├── channels/      # Telegram, Discord
+│   ├── gateway/       # Gateway integration
+│   ├── integrations/   # Desktop, BrowserOS
+│   └── prompts/       # System prompts
+├── web-ui/           # Full Web UI (1996 lines)
+└── tools/            # CLI tools
+```
 
 ---
 
-## 📦 Commands
+## 🔧 Commands
 
 ```bash
 # Core
-duck shell              # Interactive TUI shell
-duck web               # Web UI (port 3000)
-duck gateway           # Gateway API (port 18789)
-duck mcp [port]       # MCP Server (default 3848)
-duck channels          # Telegram/Discord
+duck shell           # Interactive TUI shell
+duck run <task>      # Execute a single task
+duck think <prompt>  # Reasoning mode
+duck status          # Show agent status
+duck tools          # List available tools
+duck history        # Show conversation history
 
-# Agent
-duck status            # Show agent status
-duck think "?"         # Reasoning mode
-duck speak "text"      # Text-to-speech
-duck speak "text" casual  # Different voice
-duck history           # Conversation history
-duck memory add "x"   # Remember something
-duck memory search "x" # Search memories
+# Advanced
+duck mcp [port]     # Start MCP server (default: 3848)
+duck memory          # Memory commands
+duck channels       # Start Telegram/Discord
+duck desktop        # Desktop control
 
-# Tools
-duck tools             # List all tools
-duck tools web         # List web tools
-duck tools coding      # List coding tools
+# AI Systems
+duck kairos         # KAIROS autonomous mode
+duck buddy          # Buddy companion
+duck team           # Multi-agent teams
+duck council        # AI Council
 
-# Cron
-duck cron verify       # Verify all scripts
-duck cron install      # Install cron jobs
-duck cron show        # Show crontab
-duck cron run-all      # Run all manually
-
-# Security
-duck sanitize "text"   # Sanitize credentials
-duck validate-url "url" # SSRF check
-
-# Orchestration
-duck orchestrate "task" # Decompose and run
+# Automation
+duck cron           # Cron job management
+duck update         # Update system
 ```
 
 ---
 
-## 🏗️ Architecture
+## 🔄 Update Strategy
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Duck Agent v0.6                          │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │              KAIROS Proactive AI                       │ │
-│  │   Heartbeat → Decision → Action → Learn                │ │
-│  └─────────────────────────────────────────────────────┘ │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │                    Agent Core                         │ │
-│  │   Think → Reason → Plan → Execute → Remember         │ │
-│  └─────────────────────────────────────────────────────┘ │
-│                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐    │
-│  │ Providers │ │  Memory  │ │  Tools   │ │  Skills  │    │
-│  │ MiniMax   │ │ Context  │ │ 60+     │ │ 10       │    │
-│  │ LM Studio │ │ Learning │ │ BrowserOS│ │ Registry │    │
-│  │ OpenAI    │ │ Patterns │ │ Claude   │ │ Orches-  │    │
-│  │ Kimi      │ │          │ │          │ │ trator   │    │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘    │
-│                                                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐    │
-│  │ Security │ │ Cron    │ │ Channels │ │ Interfaces│    │
-│  │ SSRF     │ │ 29 auto │ │ Telegram │ │ Web UI   │    │
-│  │ Sanitizer│ │ scripts  │ │ Discord  │ │ CLI/MCP  │    │
-│  │ State Mgr│ │          │ │          │ │ Gateway  │    │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘    │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │  Interfaces                                            │ │
-│  │  🌐 Web UI  📱 Telegram/Discord  🖥️ CLI  📡 MCP    │ │
-│  └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
+Duck Agent pulls features from multiple sources to stay current:
+
+| Source | Contribution |
+|--------|-------------|
+| **OpenClaw** | Gateway protocol, multi-channel, device nodes, skills |
+| **Claude Code** | KAIROS, buddy, multi-agent, code review |
+| **Hermes-Agent** | Gateway patterns |
+| **NemoClaw** | Security (SSRF, credentials) |
+| **Codex CLI** | Exec mode, approval layers, MCP server |
+| **DroidClaw** | Phone control patterns, workflow/macro separation |
+| **OpenCrabs** | Local voice (whisper.cpp, Piper), hybrid memory |
+| **TrinityClaw** | ChromaDB memory, identity system |
+| **FlowlyAI** | @mention routing, skills hub |
 
 ---
 
-## 🔌 API Endpoints
+## 🧠 Memory System
 
-### Gateway (port 18789)
-```
-GET  /health              # Health check
-GET  /status             # Full status
-GET  /metrics            # Metrics
-POST /v1/chat/completions  # OpenAI-compatible
-GET  /v1/models          # Model list
-```
+Duck Agent has a sophisticated 3-tier memory:
 
-### Web UI (port 3000)
-```
-GET  /                   # Web UI
-GET  /api/status         # Agent status
-POST /api/chat           # Chat
-GET  /api/tools          # Tool list
-POST /api/tts            # Text-to-speech
-```
-
-### MCP Server (port 3848)
-```
-POST /mcp                # JSON-RPC MCP protocol
-GET  /tools              # List tools
-GET  /health             # Health check
-```
+1. **SOUL.md / IDENTITY.md** - Core personality and identity
+2. **AGENTS.md / TOOLS.md** - Agent configuration and tools
+3. **KANBAN.md / HEARTBEAT.md** - Task tracking and automation
+4. **Session memory** - Conversation context
+5. **Learned patterns** - From interactions
 
 ---
 
-## 🛠️ Tools (60+)
+## 🌐 Multi-Provider Support
 
-### Coding Tools
-| Tool | Description |
-|------|-------------|
-| `file_read` | Read file contents |
-| `file_write` | Write content to file |
-| `file_edit` | Edit specific lines |
-| `glob` | Find files by pattern |
-| `bash` | Execute shell commands |
-| `powershell` | Windows PowerShell |
-| `grep` | Search patterns in files |
-| `lsp` | Language server diagnostics |
-| `repl` | Run code in REPL |
-
-### Task Tools
-| Tool | Description |
-|------|-------------|
-| `task_create` | Create a new task |
-| `task_list` | List all tasks |
-| `task_get` | Get task details |
-| `task_update` | Update task |
-| `task_stop` | Cancel a task |
-
-### BrowserOS Tools
-| Tool | Description |
-|------|-------------|
-| `navigate` | Go to URL |
-| `click` | Click element |
-| `type` | Type text |
-| `screenshot` | Capture page |
-| `get_content` | Extract text |
-| `bookmarks` | Manage bookmarks |
-| `history` | Browse history |
-
-### Duck Tools
-| Tool | Description |
-|------|-------------|
-| `speak` | Text-to-speech |
-| `think` | Reasoning mode |
-| `remember` | Save to memory |
-| `recall` | Search memory |
-| `get_metrics` | System metrics |
-| `get_cost` | Cost tracking |
-| `delegate_task` | Spawn subagent |
-
-### Security Tools
-| Tool | Description |
-|------|-------------|
-| `validate_url` | SSRF validation |
-| `sanitize` | Credential removal |
-| `get_credential_env` | List env vars with secrets |
+| Provider | Models | Status |
+|----------|--------|--------|
+| **MiniMax** | M2.7, glm-5, glm-4.7 | ✅ Active |
+| **Kimi** | kimi-k2.5, kimi-k2 | ✅ Active |
+| **ChatGPT** | gpt-5.4, gpt-5.4-mini | ✅ OAuth |
+| **LM Studio** | qwen3-vl-8b, jan-v3-4b | ✅ Local |
+| **OpenAI Codex** | gpt-5.3-codex | ✅ Active |
 
 ---
 
-## 🔒 Security Features
+## 📚 Documentation
 
-### SSRF Protection
-```typescript
-import { validateURL } from './security/ssrf.js';
-
-const result = await validateURL('https://example.com');
-if (!result.allowed) {
-  console.log('Blocked:', result.reason);
-}
-```
-
-### Credential Sanitization
-```typescript
-import { sanitize } from './security/credential-sanitizer.js';
-
-const safe = sanitize('API Key: sk-1234567890');
-// Returns: "API Key: [REDACTED]"
-```
-
-### Network Policies
-```yaml
-# policies/presets/telegram.yaml
-network_policies:
-  telegram_bot:
-    endpoints:
-      - host: api.telegram.org
-        port: 443
-        rules:
-          - allow: { method: POST, path: "/bot*/**" }
-```
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
+- [COMMANDS.md](docs/COMMANDS.md) - CLI reference
+- [UPDATES.md](docs/UPDATES.md) - Update strategy
 
 ---
 
-## ⏰ Autonomous Cron System
-
-### Install Cron Jobs
-```bash
-duck cron install   # Install all 29 cron jobs
-duck cron verify    # Check all scripts exist
-duck cron show     # View current crontab
-```
-
-### Available Scripts
-| Script | Schedule | Purpose |
-|--------|----------|---------|
-| `sys-health-check.sh` | Hourly | Check services, auto-heal |
-| `sys-auto-heal.sh` | On failure | Restart failed services |
-| `grow-morning-check.sh` | 9 AM | Plant monitoring |
-| `grow-evening-check.sh` | 9 PM | Evening check |
-| `crypto-portfolio.sh` | 9 AM | Portfolio snapshot |
-| `crypto-price-alert.sh` | Hourly | Price alerts |
-| `osint-briefing.sh` | 9 AM | Daily intelligence |
-| `news-daily-brief.sh` | 8 AM | News digest |
-| `weather-daily.sh` | 7 AM | Weather report |
-
----
-
-## 🤖 Agent Orchestration
-
-### Task Decomposition
-```typescript
-import { decomposeTask, orchestrate } from './orchestrator/agent-orchestrator.js';
-
-const tasks = decomposeTask('Research X, Build Y, Test Z');
-// Returns: [SubTask{id: 'subtask_1', name: 'research: Research X', ...}, ...]
-```
-
-### Run Multi-Agent
-```typescript
-const result = await orchestrate('Build a REST API', {
-  maxConcurrent: 3,
-  workspace: '/tmp/my-orchestration',
-  onProgress: (task) => console.log(`[${task.status}] ${task.name}`)
-});
-```
-
----
-
-## 🌐 Browser Automation
-
-Connect to BrowserOS for 45+ additional tools:
-
-```bash
-# Install BrowserOS: https://files.browseros.com
-export BROWSEROS_HOST=127.0.0.1
-export BROWSEROS_PORT=9100
-```
-
----
-
-## 🐳 Docker
+## 🐛 Troubleshooting
 
 ```bash
 # Build
-docker build -t duck-agent .
+npm run build
 
-# Run
-docker run -d \
-  -p 3000:3000 \
-  -p 3848:3848 \
-  -p 18789:18789 \
-  -e MINIMAX_API_KEY=your-key \
-  duck-agent
+# Check status
+duck update status
 
-# Or with docker-compose
-docker-compose up -d
+# Create backup
+duck update backup
+
+# View logs
+duck logs
+
+# Health check
+curl http://localhost:18789/health
 ```
 
 ---
 
-## 📁 Project Structure
+## 📄 License
 
-```
-duck-cli/
-├── src/
-│   ├── agent/
-│   │   ├── core.ts              # Main agent logic
-│   │   ├── cost-tracker.ts     # Cost tracking
-│   │   └── proactive/
-│   │       └── kairos.ts       # KAIROS AI
-│   ├── providers/
-│   │   ├── manager.ts          # Multi-provider
-│   │   ├── minimax.ts         # MiniMax
-│   │   └── browseros.ts        # BrowserOS
-│   ├── tools/
-│   │   ├── registry.ts         # Tool registry
-│   │   ├── tts.ts             # TTS service
-│   │   ├── delegate.ts        # Subagent spawning
-│   │   └── coding/
-│   │       ├── index.ts       # Claude Code tools
-│   │       ├── extended-tools.ts
-│   │       └── powershell.ts
-│   ├── security/
-│   │   ├── ssrf.ts            # SSRF validation
-│   │   ├── state-manager.ts   # Persistent state
-│   │   └── credential-sanitizer.ts
-│   ├── orchestrator/
-│   │   └── agent-orchestrator.ts  # Multi-agent
-│   ├── commands/
-│   │   └── slash-handler.ts   # Slash commands
-│   ├── channels/
-│   │   ├── manager.ts         # Channel coordinator
-│   │   ├── telegram.ts
-│   │   └── discord.ts
-│   ├── memory/
-│   │   ├── system.ts          # Memory + learning
-│   │   └── context-manager.ts
-│   ├── gateway/
-│   │   └── index.ts           # HTTP/WebSocket gateway
-│   ├── cli/
-│   │   └── main.ts            # CLI commands
-│   └── web-server.ts           # Web UI server
-├── autonomous/                  # 29 cron scripts
-│   ├── grow-*.sh              # Plant monitoring
-│   ├── crypto-*.sh            # Crypto automation
-│   ├── osint-*.sh             # Intelligence
-│   ├── sys-*.sh               # System health
-│   └── duck-cron.ts           # Cron manager CLI
-├── policies/                   # Network policies
-│   └── presets/
-│       ├── telegram.yaml
-│       ├── openai.yaml
-│       └── browser.yaml
-├── web-ui/
-│   └── index.html              # Web interface
-├── skills/                     # Loaded skills
-├── docker-compose.yml
-├── Dockerfile
-├── .env.example
-├── start.sh                    # Quick start script
-└── package.json
-```
+MIT License - Ryan (Duckets) 2026
 
 ---
 
-## 🔧 Configuration
+## 🙏 Credits
 
-Copy `.env.example` to `.env`:
-
-```bash
-# Required
-MINIMAX_API_KEY=sk-cp-your-key
-
-# Optional - AI Providers
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-LMSTUDIO_URL=http://localhost:1234
-KIMI_API_KEY=your-key
-
-# BrowserOS
-BROWSEROS_HOST=127.0.0.1
-BROWSEROS_PORT=9100
-
-# Security
-GATEWAY_TOKEN=your-secret-token
-```
-
----
-
-## 📊 Status
-
-| Component | Status |
-|-----------|--------|
-| **Agent Core** | ✅ Working |
-| **MiniMax M2.7** | ✅ Working |
-| **KAIROS Proactive AI** | ✅ Built |
-| **Voice/TTS** | ✅ Working |
-| **Web UI** | ✅ Working |
-| **MCP Server** | ✅ Working |
-| **Gateway API** | ✅ Working |
-| **Claude Code Tools** | ✅ 60+ tools |
-| **BrowserOS** | ✅ 45+ tools |
-| **Telegram** | ✅ Ready |
-| **Discord** | ✅ Ready |
-| **Cost Tracking** | ✅ Working |
-| **Learning System** | ✅ Working |
-| **Docker** | ✅ Ready |
-| **SSRF Protection** | ✅ Working |
-| **Credential Sanitizer** | ✅ Working |
-| **State Manager** | ✅ Working |
-| **Agent Orchestrator** | ✅ Working |
-| **Cron System** | ✅ 29 scripts |
-| **Network Policies** | ✅ YAML presets |
-
----
-
-## 🏆 Sources
-
-This project combines the best from:
-
-| Project | Contribution |
-|---------|-------------|
-| **instructkr-claude-code** | Claude Code tools, task system |
-| **OpenClaw** | Gateway architecture, web UI, cron automation |
-| **NVIDIA NemoClaw** | Security (SSRF, credentials, state), slash commands |
-| **Hermes-Agent** | Advanced tools, delegation |
-| **DuckBot-OS** | Features, learning, cost tracking |
-| **BrowserOS** | Browser automation |
-
----
-
-## 📜 License
-
-MIT License - see [LICENSE](LICENSE)
-
----
-
-## 🔗 Links
-
-- **GitHub:** https://github.com/Franzferdinan51/duck-cli
-- **Docs:** Coming soon
-- **Issues:** https://github.com/Franzferdinan51/duck-cli/issues
-
----
-
-**🦆 v0.6.0** - Built for Ryan (Duckets)
-**KAIROS:** Always-on AI that works while you sleep
-**Security:** NVIDIA NemoClaw-grade protection
-**Automation:** 29 cron jobs for autonomous operation
-
----
-
-## 🎨 Generative UI (A2UI + Textura + Pretext)
-
-Duck Agent includes advanced generative UI capabilities:
-
-### Google A2UI Protocol
-**Agent-to-User Interface streaming protocol**
-
-```typescript
-import { A2UIRenderer } from './ui/a2ui/renderer.js';
-
-const renderer = new A2UIRenderer(document.getElementById('container'));
-
-// Stream UI from agent
-await renderer.processMessage({
-  type: 'createSurface',
-  surfaceId: 'chat',
-  title: 'Duck Agent Chat'
-});
-
-await renderer.processMessage({
-  type: 'updateComponents',
-  surfaceId: 'chat',
-  components: [
-    { id: 'msg1', type: 'Text', props: { text: 'Hello!' } },
-    { id: 'btn1', type: 'Button', props: { label: 'Click me', onClick: 'action1' } }
-  ]
-});
-```
-
-### Textura Layout Engine
-**DOM-free flexbox + text measurement**
-
-```typescript
-import { TexturaLayout } from './ui/textura/layout-engine.js';
-
-const layout = new TexturaLayout(400);
-const computed = layout.computeLayout({
-  flexDirection: 'column',
-  padding: 16,
-  gap: 12,
-  children: [
-    { text: 'Hello World', font: '24px Inter' },
-    { text: 'This wraps automatically', font: '16px Inter' }
-  ]
-});
-// Returns: { x, y, width, height, lines: [...], children: [...] }
-```
-
-### Pretext Canvas Renderer
-**Character-level Canvas rendering**
-
-```typescript
-import { PretextCanvasRenderer } from './ui/pretext-canvas/pretext-canvas.js';
-
-const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-const renderer = new PretextCanvasRenderer(canvas, 400, 600);
-
-// Pre-measure text
-const { height, lines } = renderer.measureText('Hello World', 400);
-
-// Create and render messages
-renderer.createMessage('msg1', 'Hello!', 'agent');
-renderer.createVotePanel('vote1', 'What to build?', ['React', 'Vue', 'Svelte']);
-renderer.spawnParticles(200, 300, 20); // Celebration effect
-renderer.startAnimation();
-```
-
-### UI Components Available
-| Component | Description |
-|-----------|-------------|
-| **Text** | Dynamic text with data binding |
-| **Button** | Clickable buttons with variants |
-| **Card** | Container cards |
-| **Row/Column** | Flexbox layouts |
-| **Image** | Image with dimensions |
-| **Input** | Text inputs |
-| **Badge** | Status badges |
-| **MessageBubble** | Chat messages |
-| **VotePanel** | Voting with progress bars |
-| **ConsensusMeter** | Agreement visualization |
-| **ParticleEmitter** | GPU particles |
-
-### Use Cases
-- AI council voting visualizations
-- Real-time chat with streaming text
-- Interactive dashboards
-- Generative art and animations
-- Pre-measured layouts for zero-jank streaming
-
----
-
-**🦆 Built with Pretext** - AI controls every pixel via Canvas
-
----
-
-## 🏛️ AI Council Chamber Integration
-
-Duck Agent integrates deeply with AI Council for multi-agent deliberation.
-
-### Councilor Roles (12 Core)
-
-| Councilor | Role | Focus |
-|-----------|------|-------|
-| **High Speaker** | Facilitator | Neutral synthesis |
-| **Technocrat** | Technical | Efficiency, data |
-| **Ethicist** | Moral | Human well-being |
-| **Pragmatist** | Practical | Cost, feasibility |
-| **Skeptic** | Devil's advocate | Find flaws |
-| **Sentinel** | Security | Threats, defense |
-| **Visionary** | Future | Innovation |
-| **Historian** | Past | Lessons learned |
-| **Diplomat** | Relations | Compromise |
-| **Journalist** | Truth | Accountability |
-| **Scientist** | Evidence | Research |
-| **Psychologist** | Behavior | Motivations |
-
-### Deliberation Modes
-
-| Mode | Description |
-|------|-------------|
-| `legislative` | Debate & vote on proposals |
-| `deliberation` | Open roundtable discussion |
-| `research` | Multi-vector investigation |
-| `prediction` | Probabilistic forecasting |
-| `swarm_coding` | Multi-agent code generation |
-| `inquiry` | Direct Q&A |
-
-### CLI Commands
-
-```bash
-# List modes and councilors
-duck council modes
-duck council councilors
-
-# Quick deliberation
-duck council ask "Should I build a REST API?"
-
-# Legislative debate with voting
-duck council debate "Adopt microservices architecture"
-
-# Deep research
-duck council research "Latest AI developments"
-
-# Probabilistic forecasting
-duck council predict "Will AI exceed human intelligence by 2030?"
-
-# Check council status
-duck council status
-```
-
-### Programmatic Usage
-
-```typescript
-import { AICouncilClient, CORE_COUNCILORS } from './council/client.js';
-import { DeliberationEngine } from './council/deliberation-engine.js';
-
-const client = new AICouncilClient('http://localhost:3001');
-const engine = new DeliberationEngine(client);
-
-// Run deliberation
-const result = await engine.deliberate({
-  mode: 'legislative',
-  topic: 'Should we adopt Kubernetes?',
-  councilors: CORE_COUNCILORS.filter(c => c.enabled),
-  maxRounds: 3,
-});
-
-console.log(`Consensus: ${result.consensus * 100}%`);
-console.log(`Ruling: ${result.finalRuling}`);
-```
-
-### Integration with Web UI
-
-AI Council provides:
-- Full Web UI for visual deliberation
-- Real-time debate streaming
-- Vote visualization
-- Councilor avatars
-- Mobile-friendly PWA
-
-Access at: `http://localhost:3001`
-
----
-
-**🦆 AI Council = Multi-agent governance for better decisions**
+Inspired by: OpenClaw, Claude Code, Hermes-Agent, NemoClaw, Codex CLI, DroidClaw, OpenCrabs, TrinityClaw, FlowlyAI
