@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { DuckCard } from './components/duck-card';
+import { DuckCard } from '../components/duck-card';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

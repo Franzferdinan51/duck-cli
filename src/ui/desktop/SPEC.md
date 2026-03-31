@@ -1,4 +1,17 @@
 # Duck Agent Desktop UI — Design Specification
+## ✅ Status: RUNNABLE (2026-03-31)
+
+**Run with:**
+```bash
+cd src/ui/desktop
+npm install
+npm run dev
+```
+
+**Build verified:** `npm run build` ✅ (271KB JS bundle, 1.9KB CSS)
+
+---
+
 
 ## 🎨 Design Vision
 

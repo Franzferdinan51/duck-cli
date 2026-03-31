@@ -6,10 +6,10 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { DuckButton } from './components/duck-button';
-import { DuckInput } from './components/duck-input';
-import { DuckCard } from './components/duck-card';
-import { StatusIndicator } from './components/status-indicator';
+import { DuckButton } from '../components/duck-button';
+import { DuckInput } from '../components/duck-input';
+import { DuckCard } from '../components/duck-card';
+import { StatusIndicator } from '../components/status-indicator';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

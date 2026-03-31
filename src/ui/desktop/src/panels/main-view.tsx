@@ -14,9 +14,9 @@ import CouncilPanel from './council-panel';
 import SettingsPanel from './settings-panel';
 import MeshPanel from './mesh-panel';
 import RlPanel from './rl-panel';
-import { DuckButton } from './components/duck-button';
-import { DuckModal } from './components/duck-modal';
-import { ToastContainer, useToast } from './components/toast';
+import { DuckButton } from '../components/duck-button';
+import { DuckModal } from '../components/duck-modal';
+import { ToastContainer, useToast } from '../components/toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

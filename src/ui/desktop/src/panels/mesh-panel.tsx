@@ -8,8 +8,8 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { DuckCard } from './components/duck-card';
-import { StatusIndicator } from './components/status-indicator';
+import { DuckCard } from '../components/duck-card';
+import { StatusIndicator } from '../components/status-indicator';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -513,7 +513,6 @@ View active catastrophe events across the mesh.
 
 ```bash
 duck mesh catastrophe
-duck mesh catastrophe --verbose
 ```
 
 **Output:**

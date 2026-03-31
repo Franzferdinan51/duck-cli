@@ -8,9 +8,9 @@
  */
 
 import React, { useState } from 'react';
-import { DuckButton } from './components/duck-button';
-import { DuckInput } from './components/duck-input';
-import { DuckCard } from './components/duck-card';
+import { DuckButton } from '../components/duck-button';
+import { DuckInput } from '../components/duck-input';
+import { DuckCard } from '../components/duck-card';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

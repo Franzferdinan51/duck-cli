@@ -1,0 +1,122 @@
+/* Duck Agent Desktop — Global Styles */
+
+:root {
+  /* Core Dark Theme */
+  --duck-bg-void: #07090f;
+  --duck-bg-deep: #0d1117;
+  --duck-bg-surface: #161b22;
+  --duck-bg-elevated: #1c2333;
+  --duck-bg-overlay: #21262d;
+  --duck-border: #30363d;
+  --duck-border-muted: #21262d;
+
+  /* Duck Brand Colors */
+  --duck-yellow: #fbbf24;
+  --duck-yellow-dim: #d97706;
+  --duck-orange: #f97316;
+  --duck-red: #ef4444;
+  --duck-green: #22c55e;
+  --duck-cyan: #06b6d4;
+  --duck-purple: #a855f7;
+
+  /* Text */
+  --duck-text-primary: #e6edf3;
+  --duck-text-secondary: #8b949e;
+  --duck-text-muted: #484f58;
+  --duck-text-inverse: #0d1117;
+
+  /* Semantic */
+  --duck-vote-yea: #22c55e;
+  --duck-vote-nay: #ef4444;
+  --duck-online: #22c55e;
+  --duck-busy: #fbbf24;
+  --duck-offline: #484f58;
+
+  /* Typography */
+  --font-display: 'Crimson Pro', Georgia, serif;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Easing */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--duck-text-primary);
+  background-color: var(--duck-bg-deep);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--duck-bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--duck-border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--duck-text-muted);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--duck-yellow);
+  outline-offset: 2px;
+}
+
+/* Button reset */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Input reset */
+input, textarea {
+  font-family: inherit;
+  border: none;
+  background: none;
+  color: inherit;
+}

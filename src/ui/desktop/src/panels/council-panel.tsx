@@ -8,11 +8,11 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { DuckButton } from './components/duck-button';
-import { DuckInput } from './components/duck-input';
-import { DuckCard } from './components/duck-card';
-import { VotePanel } from './components/vote-panel';
-import { CouncilorBadge } from './components/councilor-badge';
+import { DuckButton } from '../components/duck-button';
+import { DuckInput } from '../components/duck-input';
+import { DuckCard } from '../components/duck-card';
+import { VotePanel } from '../components/vote-panel';
+import { CouncilorBadge } from '../components/councilor-badge';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

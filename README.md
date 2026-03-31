@@ -25,6 +25,20 @@ duck gateway            # Gateway API (port 18792)
 ```
 
 ### Docker
+## 🖥️ Desktop UI — OPTIONAL
+
+Full-featured desktop shell with sidebar navigation, chat, AI Council, Agent Mesh, and settings panels.
+
+```bash
+cd src/ui/desktop
+npm install
+npm run dev
+```
+
+Build verified ✅ — serves on http://localhost:5173 (or any available port).
+
+---
+
 
 ```bash
 docker-compose up -d
@@ -494,7 +508,7 @@ duck souls search <query> # Search for SOULs
 duck souls activate <name> # Activate a SOUL
 ```
 
----/
+---
 
 ### ClawHub Usage Examples
 
@@ -568,7 +582,7 @@ duck souls search <query> # Search for SOULs
 duck souls activate <name> # Activate a SOUL
 ```
 
----/
+---
 
 ---
 
