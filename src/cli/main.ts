@@ -103,6 +103,10 @@ async function main() {
     case 'channels':
       await startChannels(args);
       break;
+    case 'update':
+      await updateCommand(args);
+      break;
+
 
     case 'send':
     case 'sendto':
@@ -782,3 +786,14 @@ async function sendToChannel(args: string[]) {
 
   await agent.shutdown();
 }
+
+// ============ UPDATE ============
+
+async function updateCommand(args: string[]) {
+  const { createUpdateCommand } = await import('../commands/update-cli.js');
+  const { Command } = await import('commander');
+  
+  const update = createUpdateCommand();
+  update.parse(['node', 'duck', ...args]);
+}
+
