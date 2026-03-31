@@ -1184,18 +1184,44 @@ async function buddyCommand(args: string[]) {
 // ============ AI COUNCIL ============
 
 async function councilCommand(args: string[]) {
-  const topic = args.join(' ');
+  const [mode, ...topicParts] = args;
+  const topic = topicParts.join(' ');
   
-  if (!topic) {
-    console.log(`${c.yellow}Usage: duck council <topic or question>${c.reset}`);
-    return;
+  // Check if council server is running
+  const COUNCIL_URL = process.env.COUNCIL_URL || 'http://localhost:3001';
+  
+  try {
+    const { AICouncilClient } = await import('../council/client.js');
+    const client = new AICouncilClient(COUNCIL_URL);
+    
+    if (!topic) {
+      console.log(`${c.cyan}AI Council Chamber${c.reset}`);
+      console.log(`Server: ${COUNCIL_URL}`);
+      console.log('');
+      console.log(`${c.yellow}Usage: duck council [mode] <topic>${c.reset}`);
+      console.log('Modes: legislative, research, swarm, prediction, inquiry');
+      console.log('');
+      console.log('Example: duck council legislative "Should we refactor the auth module?"');
+      return;
+    }
+    
+    console.log(`${c.cyan}Consulting AI Council on: ${topic}${c.reset}`);
+    console.log(`Mode: ${mode || 'legislative'}`);
+    console.log('');
+    console.log(`${c.yellow}Running deliberation...${c.reset}\n`);
+    
+    // Run deliberation
+    const result = await client.runDeliberation(topic, mode || 'legislative');
+    
+    console.log(`${c.green}Council Verdict:${c.reset}`);
+    console.log(result.finalRuling || result.summary);
+    if (result.summary) console.log(result.summary);
+    console.log(`${c.cyan}Confidence: ${result.consensus}%${c.reset}`);
+    
+  } catch (e: any) {
+    console.log(`${c.yellow}AI Council not available: ${e.message}${c.reset}`);
+    console.log(`Start council server: ./start-ai-council.sh`);
   }
-  
-  console.log(`${c.cyan}Consulting AI Council on: ${topic}${c.reset}\n`);
-  
-  console.log(`${c.green}AI Council deliberation${c.reset}`);
-  console.log('Topic:', topic);
-  console.log('(Connect to AI Council server for full deliberation)');
 }
 
 // ============ MULTI-AGENT TEAMS ============
@@ -1267,18 +1293,44 @@ async function buddyCommand(args: string[]) {
 // ============ AI COUNCIL ============
 
 async function councilCommand(args: string[]) {
-  const topic = args.join(' ');
+  const [mode, ...topicParts] = args;
+  const topic = topicParts.join(' ');
   
-  if (!topic) {
-    console.log(`${c.yellow}Usage: duck council <topic or question>${c.reset}`);
-    return;
+  // Check if council server is running
+  const COUNCIL_URL = process.env.COUNCIL_URL || 'http://localhost:3001';
+  
+  try {
+    const { AICouncilClient } = await import('../council/client.js');
+    const client = new AICouncilClient(COUNCIL_URL);
+    
+    if (!topic) {
+      console.log(`${c.cyan}AI Council Chamber${c.reset}`);
+      console.log(`Server: ${COUNCIL_URL}`);
+      console.log('');
+      console.log(`${c.yellow}Usage: duck council [mode] <topic>${c.reset}`);
+      console.log('Modes: legislative, research, swarm, prediction, inquiry');
+      console.log('');
+      console.log('Example: duck council legislative "Should we refactor the auth module?"');
+      return;
+    }
+    
+    console.log(`${c.cyan}Consulting AI Council on: ${topic}${c.reset}`);
+    console.log(`Mode: ${mode || 'legislative'}`);
+    console.log('');
+    console.log(`${c.yellow}Running deliberation...${c.reset}\n`);
+    
+    // Run deliberation
+    const result = await client.runDeliberation(topic, mode || 'legislative');
+    
+    console.log(`${c.green}Council Verdict:${c.reset}`);
+    console.log(result.finalRuling || result.summary);
+    if (result.summary) console.log(result.summary);
+    console.log(`${c.cyan}Confidence: ${result.consensus}%${c.reset}`);
+    
+  } catch (e: any) {
+    console.log(`${c.yellow}AI Council not available: ${e.message}${c.reset}`);
+    console.log(`Start council server: ./start-ai-council.sh`);
   }
-  
-  console.log(`${c.cyan}Consulting AI Council on: ${topic}${c.reset}\n`);
-  
-  console.log(`${c.green}AI Council deliberation${c.reset}`);
-  console.log('Topic:', topic);
-  console.log('(Connect to AI Council server for full deliberation)');
 }
 
 // ============ MULTI-AGENT TEAMS ============
