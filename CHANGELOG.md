@@ -4,6 +4,37 @@ All notable changes to Duck Agent will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## v0.3.2 — 2026-03-31
+
+### Added
+- **OpenClaw v2026.3.31 Compatibility** — Full compatibility layer for OpenClaw v2026.3.31 features:
+  - `taskLedgerSQLite`: SQLite-backed task ledger for background tasks
+  - `taskBlockedState`: Persisted blocked state tracking
+  - `taskParentChildFlow`: Parent-child task flow for orchestrated work
+  - `dangerousCodeScanning`: Dangerous-code scanning (fails closed by default)
+  - `nodePairingApproval`: Explicit node pairing approval requirement
+  - `mcpRemoteHTTP`: MCP remote HTTP/SSE server support
+
+### Added
+- **Task Registry Module** (`src/tasks/`) — New SQLite-backed task ledger implementing:
+  - Persistent task storage with JSON backend
+  - Blocked state tracking for tasks
+  - Parent-child task flow relationships
+  - Task filtering, listing, and status management
+  - Automatic cleanup of old completed tasks
+
+- **Remote MCP Client** (`src/server/mcp-remote-client.ts`) — Connect to external MCP servers:
+  - Remote HTTP/SSE MCP server connections
+  - Auth header support for authenticated endpoints
+  - Connection timeouts and error handling
+  - Multi-server management
+
+### Changed
+- **OpenClaw Compatibility Checker** — Extended feature detection for v2026.3.31 features
+- **Feature Flags** — Added 6 new feature flags for OpenClaw v2026.3.31 compatibility
+
+---
+
 ---
 
 ## v0.3.1 — 2026-03-31
