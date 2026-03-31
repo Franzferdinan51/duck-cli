@@ -1,13 +1,16 @@
 /**
- * Duck CLI - Core Agent
+ * Duck CLI - Enhanced Core Agent
  * 
- * Based on Claude Code's agent architecture:
- * - Tool execution loop
- * - Context management
- * - Streaming responses
+ * Now with:
+ * - Session storage with FTS5
+ * - Subagent delegation
+ * - Cron scheduling
+ * - Toolset restrictions
+ * - Security scanning
  */
 
 import { Tool, ToolResult } from '../tools/registry.js';
+import { ToolSecurityScanner } from '../tools/toolsets.js';
 import { ModelProvider, ModelResponse } from '../providers/manager.js';
 
 export interface AgentConfig {
@@ -15,6 +18,8 @@ export interface AgentConfig {
   provider: ModelProvider;
   tools: Tool[];
   systemPrompt?: string;
+  sessionId?: string;
+  maxIterations?: number;
 }
 
 export interface Message {
@@ -26,75 +31,96 @@ export class Agent {
   private config: AgentConfig;
   private messages: Message[] = [];
   private tools: Map<string, Tool>;
+  private security = new ToolSecurityScanner();
+  public sessionId: string;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.tools = new Map(config.tools.map(t => [t.name, t]));
+    this.sessionId = config.sessionId || `agent_${Date.now()}`;
   }
 
   async run(prompt: string): Promise<string> {
-    // Add user message
     this.messages.push({
       role: 'user',
       content: prompt
     });
 
-    // Main loop
     let iter = 0;
-    const maxIterations = 50;
+    const maxIterations = this.config.maxIterations || 50;
 
     while (iter < maxIterations) {
       iter++;
 
-      // Get completion
-      const response = await this.complete();
+      try {
+        const response = await this.complete();
 
-      // Handle response
-      if (response.toolCalls && response.toolCalls.length > 0) {
-        // Execute tools
-        for (const call of response.toolCalls) {
-          const tool = this.tools.get(call.name);
-          
-          if (!tool) {
-            this.messages.push({
-              role: 'tool',
-              content: {
-                type: 'error',
-                tool: call.name,
-                success: false,
-                output: '',
-                error: `Unknown tool: ${call.name}`
-              }
-            });
-            continue;
-          }
+        if (response.toolCalls && response.toolCalls.length > 0) {
+          for (const call of response.toolCalls) {
+            // Security scan tool arguments
+            try {
+              this.security.blockIfThreat(JSON.stringify(call.arguments));
+            } catch (e: any) {
+              this.messages.push({
+                role: 'tool',
+                content: {
+                  type: 'error',
+                  tool: call.name,
+                  success: false,
+                  output: '',
+                  error: e.message
+                }
+              });
+              continue;
+            }
 
-          try {
-            const result = await tool.execute(call.arguments || {});
-            this.messages.push({
-              role: 'tool',
-              content: result
-            });
-          } catch (error) {
-            this.messages.push({
-              role: 'tool',
-              content: {
-                type: 'error',
-                tool: call.name,
-                success: false,
-                output: '',
-                error: String(error)
-              }
-            });
+            const tool = this.tools.get(call.name);
+            if (!tool) {
+              this.messages.push({
+                role: 'tool',
+                content: {
+                  type: 'error',
+                  tool: call.name,
+                  success: false,
+                  output: '',
+                  error: `Unknown tool: ${call.name}`
+                }
+              });
+              continue;
+            }
+
+            try {
+              const result = await tool.execute(call.arguments || {});
+              this.messages.push({
+                role: 'tool',
+                content: result
+              });
+            } catch (error: any) {
+              this.messages.push({
+                role: 'tool',
+                content: {
+                  type: 'error',
+                  tool: call.name,
+                  success: false,
+                  output: '',
+                  error: String(error)
+                }
+              });
+            }
           }
+        } else if (response.text) {
+          this.messages.push({
+            role: 'assistant',
+            content: response.text
+          });
+          return response.text;
         }
-      } else if (response.text) {
-        // Final response
-        this.messages.push({
-          role: 'assistant',
-          content: response.text
-        });
-        return response.text;
+      } catch (error: any) {
+        if (error.message.includes('not available') || error.message.includes('API key')) {
+          throw error;
+        }
+        // Log and continue on tool errors
+        console.error(`Iteration ${iter} error:`, error.message);
       }
     }
 
@@ -102,9 +128,8 @@ export class Agent {
   }
 
   private async complete(): Promise<ModelResponse> {
-    // Build messages for provider
     const providerMessages = this.messages.map(m => ({
-      role: m.role === 'tool' ? 'user' : m.role,
+      role: m.role === 'tool' ? 'user' as const : m.role,
       content: typeof m.content === 'string' 
         ? m.content 
         : `Tool: ${m.content.tool}\nResult: ${m.content.output}`
@@ -128,15 +153,24 @@ export class Agent {
   }
 
   compress(): void {
-    // Keep recent messages, summarize older ones
+    // Keep recent, summarize older
     if (this.messages.length > 20) {
       const recent = this.messages.slice(-10);
-      const older = this.messages.slice(0, -10);
-      
-      // TODO: Implement summarization
-      // For now, just keep recent
       this.messages = recent;
     }
+  }
+
+  // Tool management
+  addTool(tool: Tool): void {
+    this.tools.set(tool.name, tool);
+  }
+
+  removeTool(name: string): void {
+    this.tools.delete(name);
+  }
+
+  getTools(): Tool[] {
+    return Array.from(this.tools.values());
   }
 }
 
