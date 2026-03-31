@@ -797,3 +797,150 @@ async function updateCommand(args: string[]) {
   update.parse(['node', 'duck', ...args]);
 }
 
+
+
+// ============ UNIFIED SERVER ============
+
+async function startUnified() {
+  console.log('Starting Duck Agent Unified Headless Server...');
+  
+  const { UnifiedServer } = await import('../server/unified-server.js');
+  const agent = new Agent({ name: 'Duck Agent (Unified)' });
+  await agent.initialize();
+
+  const server = new UnifiedServer(agent, {
+    mcpPort: 3848,
+    acpPort: 18790,
+    wsPort: 18791,
+    gatewayPort: 18789,
+    enableMCP: true,
+    enableACP: true,
+    enableWebSocket: true,
+    enableGateway: true,
+  });
+
+  await server.start();
+
+  process.on('SIGINT', async () => {
+    console.log('\nShutting down unified server...');
+    await server.stop();
+    await agent.shutdown();
+    process.exit(0);
+  });
+
+  await new Promise(() => {});
+}
+
+// ============ MCP CONNECT ============
+
+async function mcpConnect(args: string[]) {
+  const url = args[0];
+  if (!url) {
+    console.log(`${c.red}Usage: duck mcp-connect <url>${c.reset}`);
+    console.log('Example: duck mcp-connect ws://localhost:3848/ws');
+    return;
+  }
+
+  const { UnifiedServer } = await import('../server/unified-server.js');
+  const agent = new Agent({ name: 'Duck Agent' });
+  await agent.initialize();
+
+  const server = new UnifiedServer(agent, { enableMCP: false, enableACP: false, enableWebSocket: false });
+  
+  try {
+    const id = await server.connectToExternalMCP(url);
+    console.log(`${c.green}✅ Connected to MCP server: ${id}${c.reset}`);
+    console.log(`URL: ${url}`);
+  } catch (e: any) {
+    console.error(`${c.red}❌ Failed: ${e.message}${c.reset}`);
+  }
+
+  await agent.shutdown();
+}
+
+// ============ ACP SPAWN ============
+
+async function acpSpawn(args: string[]) {
+  const [agentId, ...taskParts] = args;
+  const task = taskParts.join(' ');
+
+  if (!agentId) {
+    console.log(`${c.red}Usage: duck acp <agent> <task>${c.reset}`);
+    console.log(`${c.yellow}Available agents: codex, claude, cursor, gemini, pi, openclaw, opencode${c.reset}`);
+    return;
+  }
+
+  const { ACPClient } = await import('../gateway/acp-client.js');
+  const agent = new Agent({ name: 'Duck Agent' });
+  await agent.initialize();
+
+  const acp = new ACPClient(agent, {
+    defaultAgent: agentId,
+    permissionMode: 'approve-all',
+  });
+
+  console.log(`${c.cyan}Spawning ${agentId}...${c.reset}`);
+
+  try {
+    const result = await acp.spawnSession({
+      task: task || 'Reply with confirmation',
+      agentId,
+      mode: task ? 'oneshot' : 'persistent',
+    });
+
+    console.log(`${c.green}✅ Session created: ${result.sessionKey}${c.reset}`);
+    console.log(`Agent: ${agentId}`);
+    console.log(`Mode: ${result.accepted ? 'accepted' : 'pending'}`);
+
+    acp.on('session:output', ({ session, output }: any) => {
+      console.log(`[${session.agentId}] ${output}`);
+    });
+
+    acp.on('session:ended', ({ session, code }: any) => {
+      console.log(`${c.yellow}Session ended with code: ${code}${c.reset}`);
+    });
+
+    await new Promise(() => {});
+  } catch (e: any) {
+    console.error(`${c.red}❌ Failed: ${e.message}${c.reset}`);
+  }
+}
+
+// ============ WEBSOCKET COMMAND ============
+
+async function wsCommand(args: string[]) {
+  const [action, url] = args;
+
+  if (action === 'connect' && url) {
+    const { WebSocketManager } = await import('../gateway/websocket-manager.js');
+    const ws = new WebSocketManager({ port: 18792 });
+    
+    console.log(`${c.cyan}Connecting to ${url}...${c.reset}`);
+    
+    try {
+      const clientId = await ws.connectTo(url);
+      console.log(`${c.green}✅ Connected: ${clientId}${c.reset}`);
+      
+      ws.on('message', (msg: any) => {
+        console.log(`[WS] ${msg.from}:`, JSON.stringify(msg.data).slice(0, 100));
+      });
+
+      ws.on('disconnected', ({ url }: any) => {
+        console.log(`${c.yellow}Disconnected from ${url}${c.reset}`);
+      });
+
+      await new Promise(() => {});
+    } catch (e: any) {
+      console.error(`${c.red}❌ Failed: ${e.message}${c.reset}`);
+    }
+  } else if (action === 'status') {
+    const { WebSocketManager } = await import('../gateway/websocket-manager.js');
+    const ws = new WebSocketManager();
+    console.log(JSON.stringify(ws.getStatus(), null, 2));
+  } else {
+    console.log(`${c.yellow}Usage:${c.reset}`);
+    console.log('  duck ws connect <url>  - Connect to WebSocket server');
+    console.log('  duck ws status         - Show WebSocket status');
+  }
+}
+
