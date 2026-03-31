@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Super AI Agent v0.3.0** — The ultimate personal AI assistant with KAIROS proactive AI, unified gateway, Claude Code tools, autonomous cron automation, multi-agent orchestration, and enterprise-grade security.
+> **Super AI Agent v0.3.0** — The ultimate personal AI assistant with KAIROS proactive AI, unified headless protocols, Claude Code tools, autonomous cron automation, multi-agent orchestration, and enterprise-grade security.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -16,170 +16,298 @@ git clone https://github.com/Franzferdinan51/duck-cli.git
 cd duck-cli
 npm install && npm run build
 
-# Start
-./start.sh shell        # Interactive shell
-./start.sh web          # Web UI (http://localhost:3000)
-./start.sh gateway      # Gateway API
-./start.sh mcp          # MCP Server
-./start.sh cron         # Show cron jobs
-./start.sh cron install # Install cron jobs
+# Start - pick your interface
+duck shell              # Interactive TUI shell
+duck web               # Web UI (http://localhost:3000)
+duck unified           # Headless server (MCP + ACP + WebSocket)
+duck mcp              # MCP server only (port 3848)
+duck gateway           # Gateway API (port 18789)
+```
 
-# Or with Docker
+### Docker
+
+```bash
 docker-compose up -d
 ```
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
 ### 🧠 KAIROS Proactive AI
 **Always-on AI that acts without being asked**
 
-- 💭 Heartbeat system (checks "anything worth doing?")
-- 🎯 Smart decision engine with pattern learning
-- 🌙 Auto-dream consolidation (3 AM daily)
-- 📝 Append-only action logs
-- 🔔 Push notifications
-- 🧬 Proactive modes: aggressive, balanced, conservative
-
-### 🚪 Unified Gateway
-**Multi-source gateway architecture inspired by OpenClaw, Hermes, NemoClaw**
-
-- 🌐 WebSocket control plane (port 18789)
-- 📡 Multi-channel support (Telegram, Discord ready)
-- 🔗 Device nodes (macOS, iOS, Android)
-- 🛠️ First-class tools: exec, browser, canvas, nodes, cron, sessions
+| Feature | Description |
+|---------|-------------|
+| 💭 Heartbeat | Periodic checks for "anything worth doing?" |
+| 🎯 Decision Engine | Smart action decisions with pattern learning |
+| 🌙 Auto-Dream | Nightly consolidation at 3 AM |
+| 📝 Action Logs | Append-only audit trail |
+| 🔔 Notifications | Push alerts to Telegram |
+| 🧬 Modes | aggressive, balanced, conservative |
 
 ### 🎤 Voice / TTS
 **MiniMax speech synthesis built-in**
 
-- Natural voice generation
-- Multiple voice styles (narrator, casual, sad)
+```bash
+duck voice "Hello world"           # Text-to-speech
+duck voice --voice casual "Hi!"   # Different style
+```
+
 - 4,000 characters/day quota
+- Multiple voice styles
 - Auto-play on macOS
 
 ### 🌐 Web UI
-**Full-featured control interface**
+**Full-featured control interface** (~2000 lines)
 
-- 💬 Chat interface with typing indicators
-- 📊 Status dashboard (uptime, cost, tokens)
-- 🛠️ Tool browser with categories
-- 🎤 Voice panel with quota display
-- 🧠 KAIROS controls
-- 👥 Team management
-- 🏛️ AI Council
-- ⏰ Cron scheduler
-- 💾 Memory viewer
-- ⚙️ Settings panel
-- 📋 Log viewer
-
-### 🔌 Deep MCP Server (Streamable HTTP + WebSocket)
-**Full MCP 2024-11-05 spec with bidirectional communication**
-
-```bash
-duck mcp [port]        # Start MCP server (default: 3848)
-duck mcp-connect <url> # Connect to external MCP server
+```
+http://localhost:3000
 ```
 
-**Features:**
-- Streamable HTTP (MCP 2024-11-05)
-- WebSocket bidirectional
-- SSE for server→client push
-- 14+ built-in tools (execute, think, remember, recall, desktop_*, kairos_*)
-- External MCP server federation
+| Panel | Features |
+|-------|----------|
+| 💬 Chat | Messages, code, typing indicators |
+| 📊 Dashboard | Uptime, cost, tokens, providers |
+| 🧠 KAIROS | Toggle, modes, actions log |
+| 🐤 Buddy | Hatch, reroll, species preview |
+| 👥 Teams | Templates, member cards |
+| 🏛️ AI Council | Deliberation, councilors, output |
+| ⏰ Cron | Job scheduler, enable/disable |
+| 💾 Memory | View recent memories |
+| ⚙️ Settings | Provider config, theme |
+| 📋 Logs | Activity viewer |
+
+---
+
+## 🔌 Headless Protocols
+
+Duck Agent is designed as a **headless-first** agent — run it as a server and connect via MCP, ACP, WebSocket, or HTTP.
+
+### 🦆 Unified Server (Recommended)
+
+```bash
+duck unified
+```
+
+Starts all protocols simultaneously:
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 3848 | MCP Server | Model Context Protocol |
+| 18790 | ACP Gateway | Agent Client Protocol |
+| 18791 | WebSocket | Bidirectional messaging |
+| 18789 | Gateway API | OpenAI-compatible REST |
+
+---
+
+### 🔌 MCP Server (Model Context Protocol)
+
+**Full MCP 2024-11-05 spec implementation**
+
+```bash
+# Start MCP server
+duck mcp
+
+# Connect to external MCP server
+duck mcp-connect ws://remote-server:3848/ws
+```
+
+**Endpoints:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/mcp` | POST | MCP JSON-RPC |
+| `/mcp/sse` | GET | Server-Sent Events |
+| `/mcp/stream` | POST | Streamable HTTP |
+| `/health` | GET | Health check |
+| `/tools` | GET | List tools |
+| `/capabilities` | GET | Server capabilities |
+| `/ws` | WS | WebSocket |
+
+**Built-in Tools (14+):**
+
+```
+execute          - Execute a task
+think           - Reasoning mode
+remember         - Store in memory
+recall           - Search memory
+kairos_status    - Get KAIROS state
+kairos_action    - Trigger autonomous action
+desktop_screenshot - Take screenshot
+desktop_open     - Open application
+desktop_click    - Click at coordinates
+desktop_type     - Type text
+get_status       - Agent metrics
+list_tools      - List all tools
+ping            - Latency check
+spawn_agent      - Spawn sub-agent
+```
+
+**Example MCP Client Usage:**
+
+```bash
+# Using curl
+curl -X POST http://localhost:3848/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"think","arguments":{"prompt":"Why is the sky blue?"}}}'
+
+# Using WebSocket
+ws://localhost:3848/ws
+```
+
+---
 
 ### 🔗 ACP Client (Agent Client Protocol)
-**Spawn external coding agents via acpx**
+
+**Spawn external coding agents (Codex, Claude, Pi, etc.)**
 
 ```bash
-duck acp codex "fix the bug"  # Spawn Codex session
-duck acp claude "review PR"   # Spawn Claude Code
+# Spawn agent for task
+duck acp codex "Fix the authentication bug"
+duck acp claude "Review PR #123"
+duck acp pi "Analyze this code"
+
+# Interactive session
+duck acp claude
 ```
 
-**Supports:** codex, claude, cursor, gemini, pi, openclaw, opencode
+**Supported Agents:**
 
-### 🌐 Bidirectional WebSocket Manager
-**Connect IN and OUT**
+| Agent | Command | Description |
+|-------|---------|-------------|
+| codex | `duck acp codex` | OpenAI Codex |
+| claude | `duck acp claude` | Claude Code |
+| cursor | `duck acp cursor` | Cursor AI |
+| gemini | `duck acp gemini` | Google Gemini CLI |
+| pi | `duck acp pi` | Pi AI |
+| openclaw | `duck acp openclaw` | OpenClaw agent |
+| opencode | `duck acp opencode` | OpenCode |
+
+**ACP Features:**
+- Session spawn/cancel/steer/close
+- Fire-and-forget with result delivery
+- Persistent sessions
+- Output streaming
+
+---
+
+### 🌐 Bidirectional WebSocket
+
+**Connect IN (server) and OUT (client) simultaneously**
 
 ```bash
-duck ws connect <url>  # Connect to external WebSocket
-duck ws status        # Show connection status
+# Connect to external WebSocket
+duck ws connect wss://remote-server.com/ws
+
+# Check status
+duck ws status
 ```
 
 **Features:**
-- Server mode (accept connections)
-- Client mode (connect externally)
+- Server mode: Accept incoming connections
+- Client mode: Connect to external servers
 - Auto-reconnection
-- Channel-based message routing
+- Channel-based routing
+- Message queuing
 
-### 🦆 Unified Headless Server
-**All protocols in one**
+---
+
+### 🚪 Gateway API
+
+**OpenAI-compatible REST API**
 
 ```bash
-duck unified  # Start MCP + ACP + WebSocket + Gateway
+# Chat completions
+curl -X POST http://localhost:18789/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"Hello"}]}'
+
+# List models
+curl http://localhost:18789/v1/models
+
+# Health check
+curl http://localhost:18789/health
 ```
 
-Ports:
-- MCP: 3848
-- ACP Gateway: 18790
-- WebSocket: 18791
-- Gateway API: 18789
+---
+
+## 🤖 Agent Systems
 
 ### 🐤 Buddy Companion
-**AI companion system with rarities**
+**AI companion with rarities**
 
-- 🥚 Hatch buddies with unique species
-- ⭐ Rarity tiers: common, uncommon, rare, epic, legendary
-- 🎨 10 species: duck, blob, cat, dragon, owl, ghost, robot, rabbit, cactus, snail
-- 💫 Stats: DEBUGGING, PATIENCE, CHAOS, WISDOM, SNARK
+```bash
+duck buddy hatch    # Hatch a new buddy
+duck buddy list     # List your buddies
+duck buddy stats   # View stats
+```
+
+| Attribute | Values |
+|-----------|--------|
+| Rarity | common, uncommon, rare, epic, legendary |
+| Species | duck, blob, cat, dragon, owl, ghost, robot, rabbit, cactus, snail |
+| Stats | DEBUGGING, PATIENCE, CHAOS, WISDOM, SNARK |
 
 ### 👥 Multi-Agent Teams
-**Coordinated agent groups**
+**Coordinated parallel execution**
 
-- 🎯 Role-based teams (code review, research, swarm)
-- 🤖 Spawn workers for parallel execution
-- 📊 Task coordination and result aggregation
-- 🔄 Session management
+```bash
+duck team create code-review    # Create team
+duck team spawn research        # Spawn workers
+duck team status               # Check progress
+```
+
+| Template | Purpose |
+|----------|---------|
+| code-review | PR analysis, bug detection |
+| research | Web search, summarization |
+| swarm | Parallel task execution |
 
 ### 🏛️ AI Council
 **Deliberative decision making**
 
-- ⚖️ Multiple councilors with specializations
-- 🎤 Speaker (facilitator)
-- 🔬 Technocrat (technical analysis)
-- ⚖️ Ethicist (moral reasoning)
-- 🎯 Pragmatist (practical focus)
-- 🤔 Skeptic (critical analysis)
-- 🛡️ Sentinel (risk assessment)
+```bash
+duck council "Should we refactor the auth module?"
+```
 
-### ⏰ Cron Automation
-**30+ predefined automation jobs**
+| Councilor | Role |
+|-----------|------|
+| 🎤 Speaker | Facilitator |
+| 🔬 Technocrat | Technical analysis |
+| ⚖️ Ethicist | Moral reasoning |
+| 🎯 Pragmatist | Practical focus |
+| 🤔 Skeptic | Critical analysis |
+| 🛡️ Sentinel | Risk assessment |
+
+---
+
+## ⏰ Cron Automation
+
+**30+ predefined jobs**
+
+```bash
+duck cron list              # List all jobs
+duck cron enable grow-check # Enable a job
+duck cron disable ai-news   # Disable a job
+```
 
 | Category | Jobs |
-|---------|------|
+|----------|------|
 | **System** | health-check, memory-check, auto-heal, backup, failure-recover |
-| **Grow** | morning/evening-check, threshold-alert, watering, harvest, monthly-report |
+| **Grow** | morning-check, evening-check, threshold-alert, watering, harvest, monthly-report |
 | **Crypto** | portfolio, price-alert, whale-watch, defi-health, news-scan |
 | **OSINT** | briefing, keyword-alert, account-watch, github-watch, reddit-digest |
 | **News** | daily-brief |
 | **Weather** | daily-weather |
 | **Home** | equipment-monitor |
 
-### 🔄 Update System
-**Multi-source update compatibility**
+---
 
-```bash
-duck update check     # Check for updates
-duck update install  # Install latest
-duck update backup   # Create backup
-duck update restore  # Restore from backup
-duck update status  # Git status
-```
+## 🛠️ Tools & Integrations
 
-Sources: OpenClaw (primary), Claude Code, Hermes-Agent, NemoClaw, Codex
-
-### 🛠️ Claude Code Tools
-**60+ coding tools from instructkr**
+### Claude Code Tools
+**60+ coding tools**
 
 | Category | Tools |
 |----------|-------|
@@ -190,129 +318,30 @@ Sources: OpenClaw (primary), Claude Code, Hermes-Agent, NemoClaw, Codex
 | **Tasks** | create, list, get, update, stop |
 | **REPL** | node, python, bash, typescript |
 
-### 🌐 BrowserOS Integration
-**45+ browser automation tools**
-
-- Navigate, click, type, scroll
-- Screenshot, content extraction
-- Bookmarks, history, tabs
-- Tab groups, windows
-
-### 📱 Channels
-**Telegram + Discord bots**
-
-- Slash commands (`/duck help`, `/duck status`, `/duck cost`)
-- Direct messaging
-- Multi-channel support
-
-### 🔒 Security (NVIDIA NemoClaw)
-**Enterprise-grade security features**
-
-- **SSRF Validation** - Blocks private IPs, DNS rebinding
-- **Credential Sanitizer** - Prevents API key leaks
-- **State Manager** - Persistent encrypted state
-- **Network Policies** - YAML-based access control
-
-### 🤖 Agent Orchestration
-**Multi-agent task coordination**
-
----
-
-## 📦 Architecture
-
-```
-Duck Agent
-├── src/
-│   ├── agent/         # Core AI agent with learning
-│   ├── kairos/        # KAIROS autonomous system
-│   ├── buddy/         # Buddy companion
-│   ├── council/       # AI Council deliberation
-│   ├── multiagent/    # Team coordination
-│   ├── cron/          # Cron scheduler
-│   ├── commands/      # CLI commands
-│   ├── providers/     # Multi-provider AI
-│   ├── tools/         # Tool registry + TTS
-│   ├── security/      # Security modules
-│   ├── ui/            # Pretext Canvas, A2UI
-│   ├── server/        # MCP server
-│   ├── memory/        # Context manager
-│   ├── channels/      # Telegram, Discord
-│   ├── gateway/       # Gateway integration
-│   ├── integrations/   # Desktop, BrowserOS
-│   └── prompts/       # System prompts
-├── web-ui/           # Full Web UI (1996 lines)
-└── tools/            # CLI tools
-```
-
----
-
-## 🔧 Commands
+### Desktop Control
+**Native macOS/Windows control**
 
 ```bash
-# Core
-duck shell           # Interactive TUI shell
-duck run <task>     # Execute a single task
-duck think <prompt> # Reasoning mode
-duck status         # Show agent status
-duck tools         # List available tools
-duck history       # Show conversation history
-
-# Headless Protocols
-duck mcp [port]         # Start MCP server (default: 3848)
-duck mcp-connect <url>  # Connect to external MCP
-duck acp <agent> <task># Spawn ACP session (codex/claude/etc)
-duck ws connect <url>  # Connect to WebSocket server
-duck unified           # All protocols + Gateway API
-
-# Advanced
-duck memory          # Memory commands
-duck channels       # Start Telegram/Discord
-duck desktop        # Desktop control
-
-# AI Systems
-duck kairos         # KAIROS autonomous mode
-duck buddy          # Buddy companion
-duck team           # Multi-agent teams
-duck council        # AI Council
-
-# Automation
-duck cron           # Cron job management
-duck update         # Update system
+duck desktop open Safari
+duck desktop click 100 200
+duck desktop screenshot
 ```
 
----
+### BrowserOS Integration
+**45+ browser automation tools**
 
-## 🔄 Update Strategy
-
-Duck Agent pulls features from multiple sources to stay current:
-
-| Source | Contribution |
-|--------|-------------|
-| **OpenClaw** | Gateway protocol, multi-channel, device nodes, skills |
-| **Claude Code** | KAIROS, buddy, multi-agent, code review |
-| **Hermes-Agent** | Gateway patterns |
-| **NemoClaw** | Security (SSRF, credentials) |
-| **Codex CLI** | Exec mode, approval layers, MCP server |
-| **DroidClaw** | Phone control patterns, workflow/macro separation |
-| **OpenCrabs** | Local voice (whisper.cpp, Piper), hybrid memory |
-| **TrinityClaw** | ChromaDB memory, identity system |
-| **FlowlyAI** | @mention routing, skills hub |
-
----
-
-## 🧠 Memory System
-
-Duck Agent has a sophisticated 3-tier memory:
-
-1. **SOUL.md / IDENTITY.md** - Core personality and identity
-2. **AGENTS.md / TOOLS.md** - Agent configuration and tools
-3. **KANBAN.md / HEARTBEAT.md** - Task tracking and automation
-4. **Session memory** - Conversation context
-5. **Learned patterns** - From interactions
+```bash
+# via MCP tools
+browser_navigate url="https://github.com"
+browser_click selector="#submit-button"
+browser_screenshot
+```
 
 ---
 
 ## 🌐 Multi-Provider Support
+
+**Use the best model for each job**
 
 | Provider | Models | Status |
 |----------|--------|--------|
@@ -324,41 +353,160 @@ Duck Agent has a sophisticated 3-tier memory:
 
 ---
 
+## 📦 Architecture
+
+```
+Duck Agent/
+├── src/
+│   ├── agent/           # Core AI agent with learning
+│   ├── kairos/         # KAIROS autonomous system
+│   ├── buddy/          # Buddy companion
+│   ├── council/        # AI Council deliberation
+│   ├── multiagent/     # Team coordination
+│   ├── cron/           # Cron scheduler
+│   ├── commands/       # CLI commands
+│   ├── providers/      # Multi-provider AI
+│   ├── tools/          # Tool registry
+│   ├── security/       # Security modules
+│   ├── server/         # MCP + Unified servers
+│   ├── gateway/        # ACP + WebSocket
+│   ├── memory/         # Context manager
+│   ├── channels/       # Telegram, Discord
+│   └── prompts/        # System prompts
+├── web-ui/              # Full Web UI
+├── tools/              # CLI tools
+└── docs/               # Documentation
+```
+
+---
+
+## 🔧 Commands Reference
+
+```bash
+# Core
+duck shell              # Interactive TUI
+duck run <task>         # Single task
+duck think <prompt>     # Reasoning
+duck status            # Show status
+duck tools             # List tools
+duck history           # View history
+
+# Protocols
+duck unified           # All protocols
+duck mcp [port]        # MCP server
+duck mcp-connect <url> # Connect MCP
+duck acp <agent> [task]# Spawn ACP
+duck ws connect <url>  # Connect WS
+duck gateway           # REST API
+
+# AI Systems
+duck kairos [mode]     # KAIROS control
+duck buddy [action]    # Buddy system
+duck team [action]     # Teams
+duck council [query]  # AI Council
+
+# Automation
+duck cron [action]    # Cron jobs
+duck update [action]   # Updates
+
+# Integrations
+duck channels         # Telegram/Discord
+duck desktop         # Desktop control
+duck memory          # Memory commands
+```
+
+---
+
+## 🔐 Security
+
+**Enterprise-grade features (from NVIDIA NemoClaw)**
+
+- **SSRF Validation** — Blocks private IPs, DNS rebinding
+- **Credential Sanitizer** — Prevents API key leaks
+- **State Manager** — Persistent encrypted state
+- **Network Policies** — YAML-based access control
+
+---
+
+## 🔄 Update Strategy
+
+**Multi-source integration**
+
+Duck Agent pulls from:
+
+| Source | Features Integrated |
+|--------|-------------------|
+| **OpenClaw** | Gateway protocol, multi-channel, skills |
+| **Claude Code** | KAIROS, buddy, multi-agent |
+| **Hermes-Agent** | Gateway patterns, FTS5 search |
+| **NemoClaw** | Security (SSRF, credentials) |
+| **Codex CLI** | Exec mode, approval layers |
+| **DroidClaw** | Phone control, workflow/macro |
+| **OpenCrabs** | Local voice, hybrid memory |
+| **TrinityClaw** | ChromaDB, identity system |
+| **FlowlyAI** | @mention routing, skills hub |
+
+```bash
+duck update check      # Check for updates
+duck update install    # Install latest
+duck update backup     # Backup first
+duck update restore    # Rollback
+duck update status    # Git status
+```
+
+---
+
+## 🧠 Memory System
+
+**3-tier architecture**
+
+1. **Identity Files** — SOUL.md, IDENTITY.md
+2. **Config Files** — AGENTS.md, TOOLS.md, KANBAN.md
+3. **Session Memory** — Conversation context
+4. **Learned Patterns** — From interactions
+
+---
+
 ## 📚 Documentation
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
-- [COMMANDS.md](docs/COMMANDS.md) - CLI reference
-- [UPDATES.md](docs/UPDATES.md) - Update strategy
+| Doc | Description |
+|-----|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
+| [COMMANDS.md](docs/COMMANDS.md) | CLI reference |
+| [UPDATES.md](docs/UPDATES.md) | Update strategy |
 
 ---
 
 ## 🐛 Troubleshooting
 
 ```bash
-# Build
+# Build from source
 npm run build
 
-# Check status
+# Check for issues
 duck update status
 
-# Create backup
+# Backup before changes
 duck update backup
 
-# View logs
-duck logs
+# Health check (various ports)
+curl http://localhost:18789/health  # Gateway
+curl http://localhost:3848/health   # MCP
 
-# Health check
-curl http://localhost:18789/health
+# View logs
+tail -f ~/.duck-agent/logs/*.log
 ```
 
 ---
 
 ## 📄 License
 
-MIT License - Ryan (Duckets) 2026
+MIT License — Ryan (Duckets) 2026
 
 ---
 
 ## 🙏 Credits
 
-Inspired by: OpenClaw, Claude Code, Hermes-Agent, NemoClaw, Codex CLI, DroidClaw, OpenCrabs, TrinityClaw, FlowlyAI
+Inspired by and integrating features from:
+
+[OpenClaw](https://github.com/openclaw/openclaw) · [Claude Code](https://github.com/anthropics/claude-code) · [Hermes-Agent](https://github.com/Franzferdinan51/hermes-agent) · [NemoClaw](https://github.com/NVIDIA/NemoClaw) · [Codex CLI](https://github.com/openai/codex) · [DroidClaw](https://github.com/unitedbyai/droidclaw) · [OpenCrabs](https://github.com/adolfousier/opencrabs) · [TrinityClaw](https://github.com/TrinityClaw/trinity-claw) · [FlowlyAI](https://github.com/Nocetic/flowlyai) · [ClawX](https://github.com/ValueCell-ai/ClawX)
