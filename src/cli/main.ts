@@ -151,6 +151,24 @@ async function main() {
       await memoryCommand(args);
       break;
 
+    case 'kairos':
+      await kairosCommand(args);
+      break;
+
+    case 'buddy':
+      await buddyCommand(args);
+      break;
+
+    case 'council':
+    case 'ai-council':
+      await councilCommand(args);
+      break;
+
+    case 'team':
+    case 'multiagent':
+      await teamCommand(args);
+      break;
+
     default:
       await runTask(command + ' ' + args.join(' '));
   }
@@ -1139,12 +1157,80 @@ async function wsCommand(args: string[]) {
     const { WebSocketManager } = await import('../gateway/websocket-manager.js');
     const ws = new WebSocketManager();
     console.log(JSON.stringify(ws.getStatus(), null, 2));
-  } else {
-    console.log(`${c.yellow}Usage:${c.reset}`);
-    console.log('  duck ws connect <url>  - Connect to WebSocket server');
-    console.log('  duck ws status         - Show WebSocket status');
   }
 
+// ============ BUDDY COMPANION ============
+
+async function buddyCommand(args: string[]) {
+  const action = args[0] || 'status';
+  
+  console.log(`${c.cyan}Buddy Companion System${c.reset}`);
+  
+  switch (action) {
+      case 'hatch':
+        console.log(`${c.green}🦴 Hatching a new buddy...${c.reset}`);
+        console.log(`${c.yellow}(Buddy system requires full initialization)${c.reset}`);
+        break;
+      case 'list':
+      case 'status':
+        console.log(`${c.cyan}Buddy companion system${c.reset}`);
+        console.log(`Run ${c.yellow}duck buddy hatch${c.reset} to hatch a new buddy`);
+        break;
+      default:
+        console.log(`${c.yellow}Usage: duck buddy [hatch|list|status]${c.reset}`);
+    }
+}
+
+// ============ AI COUNCIL ============
+
+async function councilCommand(args: string[]) {
+  const topic = args.join(' ');
+  
+  if (!topic) {
+    console.log(`${c.yellow}Usage: duck council <topic or question>${c.reset}`);
+    return;
+  }
+  
+  console.log(`${c.cyan}Consulting AI Council on: ${topic}${c.reset}\n`);
+  
+  console.log(`${c.green}AI Council deliberation${c.reset}`);
+  console.log('Topic:', topic);
+  console.log('(Connect to AI Council server for full deliberation)');
+}
+
+// ============ MULTI-AGENT TEAMS ============
+
+async function teamCommand(args: string[]) {
+  const [action, teamType, ...taskParts] = args;
+  const task = taskParts.join(' ');
+  
+  console.log(`${c.cyan}Multi-Agent Team System${c.reset}`);
+  
+  switch (action) {
+      case 'create':
+        if (!teamType) {
+          console.log(`${c.yellow}Usage: duck team create <type>${c.reset}`);
+          console.log('Types: code-review, research, swarm');
+          return;
+        }
+        console.log(`${c.green}Team ${teamType} created${c.reset}`);
+        break;
+      case 'spawn':
+        if (!teamType || !task) {
+          console.log(`${c.yellow}Usage: duck team spawn <type> <task>${c.reset}`);
+          return;
+        }
+        console.log(`${c.cyan}Spawning ${teamType} team for: ${task}${c.reset}`);
+        break;
+      case 'list':
+        console.log(`${c.cyan}Multi-agent team system${c.reset}`);
+        break;
+      default:
+        console.log(`${c.yellow}Usage: duck team [create|spawn|list]${c.reset}`);
+    }
+}
+
+}
 
 // ============ KAIROS AUTONOMOUS ============
 
@@ -1226,6 +1312,3 @@ async function teamCommand(args: string[]) {
         console.log(`${c.yellow}Usage: duck team [create|spawn|list]${c.reset}`);
     }
 }
-
-}
-
