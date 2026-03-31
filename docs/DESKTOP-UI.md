@@ -156,9 +156,9 @@ Duck Agent v0.4.0 introduces a **native desktop application** built from `src/ui
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  SYSTEM STATUS                                       │   │
-│  │  ● MCP Server      ✅ Port 3848                      │   │
-│  │  ● Gateway API     ✅ Port 18789                     │   │
-│  │  ● ACP Server      ✅ Port 18790                     │   │
+│  │  ● MCP Server      ✅ Port 3850                      │   │
+│  │  ● Gateway API     ✅ Port 18792                     │   │
+│  │  ● ACP Server      ✅ Port 18794                     │   │
 │  │  ○ Agent Mesh      ○ Port 4000 (not running)        │   │
 │  │  ○ OpenClaw-RL     ○ Port 30000 (not running)       │   │
 │  │  ● KAIROS          ✅ Active (balanced mode)         │   │
