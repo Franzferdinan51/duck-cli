@@ -524,7 +524,6 @@ This project combines the best from:
 | **Hermes-Agent** | Advanced tools, delegation |
 | **DuckBot-OS** | Features, learning, cost tracking |
 | **BrowserOS** | Browser automation |
-| **Claude Code leak (KAIROS)** | Proactive AI concepts |
 
 ---
 
