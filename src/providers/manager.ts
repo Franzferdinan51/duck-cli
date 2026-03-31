@@ -1,6 +1,8 @@
 /**
- * Provider Manager - Multi-provider AI support
+ * Provider Manager - Multi-provider AI support + BrowserOS
  */
+
+import { BrowserOSProvider } from './browseros';
 
 export interface Provider {
   name: string;
@@ -9,6 +11,7 @@ export interface Provider {
 
 export class ProviderManager {
   private providers: Map<string, Provider> = new Map();
+  private browserOS: BrowserOSProvider | undefined;
   private active: Provider | undefined;
 
   async load(): Promise<void> {
@@ -25,8 +28,29 @@ export class ProviderManager {
       this.providers.set('openai', new OpenAIProvider(process.env.OPENAI_API_KEY));
     }
 
+    // BrowserOS - browser automation
+    this.browserOS = new BrowserOSProvider({
+      host: process.env.BROWSEROS_HOST || '127.0.0.1',
+      port: parseInt(process.env.BROWSEROS_PORT || '9100'),
+      
+    });
+
     const first = Array.from(this.providers.keys())[0];
     if (first) this.active = this.providers.get(first);
+  }
+
+  /**
+   * Get BrowserOS for browser automation
+   */
+  getBrowserOS(): BrowserOSProvider | undefined {
+    return this.browserOS;
+  }
+
+  /**
+   * Check if BrowserOS is running
+   */
+  async isBrowserOSAvailable(): Promise<boolean> {
+    return this.browserOS?.isAvailable() || false;
   }
 
   get(name?: string): Provider | undefined {
@@ -61,12 +85,12 @@ class MiniMaxProvider implements Provider {
           'Authorization': `Bearer ${this.apiKey}`
         },
         body: JSON.stringify({
-    model: 'MiniMax-M2.5',
-    messages: opts.messages.map((m: any) => ({
-      role: m.role,
-      content: typeof m.content === 'string' ? m.content.replace(/\n/g, ' ') : m.content
-    }))
-  })
+          model: 'MiniMax-M2.5',
+          messages: opts.messages.map((m: any) => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content.replace(/\n/g, ' ') : m.content
+          }))
+        })
       });
 
       const data: any = await res.json();
