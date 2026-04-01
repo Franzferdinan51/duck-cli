@@ -2,6 +2,7 @@
 
 **Last Updated:** 2026-04-01
 **Repo:** https://github.com/Franzferdinan51/duck-cli
+**Status:** SUPER AGENT UPGRADES COMPLETE ✅
 
 ---
 
@@ -23,45 +24,46 @@
 | 12 | Docs for agents missing | Added `AGENTS.md`, `TOOLS.md`, `INSTALL.md` | P1 |
 | 13 | Skills lacked setup instructions | Updated `skills/SKILL.md` with setup + usage | P1 |
 | 14 | README missing agent docs | Added "For OpenClaw Agents" section | P1 |
+| 15 | **Memory was JSON-only** | Upgraded to SQLite-backed (better-sqlite3) | P0 |
+| 16 | **No planning system** | Built autonomous planner with goal decomposition | P0 |
+| 17 | **Shell was unguarded** | Built dangerous tool guard (35+ patterns) | P0 |
+| 18 | Tool telemetry missing | Tool usage logged to SQLite (success, duration, errors) | P1 |
+| 19 | No self-correction | Planner auto-retries/skips failed steps | P1 |
 
 ---
 
 ## 📋 TODO
 
-### P0 — Critical (needs API key rotated)
-
-| # | Card | Priority |
-|---|------|----------|
-| 15 | **Rotate MiniMax API key** | P0 |
-| 16 | Verify all commands work with new key | P0 |
-
 ### P1 — Core Integration
 
 | # | Card | Priority |
 |---|------|----------|
-| 17 | Test MCP server end-to-end | P1 |
-| 18 | Test AI Council deliberation | P1 |
-| 19 | Test web UI chat with real provider | P1 |
-| 20 | Test interactive shell (TTY) | P1 |
+| 20 | Test AI Council deliberation end-to-end | P1 |
+| 21 | Test web UI chat with real provider | P1 |
+| 22 | Test interactive shell (TTY) | P1 |
+| 23 | Test MCP server end-to-end | P1 |
 
 ### P2 — Feature Completion
 
 | # | Card | Priority |
 |---|------|----------|
-| 21 | Verify `duck agent spawn` works | P2 |
-| 22 | Verify `duck mcp add/list` | P2 |
-| 23 | Verify `duck council` with real council engine | P2 |
-| 24 | Test `duck skills search` | P2 |
-| 25 | Verify desktop-control tools work | P2 |
+| 24 | Verify `duck agent spawn` works | P2 |
+| 25 | Verify `duck mcp add/list` | P2 |
+| 26 | Test `plan_create` with real AI decomposition | P2 |
+| 27 | Test `guard_check` interactive confirmation | P2 |
+| 28 | Verify desktop-control tools work | P2 |
+| 29 | Add vector embeddings for semantic memory search | P2 |
+| 30 | Add session resume from plan history | P2 |
 
 ### P3 — Enhancement
 
 | # | Card | Priority |
 |---|------|----------|
-| 26 | Add `./duck run` flags (--model, --provider) | P3 |
-| 27 | Add `./duck shell` tab-completion | P3 |
-| 28 | Verify web UI serves on port 0 (random) | P3 |
-| 29 | Add health check script for CI | P3 |
+| 31 | Add `./duck run` flags (--model, --provider) | P3 |
+| 32 | Add `./duck shell` tab-completion | P3 |
+| 33 | Verify web UI serves on port 0 (random) | P3 |
+| 34 | Add health check script for CI | P3 |
+| 35 | Streaming SSE for web UI chat | P3 |
 
 ---
 
@@ -80,35 +82,32 @@
 ```
 $ ./duck status
 ✅ Providers: 1   ← MiniMax API key loaded from .env
-✅ Tools: 13       ← All tools load once (no duplicates)
-✅ Skills: 10      ← All skills loaded correctly
-✅ Web UI: works  ← /v1/ routes aliased
-✅ Go wrapper: works  ← -- prefix removed, path resolved
+✅ Tools: 22      ← 9 new super agent tools added
+✅ Skills: 10     ← All skills loaded correctly
+✅ Memory: SQLite  ← better-sqlite3, FTS5 search
+✅ Planning: Active ← Goal decomposition + progress
+✅ Guard: Quiet     ← Auto-approve low risk
 ```
 
-### API Key Note
+### Files Added for Super Agent
 
-⚠️ The `.env` with actual MiniMax API key was committed to GitHub in commits `3d54899` and `65c4a5e`. **Rotate the key at platform.minimax.io.** The `.env` has been removed from git history.
-
-### Files Added for Agent Clarity
-
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | Agent guide: setup, build, extend, test |
-| `TOOLS.md` | Tool reference: all 13 tools with schemas |
-| `INSTALL.md` | Installation guide: 5-min quick start |
-| `skills/SKILL.md` | Updated with setup + "Using from OpenClaw" |
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/agent/planner.ts` | 354 | Autonomous planning state machine |
+| `src/memory/sqlite-store.ts` | 476 | SQLite memory engine |
+| `src/tools/approval.ts` | 351 | Dangerous tool guard |
+| `src/agent/core.ts` | +360 | Wired in all 3 systems |
 
 ### Key Paths
 
 ```
-src/cli/main.ts        ← CLI router (add commands here)
-src/agent/core.ts      ← Agent engine (initialize, think, chat)
-src/tools/registry.ts  ← Tool registration
-src/providers/manager.ts ← Provider loading
-src/web-server.ts      ← Web UI server
-cmd/duck/main.go       ← Go wrapper (cobra commands)
-skills/                ← Skill directories (auto-loaded)
+src/agent/core.ts        ← Agent engine (initialize, think, chat, tools)
+src/agent/planner.ts    ← Planning state machine
+src/memory/sqlite-store.ts ← SQLite memory engine
+src/memory/system.ts     ← Memory system (SQLite-backed)
+src/tools/approval.ts   ← Dangerous tool guard
+src/tools/registry.ts   ← Tool registration
+cmd/duck/main.go        ← Go wrapper (cobra commands)
 ```
 
 ### Common Commands
@@ -120,9 +119,19 @@ npm run build && go build -o duck ./cmd/duck/
 # Quick test
 ./duck status
 
-# Test with AI
-./duck run "What is 2+2?"
+# Test planning
+./duck run "Create a plan to build a REST API"
+
+# Test guard
+./duck run "Check risk of: rm -rf /"
+
+# Test memory
+./duck run "Remember: user prefers TypeScript"
 
 # Web UI
 ./duck web 3001
 ```
+
+### API Key Note
+
+⚠️ The `.env` with actual MiniMax API key was committed to GitHub. **Rotate the key at platform.minimax.io.**

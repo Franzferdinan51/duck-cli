@@ -283,9 +283,32 @@ Get cost tracking information.
 
 ---
 
+## New Super Agent Tools (22 total)
+
+### Memory Tools
+```typescript
+memory_list     // List all memories, filter by type
+memory_stats    // Show memory + tool telemetry stats
+```
+
+### Planning Tools
+```typescript
+plan_create     // Create autonomous plan from goal
+plan_status     // Show current plan progress
+plan_list       // List all active plans
+plan_abort      // Abort an active plan
+```
+
+### Dangerous Tool Guard Tools
+```typescript
+guard_check     // Check risk level without executing
+guard_log       // Show approval decision log
+guard_stats     // Show guard statistics
+```
+
 ## Adding a New Tool
 
-1. **Edit `src/tools/registry.ts`** — find `registerTools()` method
+1. **Edit `src/agent/core.ts`** — find `registerTools()` — find `registerTools()` method
 2. **Add your tool definition:**
 
 ```typescript

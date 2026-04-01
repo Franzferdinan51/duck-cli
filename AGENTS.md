@@ -281,6 +281,51 @@ pkill -f "dist/web-server.js"
 
 ---
 
+## Super Agent Features
+
+### 1. SQLite Memory (Priority #1)
+Persistent, searchable memory across sessions.
+
+```bash
+./duck run "Remember that user prefers dark mode"  # memory_remember
+./duck run "What do I know about user preferences?" # memory_recall
+```
+
+New tools: `memory_list`, `memory_stats`
+
+### 2. Autonomous Planning (Priority #2)
+Goal decomposition + progress tracking.
+
+```bash
+./duck run "Create a plan to build a REST API with authentication"
+# Decomposes into steps: understand → design → implement → test
+```
+
+New tools: `plan_create`, `plan_status`, `plan_list`, `plan_abort`
+
+### 3. Dangerous Tool Guardrails (Priority #3)
+Risk-evaluated shell and file writes.
+
+```bash
+./duck run "Check risk of: rm -rf /"
+# 🔴 CRITICAL: Recursive force delete of root or all files — BLOCKED
+```
+
+New tools: `guard_check`, `guard_log`, `guard_stats`
+
+**Risk levels:** 🟢 LOW → 🟡 MEDIUM → 🟠 HIGH → 🔴 CRITICAL
+
+**35+ dangerous patterns detected:** rm -rf /, fork bombs, dd, mkfs, chmod 777, etc.
+
+### Tool Telemetry
+Every tool execution is logged. Track success rates:
+
+```bash
+./duck run "Show me tool stats"
+# shell: 42 calls, 95% success, avg 230ms
+# file_write: 12 calls, 100% success
+```
+
 ## Common Errors
 
 | Error | Fix |
@@ -290,6 +335,7 @@ pkill -f "dist/web-server.js"
 | `Node.js not found` | Install Node.js 20+ |
 | Web UI 404 | Run `npm run build`, then `./duck web` |
 | Skills missing | Check `skills/` directory exists, run `npm run build` |
+| `Providers: 0` | Add `MINIMAX_API_KEY` to `.env` |
 
 ---
 
