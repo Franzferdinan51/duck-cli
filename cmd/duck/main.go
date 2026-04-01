@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
@@ -29,6 +31,19 @@ var (
 )
 
 func main() {
+	// Auto-load .env from: (1) exe dir, (2) ~/.duck-cli/env, (3) CWD
+	exePath, _ := filepath.Abs(os.Args[0])
+	exeDir := filepath.Dir(exePath)
+	for _, p := range []string{
+		filepath.Join(exeDir, ".env"),
+		filepath.Join(os.Getenv("HOME"), ".duck-cli", "env"),
+		".env",
+	} {
+		if err := godotenv.Load(p); err == nil {
+			break
+		}
+	}
+
 	// Check for Node.js (for TypeScript agent)
 	if !checkNode() {
 		fmt.Println(errorStyle.Render("✗ Node.js not found. Duck CLI requires Node.js 20+"))
@@ -254,7 +269,8 @@ func shellCmd() *cobra.Command {
 
 // runNode executes the TypeScript agent
 func runNode(args ...string) error {
-	cmd := exec.Command("node", append([]string{"dist/cli/main.js"}, args...)...)
+	cmdDir := filepath.Dir(os.Args[0])
+	cmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
