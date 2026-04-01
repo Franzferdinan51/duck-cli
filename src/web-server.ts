@@ -125,7 +125,6 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({
         tools: agent.getStatus().toolList.map(t => ({
           name: t.name,
-          description: t.description,
           dangerous: t.dangerous,
         })),
         count: agent.getStatus().tools,

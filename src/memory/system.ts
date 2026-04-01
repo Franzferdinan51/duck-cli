@@ -1,81 +1,77 @@
 /**
  * Duck Agent - Memory System
- * Persistent memory with SOUL, facts, and context
+ * SQLite-backed persistent memory with semantic search and learning
  */
 
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
+import { SQLiteStore, MemorySearch, ToolUsage, SessionSummary } from './sqlite-store.js';
+
+export { SQLiteStore, MemorySearch, ToolUsage, SessionSummary };
 
 export interface MemoryEntry {
   id: string;
   content: string;
-  type: 'soul' | 'fact' | 'interaction' | 'learned';
+  type: 'soul' | 'fact' | 'interaction' | 'learned' | 'preference' | 'code';
   timestamp: number;
   tags: string[];
+  importance: number;
+  accessCount: number;
+  lastAccessed: number;
 }
 
 export class MemorySystem {
-  private memoryDir: string;
-  private entries: MemoryEntry[] = [];
+  private store: SQLiteStore;
   private soul: string = '';
+  private soulPath: string;
+  private initialized: boolean = false;
 
-  constructor(memoryDir: string = '.duck/memory') {
-    this.memoryDir = memoryDir;
+  constructor(memoryDir?: string) {
+    const dir = memoryDir || join(homedir(), '.duck', 'memory');
+    this.store = new SQLiteStore(dir);
+    this.soulPath = join(dir, 'SOUL.md');
   }
 
   async initialize(): Promise<void> {
-    await mkdir(this.memoryDir, { recursive: true });
+    if (this.initialized) return;
     
-    // Load existing memory
-    await this.load();
-    
-    // Load or create SOUL
-    await this.loadSoul();
-  }
-
-  private async load(): Promise<void> {
-    const memoryFile = join(this.memoryDir, 'memory.json');
-    
-    if (existsSync(memoryFile)) {
-      try {
-        const content = await readFile(memoryFile, 'utf-8');
-        this.entries = JSON.parse(content);
-      } catch {
-        this.entries = [];
-      }
-    }
-  }
-
-  async save(): Promise<void> {
-    const memoryFile = join(this.memoryDir, 'memory.json');
-    await writeFile(memoryFile, JSON.stringify(this.entries, null, 2), 'utf-8');
-  }
-
-  private async loadSoul(): Promise<void> {
-    const soulFile = join(this.memoryDir, 'SOUL.md');
-    
-    if (existsSync(soulFile)) {
-      this.soul = await readFile(soulFile, 'utf-8');
+    // Load SOUL
+    if (existsSync(this.soulPath)) {
+      this.soul = readFileSync(this.soulPath, 'utf-8');
     } else {
-      // Default soul
-      this.soul = `# ${process.env.USER || 'Duck'} Agent Soul
+      this.soul = this.defaultSoul();
+      writeFileSync(this.soulPath, this.soul, 'utf-8');
+    }
+    
+    this.initialized = true;
+  }
+
+  private defaultSoul(): string {
+    return `# Duck Agent SOUL
 
 ## Identity
-I am a helpful AI assistant.
+I am Duck Agent — a super AI coding agent built on duck-cli.
 
 ## Personality
-- Friendly and helpful
-- Direct and concise
+- Direct and no-BS
 - Technical and precise
+- Casual but competent
+- Swears when appropriate
+
+## Capabilities
+- 13 core tools (shell, file, desktop, memory, web, etc.)
+- 10 built-in skills
+- Multi-provider AI (MiniMax, OpenAI, Anthropic, LM Studio)
+- MCP server mode
+- Web UI mode
 
 ## Rules
-1. Be helpful
-2. Be honest
-3. Be efficient
+1. Always verify before acting
+2. Log tool usage for learning
+3. Ask for clarification on ambiguous tasks
+4. Be honest about limitations
 `;
-      await writeFile(soulFile, this.soul, 'utf-8');
-    }
   }
 
   getSoul(): string {
@@ -84,53 +80,124 @@ I am a helpful AI assistant.
 
   async setSoul(content: string): Promise<void> {
     this.soul = content;
-    const soulFile = join(this.memoryDir, 'SOUL.md');
-    await writeFile(soulFile, content, 'utf-8');
+    writeFileSync(this.soulPath, content, 'utf-8');
   }
 
-  async add(content: string, type: MemoryEntry['type'] = 'fact', tags: string[] = []): Promise<void> {
-    const entry: MemoryEntry = {
-      id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      content,
-      type,
-      timestamp: Date.now(),
-      tags
-    };
+  // ─── Core Memory Operations ───────────────────────────────────
 
-    this.entries.push(entry);
-    await this.save();
+  async add(
+    content: string,
+    type: MemoryEntry['type'] = 'fact',
+    tags: string[] = [],
+    importance?: number
+  ): Promise<string> {
+    return this.store.add(content, type, tags, importance);
+  }
+
+  async remember(content: string, type: MemoryEntry['type'] = 'fact', tags: string[] = []): Promise<string> {
+    return this.store.add(content, type, tags);
   }
 
   async search(query: string, limit: number = 10): Promise<string[]> {
-    const queryLower = query.toLowerCase();
-    
-    const results = this.entries
-      .filter(e => 
-        e.content.toLowerCase().includes(queryLower) ||
-        e.tags.some(t => t.toLowerCase().includes(queryLower))
-      )
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, limit);
-
+    const results = await this.store.search(query, limit);
     return results.map(r => r.content);
   }
 
-  async getRelevant(input: string, limit: number = 5): Promise<string[]> {
-    // Simple relevance - just search with input words
-    return this.search(input, limit);
+  async recall(query: string, limit: number = 10): Promise<MemorySearch[]> {
+    return this.store.search(query, limit);
   }
 
-  async clear(type?: MemoryEntry['type']): Promise<void> {
-    if (type) {
-      this.entries = this.entries.filter(e => e.type !== type);
-    } else {
-      this.entries = [];
+  async get(id: string): Promise<MemoryEntry | null> {
+    return this.store.get(id);
+  }
+
+  async list(type?: MemoryEntry['type'], limit: number = 50): Promise<MemoryEntry[]> {
+    return this.store.list(type, limit);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.store.delete(id);
+  }
+
+  async learn(content: string, tags: string[] = ['learned']): Promise<string> {
+    return this.store.add(content, 'learned', tags, 7);
+  }
+
+  async rememberPreference(content: string): Promise<string> {
+    return this.store.add(content, 'preference', ['preference'], 8);
+  }
+
+  // ─── Tool Telemetry ───────────────────────────────────────────
+
+  async logTool(toolName: string, args: string, success: boolean, error?: string, duration: number = 0): Promise<void> {
+    await this.store.logToolUse({
+      toolName,
+      args: args.substring(0, 500), // Truncate long args
+      success,
+      error,
+      duration,
+      timestamp: Date.now(),
+    });
+  }
+
+  async getToolStats(days: number = 7): Promise<Record<string, { total: number; success: number; avgDuration: number; successRate: number }>> {
+    return this.store.getToolStats(days);
+  }
+
+  async getFailingTools(days: number = 7): Promise<string[]> {
+    return this.store.getFailingTools(days);
+  }
+
+  // ─── Session Management ────────────────────────────────────────
+
+  async saveSession(
+    sessionId: string,
+    summary: string,
+    keyDecisions: string[],
+    toolsUsed: string[],
+    outcome: 'success' | 'partial' | 'failed',
+    duration: number
+  ): Promise<void> {
+    await this.store.saveSession({
+      id: `sess_${Date.now()}`,
+      sessionId,
+      summary,
+      keyDecisions,
+      toolsUsed,
+      outcome,
+      duration,
+      timestamp: Date.now(),
+    });
+  }
+
+  async getRecentSessions(limit: number = 10): Promise<SessionSummary[]> {
+    return this.store.getRecentSessions(limit);
+  }
+
+  // ─── Pattern Learning ─────────────────────────────────────────
+
+  async learnFromFeedback(success: boolean, feedback?: string): Promise<void> {
+    if (feedback) {
+      await this.store.learnPattern('feedback', success ? 'positive' : 'negative', feedback);
     }
-    await this.save();
   }
 
-  list(): MemoryEntry[] {
-    return [...this.entries];
+  async getLearnedPatterns(type?: string): Promise<any[]> {
+    return this.store.getPatterns(type);
+  }
+
+  // ─── Stats ───────────────────────────────────────────────────
+
+  stats(): { memories: number; toolLogs: number; sessions: number; patterns: number } {
+    return this.store.stats();
+  }
+
+  async prune(maxEntries: number = 10000): Promise<number> {
+    return this.store.prune(maxEntries);
+  }
+
+  close(): void {
+    this.store.close();
   }
 }
 

@@ -1,7 +1,7 @@
 /**
  * Duck Agent Memory System
- * Native memory management with context awareness
+ * SQLite-backed persistent memory with semantic search and learning
  */
 
-export * from './context-manager.js';
-export * from './system.js';
+export { SQLiteStore, MemorySearch, ToolUsage, SessionSummary } from './sqlite-store.js';
+export { MemorySystem, MemoryEntry } from './system.js';

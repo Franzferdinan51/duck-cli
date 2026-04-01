@@ -1,14 +1,6 @@
 /**
  * 🦆 Duck Agent - Advanced AI Agent
- * Inspired by DuckBot-OS + Hermes + OpenClaw + Claude Code
- * 
- * Features:
- * - AI Router with provider fallback chains
- * - Learning system that improves over time
- * - Cost tracking and optimization
- * - Multi-agent delegation
- * - Conversation history with compression
- * - Desktop automation
+ * With SQLite memory, autonomous planning, and dangerous tool guardrails
  */
 
 import { EventEmitter } from 'events';
@@ -17,6 +9,11 @@ import { MemorySystem } from '../memory/system.js';
 import { ToolRegistry, ToolDefinition } from '../tools/registry.js';
 import { SkillRunner } from '../skills/runner.js';
 import { DesktopControl } from '../integrations/desktop.js';
+import { Planner, Plan, PlanStep } from './planner.js';
+import { DangerousToolGuard, ToolRisk, ApprovalCallback } from '../tools/approval.js';
+
+export { Planner, Plan, PlanStep };
+export { DangerousToolGuard, ToolRisk };
 
 export interface AgentConfig {
   name?: string;
@@ -26,6 +23,8 @@ export interface AgentConfig {
   maxHistory?: number;
   costBudget?: number;
   learningEnabled?: boolean;
+  quietMode?: boolean;
+  sessionId?: string;
 }
 
 export interface Message {
@@ -72,6 +71,8 @@ export class Agent extends EventEmitter {
   private tools: ToolRegistry;
   private skills: SkillRunner;
   private desktop: DesktopControl;
+  private guard: DangerousToolGuard;
+  private planner: Planner;
   private initialized: boolean = false;
   
   // Conversation
@@ -106,8 +107,10 @@ export class Agent extends EventEmitter {
     this.config = {
       maxIterations: config.maxIterations || 10,
       maxHistory: config.maxHistory || 50,
-      costBudget: config.costBudget || 10, // $10 budget
+      costBudget: config.costBudget || 10,
       learningEnabled: config.learningEnabled !== false,
+      quietMode: config.quietMode !== undefined ? config.quietMode : true,
+      sessionId: config.sessionId || `session_${Date.now()}`,
       ...config
     };
     
@@ -120,6 +123,11 @@ export class Agent extends EventEmitter {
     this.tools = new ToolRegistry();
     this.skills = new SkillRunner();
     this.desktop = new DesktopControl();
+    this.guard = new DangerousToolGuard(this.config.sessionId);
+    this.planner = new Planner(this.memory);
+    
+    // Set quiet mode (auto-approve low risk, prompt for high)
+    this.guard.setQuietMode(this.config.quietMode!);
   }
 
   async initialize(): Promise<void> {
@@ -133,15 +141,43 @@ export class Agent extends EventEmitter {
     await this.skills.load();
     this.registerTools();
     
+    // Tool telemetry: log tool stats to memory periodically
+    const stats = this.memory.stats();
+    console.log(`   + Memory: ${stats.memories} entries`);
+    
     console.log(`✅ ${this.name} ready!`);
     console.log(`   Providers: ${this.providers.list().length}`);
     console.log(`   Tools: ${this.tools.list().length}`);
     console.log(`   Skills: ${this.skills.list().length}`);
-    console.log(`   Learning: ${this.learningEnabled ? 'Enabled' : 'Disabled'}`);
+    console.log(`   Memory: SQLite-backed`);
+    console.log(`   Planning: Autonomous`);
+    console.log(`   Guard: ${this.config.quietMode ? 'Quiet mode (auto-approve low risk)' : 'Interactive (confirm all)'}`);
+  }
+
+  /**
+   * Set dangerous tool approval callback (for interactive mode)
+   */
+  setApprovalCallback(callback: ApprovalCallback): void {
+    this.guard.setApprovalCallback(callback);
+    this.guard.setQuietMode(false);
+  }
+
+  /**
+   * Get the dangerous tool guard for configuration
+   */
+  getGuard(): DangerousToolGuard {
+    return this.guard;
+  }
+
+  /**
+   * Get the planner
+   */
+  getPlanner(): Planner {
+    return this.planner;
   }
 
   private registerTools(): void {
-    // Desktop tools
+    // ─── Desktop tools ───────────────────────────────────────
     this.registerTool({
       name: 'desktop_open',
       description: 'Open an application',
@@ -183,55 +219,122 @@ export class Agent extends EventEmitter {
       handler: async () => this.desktop.screenshot()
     });
 
-    // Memory tools
+    // ─── Memory tools ────────────────────────────────────────
     this.registerTool({
       name: 'memory_remember',
-      description: 'Remember information',
-      schema: { content: { type: 'string' }, type: { type: 'string', optional: true } },
+      description: 'Remember information permanently (SQLite-backed)',
+      schema: { 
+        content: { type: 'string' }, 
+        type: { type: 'string', optional: true },
+        tags: { type: 'string', optional: true }
+      },
       dangerous: false,
       handler: async (args: any) => {
-        await this.memory.add(args.content, args.type || 'fact');
-        return `Remembered: ${args.content}`;
+        const tags = args.tags ? args.tags.split(',').map((t: string) => t.trim()) : [];
+        const id = await this.memory.add(args.content, args.type || 'fact', tags);
+        return `Remembered [${id}]: ${args.content}`;
       }
     });
 
     this.registerTool({
       name: 'memory_recall',
-      description: 'Search memories',
-      schema: { query: { type: 'string' } },
+      description: 'Search persistent memories (semantic search)',
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } },
       dangerous: false,
       handler: async (args: any) => {
-        const results = await this.memory.search(args.query);
-        return results.length > 0 ? results.join('\n') : 'No memories found';
+        const results = await this.memory.recall(args.query, args.limit || 10);
+        if (results.length === 0) return 'No memories found';
+        return results.map(r => `[${r.type}] ${r.content}`).join('\n---\n');
       }
     });
 
-    // Shell execution
+    this.registerTool({
+      name: 'memory_list',
+      description: 'List all memories, optionally filtered by type',
+      schema: { type: { type: 'string', optional: true }, limit: { type: 'number', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const entries = await this.memory.list(args.type as any, args.limit || 50);
+        if (entries.length === 0) return 'No memories stored';
+        return entries.map(e => `[${e.type}] ${e.content}`).join('\n---\n');
+      }
+    });
+
+    this.registerTool({
+      name: 'memory_stats',
+      description: 'Show memory statistics',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const stats = this.memory.stats();
+        const toolStats = await this.memory.getToolStats();
+        const failing = await this.memory.getFailingTools();
+        return {
+          ...stats,
+          toolStats,
+          failingTools: failing,
+          approvalStats: this.guard.stats()
+        };
+      }
+    });
+
+    // ─── Shell (GUARDED) ─────────────────────────────────────
     this.registerTool({
       name: 'shell',
-      description: 'Execute shell command',
-      schema: { command: { type: 'string' } },
+      description: 'Execute shell command ⚠️ (dangerous, risk-evaluated)',
+      schema: { command: { type: 'string' }, timeout: { type: 'number', optional: true } },
       dangerous: true,
       handler: async (args: any) => {
+        const start = Date.now();
+        
+        // Dangerous tool guard check
+        const approved = await this.guard.checkApproval('shell', { command: args.command });
+        if (!approved) {
+          return { error: 'Command denied by dangerous tool guard', risk: 'blocked' };
+        }
+
+        // Also check dangerous patterns directly
+        const risk = this.guard.analyzeRisk(args.command, 'shell', {});
+        if (risk.level === 'critical') {
+          return { error: `CRITICAL risk command blocked: ${risk.reasons.join(', ')}`, risk: 'critical' };
+        }
+        
         const { exec } = await import('child_process');
+        const timeout = args.timeout || 30000;
+        
         return new Promise((resolve) => {
-          exec(args.command, { timeout: 30000 }, (error, stdout, stderr) => {
-            resolve(error ? { error: error.message, stderr } : { stdout, stderr });
+          exec(args.command, { timeout, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+            const duration = Date.now() - start;
+            const success = !error;
+            
+            // Log to memory telemetry
+            this.memory.logTool('shell', args.command, success, error?.message, duration).catch(() => {});
+            
+            if (error) {
+              resolve({ error: error.message, stderr, duration, risk: risk.level });
+            } else {
+              resolve({ stdout, stderr, duration, risk: risk.level });
+            }
           });
         });
       }
     });
 
-    // File tools
+    // ─── File tools ──────────────────────────────────────────
     this.registerTool({
       name: 'file_read',
       description: 'Read a file',
-      schema: { path: { type: 'string' } },
+      schema: { path: { type: 'string' }, limit: { type: 'number', optional: true } },
       dangerous: false,
       handler: async (args: any) => {
         const { readFile } = await import('fs/promises');
         try {
-          return await readFile(args.path, 'utf-8');
+          const content = await readFile(args.path, 'utf-8');
+          const limit = args.limit || 0;
+          if (limit > 0 && content.length > limit) {
+            return content.slice(0, limit) + `\n... [truncated, ${content.length} total bytes]`;
+          }
+          return content;
         } catch (e: any) {
           return `Error: ${e.message}`;
         }
@@ -240,21 +343,42 @@ export class Agent extends EventEmitter {
 
     this.registerTool({
       name: 'file_write',
-      description: 'Write to a file',
+      description: 'Write to a file ⚠️ (dangerous, risk-evaluated)',
       schema: { path: { type: 'string' }, content: { type: 'string' } },
       dangerous: true,
       handler: async (args: any) => {
-        const { writeFile } = await import('fs/promises');
+        const start = Date.now();
+        
+        // Dangerous tool guard check
+        const approved = await this.guard.checkApproval('file_write', args);
+        if (!approved) {
+          return { error: 'Write denied by dangerous tool guard', risk: 'blocked' };
+        }
+
+        const risk = this.guard.analyzeRisk(args.path, 'file_write', args);
+        if (risk.level === 'critical') {
+          return { error: `CRITICAL risk write blocked: ${risk.reasons.join(', ')}`, risk: 'critical' };
+        }
+        
+        const { writeFile, mkdir } = await import('fs/promises');
         try {
+          // Ensure directory exists
+          const dir = args.path.substring(0, args.path.lastIndexOf('/'));
+          if (dir) await mkdir(dir, { recursive: true }).catch(() => {});
+          
           await writeFile(args.path, args.content);
-          return `Written to ${args.path}`;
+          const duration = Date.now() - start;
+          this.memory.logTool('file_write', args.path, true, undefined, duration).catch(() => {});
+          return { written: args.path, bytes: args.content.length, duration, risk: risk.level };
         } catch (e: any) {
-          return `Error: ${e.message}`;
+          const duration = Date.now() - start;
+          this.memory.logTool('file_write', args.path, false, e.message, duration).catch(() => {});
+          return { error: e.message, risk: risk.level };
         }
       }
     });
 
-    // Web search
+    // ─── Web search ───────────────────────────────────────────
     this.registerTool({
       name: 'web_search',
       description: 'Search the web',
@@ -263,7 +387,7 @@ export class Agent extends EventEmitter {
       handler: async (args: any) => `Searching web for: ${args.query}`
     });
 
-    // Learning tools
+    // ─── Learning / feedback ─────────────────────────────────
     this.registerTool({
       name: 'learn_from_feedback',
       description: 'Learn from feedback to improve future responses',
@@ -272,12 +396,13 @@ export class Agent extends EventEmitter {
       handler: async (args: any) => {
         if (this.learningEnabled) {
           this.learn(args.success, args.feedback);
+          await this.memory.learnFromFeedback(args.success, args.feedback);
         }
         return 'Learned from feedback';
       }
     });
 
-    // Metrics
+    // ─── Metrics ─────────────────────────────────────────────
     this.registerTool({
       name: 'get_metrics',
       description: 'Get agent performance metrics',
@@ -286,7 +411,6 @@ export class Agent extends EventEmitter {
       handler: async () => this.getMetrics()
     });
 
-    // Cost
     this.registerTool({
       name: 'get_cost',
       description: 'Get cost tracking info',
@@ -298,6 +422,93 @@ export class Agent extends EventEmitter {
         remaining: this.costBudget - this.totalCost,
         records: this.costRecords.length
       })
+    });
+
+    // ─── Planning tools ───────────────────────────────────────
+    this.registerTool({
+      name: 'plan_create',
+      description: 'Create an autonomous plan from a goal',
+      schema: { goal: { type: 'string' }, context: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const context = args.context ? JSON.parse(args.context) : {};
+        const plan = await this.planner.createPlan(args.goal, context, this.tools.list().map(t => t.name));
+        return this.planner.formatProgress(plan);
+      }
+    });
+
+    this.registerTool({
+      name: 'plan_status',
+      description: 'Get status of the current plan',
+      schema: { planId: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const plan = args.planId 
+          ? this.planner.getPlan(args.planId) 
+          : this.planner.listActivePlans()[0];
+        if (!plan) return 'No active plan';
+        return this.planner.formatProgress(plan);
+      }
+    });
+
+    this.registerTool({
+      name: 'plan_list',
+      description: 'List all active plans',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const active = this.planner.listActivePlans();
+        const history = this.planner.listHistory(5);
+        return `Active: ${active.length}\nHistory: ${history.length}\n\n` +
+          active.map(p => `• ${p.id}: ${p.goal} (${p.status})`).join('\n');
+      }
+    });
+
+    this.registerTool({
+      name: 'plan_abort',
+      description: 'Abort an active plan',
+      schema: { planId: { type: 'string' }, reason: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const plan = this.planner.abortPlan(args.planId, args.reason);
+        return plan ? `Aborted: ${plan.goal}` : 'Plan not found';
+      }
+    });
+
+    // ─── Guard tools ──────────────────────────────────────────
+    this.registerTool({
+      name: 'guard_check',
+      description: 'Check risk level of a command without executing',
+      schema: { tool: { type: 'string' }, args: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const parsedArgs = JSON.parse(args.args || '{}');
+        const risk = this.guard.analyzeRisk(args.args, args.tool, parsedArgs);
+        return this.guard.formatRisk(risk);
+      }
+    });
+
+    this.registerTool({
+      name: 'guard_log',
+      description: 'Show dangerous tool approval log',
+      schema: { limit: { type: 'number', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const log = this.guard.getLog(args.limit || 20);
+        if (log.length === 0) return 'No approval decisions yet';
+        return log.map(l => 
+          `${l.decision === 'approved' ? '✅' : l.decision === 'denied' ? '❌' : l.decision === 'always' ? '🔓' : '🔒'} ` +
+          `${l.toolName} [${l.risk.level}] - ${l.decision} @ ${new Date(l.timestamp).toLocaleTimeString()}`
+        ).join('\n');
+      }
+    });
+
+    this.registerTool({
+      name: 'guard_stats',
+      description: 'Show dangerous tool guard statistics',
+      schema: {},
+      dangerous: false,
+      handler: async () => this.guard.stats()
     });
   }
 
@@ -343,15 +554,12 @@ export class Agent extends EventEmitter {
         });
         
         if (result.text) {
-          // Track cost (rough estimate)
           this.trackCost(providerName, this.estimateTokens(JSON.stringify(context)), this.estimateTokens(result.text));
-          
           response = result.text;
           break;
         }
       } catch (e: any) {
         lastError = e.message;
-        console.log(`Provider ${providerName} failed: ${lastError}`);
       }
     }
 
@@ -363,10 +571,15 @@ export class Agent extends EventEmitter {
     // Parse and execute tools
     const toolCalls = this.parseToolCalls(response);
     for (const call of toolCalls) {
+      const start = Date.now();
       try {
         const result = await this.tools.execute(call.name, call.args);
+        const duration = Date.now() - start;
+        this.memory.logTool(call.name, JSON.stringify(call.args), true, undefined, duration).catch(() => {});
         response += `\n\n🔧 ${call.name}: ${JSON.stringify(result)}`;
       } catch (e: any) {
+        const duration = Date.now() - start;
+        this.memory.logTool(call.name, JSON.stringify(call.args), false, e.message, duration).catch(() => {});
         response += `\n\n❌ ${call.name} failed: ${e.message}`;
       }
     }
@@ -400,11 +613,9 @@ export class Agent extends EventEmitter {
   }
 
   private learnFromInteraction(input: string, output: string): void {
-    // Extract key patterns
     const words = input.toLowerCase().split(/\s+/);
     const significant = words.filter(w => w.length > 4);
     
-    // Store successful patterns
     if (significant.length > 0 && output.length > 20) {
       const key = significant.slice(0, 3).join(' ');
       if (!this.learnedPatterns.has(key)) {
@@ -412,7 +623,6 @@ export class Agent extends EventEmitter {
       }
     }
     
-    // Log for persistence
     this.learningLog.push({
       input,
       output,
@@ -432,15 +642,20 @@ export class Agent extends EventEmitter {
   private async buildContext(): Promise<any[]> {
     const messages: any[] = [];
     
-    // System prompt
+    // System prompt with SOUL
+    const soul = this.memory.getSoul();
+    const patterns = Array.from(this.learnedPatterns.entries())
+      .map(([k, v]) => `When asked about "${k}": ${v}`)
+      .join('\n');
+    
     const systemPrompt = this.buildSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
 
-    // Learned patterns (if any)
-    if (this.learnedPatterns.size > 0) {
-      const patterns = Array.from(this.learnedPatterns.entries())
-        .map(([k, v]) => `When asked about "${k}": ${v}`)
-        .join('\n');
+    if (soul) {
+      messages.push({ role: 'system', content: soul });
+    }
+
+    if (patterns) {
       messages.push({ role: 'system', content: `Learned responses:\n${patterns}` });
     }
 
@@ -452,17 +667,19 @@ export class Agent extends EventEmitter {
   }
 
   private buildSystemPrompt(): string {
-    return `You are ${this.name}, an advanced AI assistant.
+    const tools = this.tools.list().map(t => `- ${t.name}: ${t.description}`).join('\n');
+    return `You are ${this.name}, an advanced AI assistant with autonomous planning and dangerous tool guardrails.
 
-You have access to tools for various tasks:
-${this.tools.list().map(t => `- ${t.name}: ${t.description}`).join('\n')}
+Capabilities:
+${tools}
 
 Guidelines:
 - Be helpful, practical, and concise
 - Use tools when they make tasks easier
-- Learn from feedback and remember important information
-- Track your cost and be efficient
-- Explain what you're doing when using tools`;
+- Use plan_create for complex multi-step tasks
+- Check guard_check before running suspicious commands
+- Remember important information with memory_remember
+- Learn from feedback with learn_from_feedback`;
   }
 
   private parseToolCalls(text: string): Array<{ name: string; args: any }> {
@@ -491,17 +708,15 @@ Guidelines:
   }
 
   private estimateTokens(text: string): number {
-    // Rough estimate: ~4 chars per token
     return Math.ceil(text.length / 4);
   }
 
   private trackCost(provider: string, promptTokens: number, completionTokens: number): void {
-    // Rough cost estimates (per 1M tokens)
     const costs: Record<string, number> = {
-      'minimax': 0.5, // $0.5/M
-      'openai': 2.0,  // $2/M
-      'anthropic': 3.0, // $3/M
-      'lmstudio': 0    // Free
+      'minimax': 0.5,
+      'openai': 2.0,
+      'anthropic': 3.0,
+      'lmstudio': 0
     };
     
     const rate = costs[provider] || 1;
@@ -581,26 +796,41 @@ Guidelines:
   }
 
   getStatus() {
+    const activePlans = this.planner.listActivePlans();
+    const memoryStats = this.memory.stats();
+    
     return {
       id: this.id,
       name: this.name,
       providers: this.providers.list().length,
       tools: this.tools.list().length,
-      toolList: this.tools.list(),
+      toolList: this.tools.list().map(t => ({ name: t.name, dangerous: t.dangerous })),
       skills: this.skills.list(),
       historyLength: this.history.length,
       learnedPatterns: this.learnedPatterns.size,
       cost: this.getCostInfo(),
-      metrics: this.getMetrics()
+      metrics: this.getMetrics(),
+      memory: memoryStats,
+      planning: {
+        activePlans: activePlans.length,
+        plans: activePlans.map(p => ({ id: p.id, goal: p.goal, status: p.status }))
+      },
+      guard: this.guard.stats()
     };
   }
 
   async shutdown(): Promise<void> {
     console.log(`\n🦆 ${this.name} shutting down...`);
-    await this.memory.save();
+    if (this.initialized) {
+      this.memory.close();
+    }
     console.log(`   Total cost: $${this.totalCost.toFixed(4)}`);
     console.log(`   Interactions: ${this.metrics.totalInteractions}`);
-    console.log(`   Success rate: ${(this.metrics.successfulInteractions / this.metrics.totalInteractions * 100).toFixed(1)}%`);
+    console.log(`   Success rate: ${this.metrics.totalInteractions > 0 ? (this.metrics.successfulInteractions / this.metrics.totalInteractions * 100).toFixed(1) : 0}%`);
+    try {
+      console.log(`   Memories: ${this.memory.stats().memories}`);
+    } catch {}
+    console.log(`   Active plans: ${this.planner.listActivePlans().length}`);
     console.log(`✅ ${this.name} stopped`);
   }
 }
