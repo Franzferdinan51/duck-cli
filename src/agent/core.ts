@@ -606,29 +606,21 @@ export class Agent extends EventEmitter {
     // Emit thinking
     this.streams.thinking(this.sessionId, 'Building context...');
 
+    // Smart router: tries providers in priority order (kimi → minimax → openrouter)
     let response: string | null = null;
-    let lastError = '';
-    
-    for (const providerName of this.providers.list()) {
-      try {
-        const provider = this.providers.get(providerName);
-        if (!provider) continue;
-        
-        const result = await provider.complete({ model: this.config.model, messages: context });
-        
-        if (result.text) {
-          this.trackCost(providerName, this.estimateTokens(JSON.stringify(context)), this.estimateTokens(result.text));
-          response = result.text;
-          break;
-        }
-      } catch (e: any) {
-        lastError = e.message;
-      }
+    let lastProvider = '';
+    try {
+      const routeResult = await this.providers.route('', context);
+      response = routeResult.text;
+      lastProvider = routeResult.provider;
+      this.trackCost(routeResult.provider, this.estimateTokens(JSON.stringify(context)), this.estimateTokens(response));
+    } catch (e: any) {
+      // fall through to error
     }
 
     if (!response) {
       this.metrics.failedInteractions++;
-      const errMsg = `❌ All providers failed. Last error: ${lastError}`;
+      const errMsg = `❌ All router targets failed`;
       this.sessions.addMessage({ sessionId: this.sessionId, role: 'assistant', content: errMsg, timestamp: Date.now() });
       return errMsg;
     }

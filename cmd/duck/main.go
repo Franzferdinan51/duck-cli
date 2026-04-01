@@ -30,7 +30,8 @@ var (
 			Foreground(lipgloss.Color("#FF5555"))
 
 	// Global flags (set by cobra)
-	flagProvider string
+	flagProvider  string
+	flagPriority string
 	flagModel    string
 )
 
@@ -75,6 +76,7 @@ Features:
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&flagProvider, "provider", "p", "anthropic", "AI provider (anthropic|openai|gemini|minimax|moonshot|lmstudio)")
 	rootCmd.PersistentFlags().StringVarP(&flagModel, "model", "m", "", "Specific model to use")
+	rootCmd.PersistentFlags().StringVarP(&flagPriority, "priority", "", "", "Provider priority chain (e.g. kimi,minimax,openrouter)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable colors")
 
@@ -305,6 +307,9 @@ func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	}
 	if flagModel != "" {
 		env = append(env, "DUCK_MODEL="+flagModel)
+	}
+	if flagPriority != "" {
+		env = append(env, "DUCK_PRIORITY="+flagPriority)
 	}
 	cmd.Env = env
 	return cmd.Run()

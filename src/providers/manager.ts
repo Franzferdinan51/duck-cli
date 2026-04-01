@@ -3,10 +3,11 @@
  */
 
 import { BrowserOSProvider } from './browseros';
+import { KimiProvider } from './kimi';
 
 export interface Provider {
   name: string;
-  complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; toolCalls?: any[] }>;
+  complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }>;
 }
 
 export class ProviderManager {
@@ -39,8 +40,82 @@ export class ProviderManager {
       
     });
 
+    if (process.env.KIMI_API_KEY) {
+      this.providers.set('kimi', new KimiProvider(process.env.KIMI_API_KEY));
+      console.log('[Provider] Kimi loaded');
+    }
+    if (process.env.MOONSHOT_API_KEY) {
+      this.providers.set('moonshot', new KimiProvider(process.env.MOONSHOT_API_KEY));
+      console.log('[Provider] Moonshot loaded');
+    }
+
     const first = Array.from(this.providers.keys())[0];
     if (first) this.active = this.providers.get(first);
+  }
+
+  /**
+   * Smart router - tries providers in priority order until one succeeds.
+   * Priority: kimi → minimax → openrouter (free tier)
+   */
+  async route(prompt: string, messages?: any[]): Promise<{ text: string; provider: string; model: string }> {
+    // Build target list from DUCK_PRIORITY env var, or use default
+    const priorityEnv = process.env.DUCK_PRIORITY;
+    const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
+    let targets = [
+      { provider: 'kimi',       model: 'moonshot-v1-32k',                label: 'Kimi K2.5' },
+      { provider: 'minimax',   model: 'MiniMax-M2.7',                   label: 'MiniMax M2.7' },
+      { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free',  label: 'OpenRouter Free' },
+    ];
+
+    if (providerOverride) {
+      // -p flag: use that provider first, then fallback chain
+      const overrideLabel = providerOverride.toUpperCase();
+      const overrideModel = providerOverride === 'kimi' ? 'moonshot-v1-32k' :
+                            providerOverride === 'minimax' ? 'MiniMax-M2.7' : undefined;
+      targets = [
+        { provider: providerOverride, model: overrideModel, label: overrideLabel + ' [PRIORITY]' },
+        ...targets.filter(t => t.provider !== providerOverride)
+      ];
+      console.log(`[Router📡] Provider override: ${overrideLabel}`);
+    } else if (priorityEnv) {
+      const names = priorityEnv.split(',').map(s => s.trim());
+      targets = names.map(name => {
+        const isModelId = name.includes('/');
+        return {
+          provider: isModelId ? 'openrouter' : name,
+          model: isModelId ? name : undefined,
+          label: isModelId ? name : name.toUpperCase()
+        };
+      });
+      console.log(`[Router📡] Custom priority: ${priorityEnv}`);
+    }
+
+    const msgList = messages || [{ role: 'user', content: prompt }];
+
+    for (const target of targets) {
+      const prov = this.providers.get(target.provider);
+      if (!prov) {
+        console.log(`[Router📡] ⚠️  ${target.provider} not configured, skipping`);
+        continue;
+      }
+
+      const label = target.label!;
+      console.log(`[Router📡] Trying ${label}...`);
+
+      try {
+        const result = await prov.complete({ model: target.model, messages: msgList });
+        const err = result.error;
+        if (result.text && !err) {
+          console.log(`[Router📡] ✅  ${label} succeeded`);
+          return { text: result.text, provider: target.provider, model: target.model! };
+        }
+        console.log(`[Router📡] ❌  ${label}: ${err || 'empty response'}`);
+      } catch (e: any) {
+        console.log(`[Router📡] ❌  ${label}: ${e.message}`);
+      }
+    }
+
+    throw new Error('All router targets exhausted');
   }
 
   /**
