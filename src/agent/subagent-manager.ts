@@ -216,13 +216,41 @@ export class SubagentManager extends EventEmitter {
     const timeout = config.timeout || 300000; // 5 min default
     const startTime = Date.now();
 
+    // Try ACP session on OpenClaw gateway first (lightweight, uses Bailian kimi-k2.5)
+    const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18792';
+    const rolePrompt = this.buildRolePrompt(agent.role, agent.task, config.memory);
+
+    try {
+      // Try ACP session via OpenClaw gateway (lightweight, parallel)
+      const model = config.model || 'bailian/kimi-k2.5';
+      const messages = [
+        { role: 'system', content: rolePrompt },
+        { role: 'user', content: agent.task }
+      ];
+
+      const res = await fetch(`${gatewayUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, stream: false })
+      });
+
+      if (res.ok) {
+        const data: any = await res.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content && !content.includes('All providers failed')) {
+          agent.progress = 100;
+          agent.status = 'completed';
+          agent.result = content;
+          agent.toolsUsed = ['openclaw-gateway'];
+          return { output: content, cost: data.usage?.total_tokens ? undefined : undefined, toolsUsed: agent.toolsUsed };
+        }
+      }
+    } catch (e) {
+      // Fall through to Node.js subprocess
+    }
+
+    // Fallback: spawn Node.js subprocess
     return new Promise((resolve, reject) => {
-      // Build command: run the duck CLI with the agent task
-      const args = ['run', `--model=${config.model || 'minimax'}`, `--provider=${config.provider || 'minimax'}`];
-      
-      // Build a system prompt that sets the agent's role
-      const rolePrompt = this.buildRolePrompt(agent.role, agent.task, config.memory);
-      
       const child = spawn('node', [
         'dist/cli/main.js', 
         'run',
