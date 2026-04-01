@@ -474,13 +474,49 @@ export class Agent extends EventEmitter {
       });
       this.registerTool({ name: 'agent_spawn_team', description: 'Spawn multiple subagents in parallel', 
         schema: { tasks: { type: 'string' /* JSON array */ } }, dangerous: false,
+
         handler: async (args: any) => {
           const tasks = JSON.parse(args.tasks);
           const agents = this.subagents.spawnTeam(tasks);
-          return `Spawned ${agents.length} subagents:\n` + 
-            agents.map(a => `• ${a.id} [${a.role}]: ${a.name}`).join('\n');
+          return {
+            agentIds: agents.map(a => a.id),
+            count: agents.length,
+            summary: 'Spawned ' + agents.length + ' subagents:\n' + agents.map(a => '• ' + a.id + ' [' + a.role + ']: ' + a.name).join('\n')
+          };
         }
       });
+
+      // think_parallel: spawn N agents to think about the same prompt from different angles
+      this.registerTool({
+        name: 'think_parallel',
+        description: 'Think about something using MULTIPLE parallel agents, each with a different perspective. Use for complex decisions, research, architecture, debugging. Agents spawn in parallel, you wait for all results.',
+        schema: {
+          prompt: { type: 'string', description: 'The question or task' },
+          perspectives: { type: 'number', optional: true, description: 'Number of perspectives (default 3, max 5)' }
+        },
+        dangerous: false,
+        handler: async (args: any) => {
+          const n = Math.min(args.perspectives || 3, 5);
+          const prompt = args.prompt;
+          const roles = ['researcher', 'critic', 'creator', 'analyst', 'strategist'].slice(0, n);
+          const tasks = roles.map((role, i) => ({
+            task: prompt + '\n\n[Angle ' + (i+1) + '/' + n + ' as ' + role + '. Be specific.]',
+            role: role as any,
+            name: 'angle_' + role
+          }));
+          this.streams.thinking(this.sessionId, 'Spawning ' + n + ' parallel thinking agents...');
+          const agents = this.subagents.spawnTeam(tasks);
+          const agentIds = agents.map(a => a.id);
+          const results = await Promise.all(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+          return {
+            prompt: prompt,
+            perspectives: roles.map((role, i) => ({ role: role, result: results[i] })),
+            synthesis: 'Synthesized ' + n + ' perspectives on: ' + prompt
+          };
+        }
+      });
+
+
       this.registerTool({ name: 'agent_list', description: 'List active subagents', schema: {}, dangerous: false,
         handler: async () => {
           const active = this.subagents.listActive();
@@ -625,25 +661,34 @@ export class Agent extends EventEmitter {
       return errMsg;
     }
 
-    // Parse and execute tools
+    // Parse and execute tools in PARALLEL
     const toolCalls = this.parseToolCalls(response);
     const toolsUsed: string[] = [];
-    
-    for (const call of toolCalls) {
-      const tStart = Date.now();
-      this.streams.toolStart(this.sessionId, call.name, call.args);
-      toolsUsed.push(call.name);
-      
-      try {
-        const result = await this.tools.execute(call.name, call.args);
-        const tDuration = Date.now() - tStart;
-        this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
-        response += `\n\n🔧 ${call.name}: ${JSON.stringify(result)}`;
-      } catch (e: any) {
-        const tDuration = Date.now() - tStart;
-        this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
-        response += `\n\n❌ ${call.name} failed: ${e.message}`;
-      }
+    if (toolCalls.length > 0) {
+      const results = await Promise.all(toolCalls.map(async (call) => {
+        const tStart = Date.now();
+        this.streams.toolStart(this.sessionId, call.name, call.args);
+        toolsUsed.push(call.name);
+        try {
+          let result: any = await this.tools.execute(call.name, call.args);
+          const tDuration = Date.now() - tStart;
+          if (call.name === 'agent_spawn_team' && result && typeof result === 'object') {
+            const agentIds: string[] = result.agentIds || [];
+            if (agentIds.length > 0) {
+              this.streams.thinking(this.sessionId, 'Waiting for ' + agentIds.length + ' parallel agents...');
+              const agentResults = await Promise.all(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+              result = { agents: agentIds, results: agentResults };
+            }
+          }
+          this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
+          return '\n\n🔧 ' + call.name + ': ' + JSON.stringify(result);
+        } catch (e: any) {
+          const tDuration = Date.now() - tStart;
+          this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
+          return '\n\n❌ ' + call.name + ' failed: ' + e.message;
+        }
+      }));
+      response += results.join('');
     }
 
     // Track interaction for learning
@@ -755,7 +800,8 @@ export class Agent extends EventEmitter {
     
     if (this.config.planningEnabled) capabilities.push('Use plan_create for complex multi-step tasks');
     if (this.config.cronEnabled) capabilities.push('Use cron_create to schedule recurring tasks');
-    if (this.config.subagentEnabled) capabilities.push('Use agent_spawn for parallel subagent execution');
+    if (this.config.subagentEnabled) capabilities.push('Use agent_spawn_team to run multiple agents in PARALLEL');
+    capabilities.push('For tasks with independent parts, ALWAYS consider spawning parallel agents');
     if (this.learningEnabled) capabilities.push('Use memory_remember to save important information');
     capabilities.push('Use learn_from_feedback after completing tasks');
 
