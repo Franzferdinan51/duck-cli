@@ -50,7 +50,7 @@ const server = createServer(async (req, res) => {
   
   try {
     // API Routes
-    if (path === '/api/status') {
+    if (path === '/api/status' || path === '/v1/status') {
       const status = agent.getStatus();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
@@ -65,13 +65,19 @@ const server = createServer(async (req, res) => {
       return;
     }
     
-    if (path === '/api/chat') {
+    if (path === '/api/chat' || path === '/v1/chat') {
       let body = '';
       req.on('data', chunk => body += chunk);
       req.on('end', async () => {
         try {
           const { message } = JSON.parse(body);
-          const response = await agent.think(message);
+          // Timeout after 30s to prevent hanging
+          const timeoutMs = 30000;
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+          );
+          const response = await Promise.race([agent.think(message), timeoutPromise])
+            .catch(err => ({ error: err.message || 'Request timeout' }));
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ response }));
         } catch (error) {
@@ -82,7 +88,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     
-    if (path === '/api/tts') {
+    if (path === '/api/tts' || path === '/v1/tts') {
       let body = '';
       req.on('data', chunk => body += chunk);
       req.on('end', async () => {
@@ -114,7 +120,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     
-    if (path === '/api/tools') {
+    if (path === '/api/tools' || path === '/v1/tools') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         tools: agent.getStatus().toolList.map(t => ({
@@ -127,7 +133,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     
-    if (path === '/api/think') {
+    if (path === '/api/think' || path === '/v1/think') {
       let body = '';
       req.on('data', chunk => body += chunk);
       req.on('end', async () => {
