@@ -74,7 +74,7 @@ Features:
 	}
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&flagProvider, "provider", "p", "anthropic", "AI provider (anthropic|openai|gemini|minimax|moonshot|lmstudio)")
+	rootCmd.PersistentFlags().StringVarP(&flagProvider, "provider", "p", "", "AI provider (kimi|minimax|openrouter|lmstudio|anthropic|openai|moonshot)")
 	rootCmd.PersistentFlags().StringVarP(&flagModel, "model", "m", "", "Specific model to use")
 	rootCmd.PersistentFlags().StringVarP(&flagPriority, "priority", "", "", "Provider priority chain (e.g. kimi,minimax,openrouter)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose output")
