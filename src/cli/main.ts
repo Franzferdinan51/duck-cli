@@ -577,7 +577,7 @@ async function startMCP(port: number) {
 // ============ WEB UI ============
 
 async function startWebUI(args: string[] = []) {
-  const port = parseInt(args[0] || process.env.WEB_PORT || '3001');
+  const port = parseInt(args[0] || process.env.WEB_PORT || '3002');
   process.env.WEB_PORT = String(port);
   console.log(logo);
   console.log(`${c.cyan}Starting Duck Agent Web UI on port ${port}...${c.reset}\n`);
