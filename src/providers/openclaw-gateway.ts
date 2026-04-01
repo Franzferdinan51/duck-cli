@@ -1,12 +1,12 @@
 /**
  * OpenClaw Gateway provider - routes through local OpenClaw gateway
- * Gives duck-cli access to OpenClaw's providers (Bailian/kimi-k2.5, etc.)
+ * Gives duck-cli access to OpenClaw's providers (Moonshot/kimi-k2.5, etc.)
  */
 import { Provider } from './manager.js';
 
 export class OpenClawGatewayProvider implements Provider {
   name = 'openclaw';
-  defaultModel = 'bailian/kimi-k2.5';
+  defaultModel = 'kimi-k2.5';
 
   constructor(private gatewayUrl = 'http://localhost:18792') {}
 

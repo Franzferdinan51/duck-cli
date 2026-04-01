@@ -216,13 +216,13 @@ export class SubagentManager extends EventEmitter {
     const timeout = config.timeout || 300000; // 5 min default
     const startTime = Date.now();
 
-    // Try ACP session on OpenClaw gateway first (lightweight, uses Bailian kimi-k2.5)
+    // Try ACP session on OpenClaw gateway first (lightweight, uses Moonshot kimi-k2.5)
     const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18792';
     const rolePrompt = this.buildRolePrompt(agent.role, agent.task, config.memory);
 
     try {
       // Try ACP session via OpenClaw gateway (lightweight, parallel)
-      const model = config.model || 'bailian/kimi-k2.5';
+      const model = config.model || 'kimi-k2.5';
       const messages = [
         { role: 'system', content: rolePrompt },
         { role: 'user', content: agent.task }

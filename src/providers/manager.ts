@@ -49,9 +49,9 @@ export class ProviderManager {
       this.providers.set('moonshot', new KimiProvider(process.env.MOONSHOT_API_KEY));
       console.log('[Provider] Moonshot loaded');
     }
-        // OpenClaw Gateway - local gateway with Bailian/kimi-k2.5 (free unlimited)
+        // OpenClaw Gateway - local gateway with Moonshot/kimi-k2.5 (free unlimited)
     this.providers.set('openclaw', new OpenClawGatewayProvider());
-    console.log('[Provider] OpenClaw Gateway loaded (bailian/kimi-k2.5 free)');
+    console.log('[Provider] OpenClaw Gateway loaded (kimi-k2.5 free)');
 
     const first = Array.from(this.providers.keys())[0];
     if (first) this.active = this.providers.get(first);
@@ -66,7 +66,7 @@ export class ProviderManager {
     const priorityEnv = process.env.DUCK_PRIORITY;
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
     let targets = [
-      { provider: 'openclaw',  model: 'bailian/kimi-k2.5',              label: 'OpenClaw (Bailian kimi-k2.5)' },
+      { provider: 'openclaw',  model: 'kimi-k2.5',              label: 'OpenClaw (Moonshot kimi-k2.5)' },
       { provider: 'minimax',  model: 'MiniMax-M2.7',                   label: 'MiniMax M2.7' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free',label: 'OpenRouter Free' },
     ];
@@ -76,7 +76,7 @@ export class ProviderManager {
       const overrideLabel = providerOverride.toUpperCase();
       const overrideModel = providerOverride === 'kimi' ? 'moonshot-v1-32k' :
                             providerOverride === 'minimax' ? 'MiniMax-M2.7' :
-                            providerOverride === 'openclaw' ? 'bailian/kimi-k2.5' : undefined;
+                            providerOverride === 'openclaw' ? 'kimi-k2.5' : undefined;
       targets = [
         { provider: providerOverride, model: overrideModel, label: overrideLabel + ' [PRIORITY]' },
         ...targets.filter(t => t.provider !== providerOverride)
