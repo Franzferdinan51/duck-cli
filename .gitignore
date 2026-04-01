@@ -3,19 +3,18 @@ node_modules/
 
 # Build output
 dist/
-
 # IDE
 .DS_Store
 .vscode/
 .idea/
-
 # Logs
 *.log
-
 # Sources (keep reference, don't commit)
 sources/
-
 # Temp
 *.tmp
 *.swp
-node_modules/
+duck
+duck.exe
+*.exe
+.env
