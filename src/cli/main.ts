@@ -106,7 +106,7 @@ async function main() {
 
     case 'web':
     case 'ui':
-      await startWebUI();
+      await startWebUI(args);
       break;
 
     case 'tools':
