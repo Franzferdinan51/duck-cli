@@ -882,10 +882,22 @@ duck update restore   # Rollback
 
 | Doc | Description |
 |-----|-------------|
+| [AGENTS.md](AGENTS.md) | **Agent guide** — setup, build, extend, test |
+| [TOOLS.md](TOOLS.md) | **Tool reference** — all 13 tools with schemas |
+| [INSTALL.md](INSTALL.md) | **Installation guide** — 5-min setup |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [COMMANDS.md](docs/COMMANDS.md) | CLI reference |
 | [UPDATES.md](docs/UPDATES.md) | Version history & roadmap |
 | [DESKTOP-UI.md](docs/DESKTOP-UI.md) | Desktop UI guide (v0.4.0) |
+| [KANBAN.md](KANBAN.md) | Current work tracking |
+
+### For OpenClaw Agents
+
+If you are an AI agent setting up or extending duck-cli:
+1. Read **[AGENTS.md](AGENTS.md)** first — covers build, test, extend
+2. Read **[INSTALL.md](INSTALL.md)** for setup instructions
+3. Check **[TOOLS.md](TOOLS.md)** for tool schemas
+4. Look at **[KANBAN.md](KANBAN.md)** for what's being worked on
 
 ---
 
