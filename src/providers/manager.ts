@@ -27,6 +27,10 @@ export class ProviderManager {
     if (process.env.OPENAI_API_KEY) {
       this.providers.set('openai', new OpenAIProvider(process.env.OPENAI_API_KEY));
     }
+    if (process.env.OPENROUTER_API_KEY) {
+      this.providers.set('openrouter', new OpenRouterProvider(process.env.OPENROUTER_API_KEY));
+      console.log('[Provider] OpenRouter loaded - free tier models available');
+    }
 
     // BrowserOS - browser automation
     this.browserOS = new BrowserOSProvider({
@@ -198,6 +202,48 @@ class OpenAIProvider implements Provider {
       const data: any = await res.json();
       return { text: data.choices?.[0]?.message?.content };
     } catch (error) {
+      return { text: undefined };
+    }
+  }
+}
+
+// OpenRouter - FREE tier models (music, video, testing)
+class OpenRouterProvider implements Provider {
+  name = 'openrouter';
+  constructor(private apiKey: string) {}
+
+  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://duck-agent.dev',
+          'X-Title': 'Duck Agent'
+        },
+        body: JSON.stringify({
+          model: opts.model || 'openrouter/auto',  // auto-select best free model
+          messages: opts.messages
+        })
+      });
+
+      const data: any = await res.json();
+      if (data.error) {
+        console.error('[OpenRouter] Error:', data.error.message);
+        return { text: undefined };
+      }
+      const message = data.choices?.[0]?.message;
+      return {
+        text: message?.content,
+        toolCalls: message?.tool_calls?.map((tc: any) => ({
+          id: tc.id,
+          name: tc.function?.name,
+          input: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {}
+        }))
+      };
+    } catch (error) {
+      console.error('[OpenRouter] Fetch error:', error);
       return { text: undefined };
     }
   }

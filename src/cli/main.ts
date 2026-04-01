@@ -1,5 +1,23 @@
 #!/usr/bin/env node
 
+
+// Helper: get agent config from env vars (set by Go layer -p / -m flags)
+function getAgentConfig() {
+  const provider = process.env.DUCK_PROVIDER || 'anthropic';
+  const modelMap: Record<string, string> = {
+    openrouter: 'openrouter/auto',
+    minimax: 'MiniMax-M2.7',
+    moonshot: 'moonshot-v1-32k',
+    openai: 'gpt-4o-mini',
+    anthropic: 'claude-3-5-sonnet-20241022',
+    gemini: 'gemini-2.0-flash',
+    lmstudio: 'local-model'
+  };
+  const model = process.env.DUCK_MODEL || modelMap[provider] || 'claude-3-5-sonnet-20241022';
+  return { provider, model };
+}
+
+
 /**
  * 🦆 Duck Agent CLI
  * Full-featured AI agent with TUI shell
@@ -227,7 +245,7 @@ async function startShell() {
   console.log(`${c.green}Starting Duck Agent shell...${c.reset}`);
   console.log(`${c.dim}Type /help for commands, /quit to exit${c.reset}\n`);
 
-  const agent = new Agent({ name: 'Duck Agent',  });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const rl = readline.createInterface({
@@ -376,7 +394,7 @@ async function runTask(task: string) {
   console.log(logo);
   console.log(`${c.cyan}Executing task...${c.reset}\n`);
 
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   console.log(`${c.yellow}Task: "${task}"${c.reset}\n`);
@@ -400,7 +418,7 @@ async function think(prompt: string) {
     return;
   }
 
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const result = await agent.think(prompt);
@@ -475,7 +493,7 @@ async function thinkAndSpeak(prompt: string) {
     return;
   }
 
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   console.log(`${c.magenta}💭 Thinking...${c.reset}`);
@@ -508,7 +526,7 @@ async function thinkAndSpeak(prompt: string) {
 // ============ STATUS ============
 
 async function showStatus() {
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
   
   const status = agent.getStatus();
@@ -528,7 +546,7 @@ async function showStatus() {
 // ============ TOOLS LIST ============
 
 async function listTools() {
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
   
   console.log(`\n${c.bold}Available Tools:${c.reset}\n`);
@@ -546,7 +564,7 @@ async function listTools() {
 // ============ HISTORY ============
 
 async function showHistory() {
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
   
   const history = agent.getHistory();
@@ -562,7 +580,7 @@ async function showHistory() {
 }
 
 async function clearHistory() {
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
   agent.clearHistory();
   console.log(`${c.green}✓${c.reset} History cleared`);
@@ -603,7 +621,7 @@ async function startWebUI(args: string[] = []) {
   const { Agent } = await import('../agent/core.js');
   
   // Initialize agent
-  const agent = new Agent({ name: 'DuckWebAgent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'DuckWebAgent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
   
   const WEB_UI_PATH = join(process.cwd(), 'web-ui');
@@ -727,7 +745,7 @@ async function startWebUI(args: string[] = []) {
 // ============ DESKTOP ============
 
 async function desktopCommand(args: string[]) {
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const [action, ...actionArgs] = args;
@@ -759,7 +777,7 @@ async function desktopCommand(args: string[]) {
 // ============ MEMORY ============
 
 async function memoryCommand(args: string[]) {
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const [action, ...actionArgs] = args;
@@ -862,7 +880,7 @@ async function startChannels(args: string[]) {
     return;
   }
 
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const { ChannelManager } = await import('../channels/manager.js');
@@ -897,7 +915,7 @@ async function sendToChannel(args: string[]) {
     return;
   }
 
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const { ChannelManager } = await import('../channels/manager.js');
@@ -1139,7 +1157,7 @@ async function mcpConnect(args: string[]) {
   }
 
   const { UnifiedServer } = await import('../server/unified-server.js');
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const server = new UnifiedServer(agent, { enableMCP: false, enableACP: false, enableWebSocket: false });
@@ -1168,7 +1186,7 @@ async function acpSpawn(args: string[]) {
   }
 
   const { ACPClient } = await import('../gateway/acp-client.js');
-  const agent = new Agent({ name: 'Duck Agent' });
+  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
   const acp = new ACPClient(agent, {
