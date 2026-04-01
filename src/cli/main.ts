@@ -624,14 +624,14 @@ async function startWebUI(args: string[] = []) {
     
     try {
       // API Routes
-      if (path === '/api/status') {
+      if (path === '/api/status' || path === '/v1/status') {
         const status = agent.getStatus();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ...status, uptime: Date.now() }));
         return;
       }
       
-      if (path === '/api/chat') {
+      if (path === '/api/chat' || path === '/v1/chat') {
         let body = '';
         req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
         req.on('end', async () => {
@@ -643,7 +643,33 @@ async function startWebUI(args: string[] = []) {
         return;
       }
       
-      if (path === '/api/tools') {
+      if (path === '/v1/tts') {
+        let body = '';
+        req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        req.on('end', async () => {
+          const { text, voice } = JSON.parse(body);
+          try {
+            const { TTSService } = await import('../tools/tts.js');
+            const apiKey = process.env.MINIMAX_API_KEY;
+            if (!apiKey) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'MINIMAX_API_KEY not set' }));
+              return;
+            }
+            const tts = new TTSService({ apiKey });
+            if (voice) tts.setVoice(voice);
+            const result = await tts.speak({ text, outputPath: '/tmp/duck_tts.mp3' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, chars: result.chars, file: '/tmp/duck_tts.mp3' }));
+          } catch (err: any) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+      
+      if (path === '/api/tools' || path === '/v1/tools') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ tools: agent.getStatus().toolList }));
         return;
