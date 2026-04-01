@@ -207,7 +207,7 @@ class OpenAIProvider implements Provider {
   }
 }
 
-// OpenRouter - FREE tier models (music, video, testing)
+// OpenRouter - Duckets' personal free tier ($0.20/month cap, free models only)
 class OpenRouterProvider implements Provider {
   name = 'openrouter';
   constructor(private apiKey: string) {}
@@ -223,7 +223,7 @@ class OpenRouterProvider implements Provider {
           'X-Title': 'Duck Agent'
         },
         body: JSON.stringify({
-          model: opts.model || 'qwen/qwen3.6-plus-preview:free',  // auto-select best free model
+          model: opts.model || 'minimax/minimax-m2.5:free',  // Duckets' favorite free model
           messages: opts.messages
         })
       });
