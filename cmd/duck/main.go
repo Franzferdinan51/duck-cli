@@ -28,6 +28,10 @@ var (
 
 	errorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF5555"))
+
+	// Global flags (set by cobra)
+	flagProvider string
+	flagModel    string
 )
 
 func main() {
@@ -69,8 +73,8 @@ Features:
 	}
 
 	// Global flags
-	rootCmd.PersistentFlags().StringP("provider", "p", "anthropic", "AI provider (anthropic|openai|gemini|lmstudio)")
-	rootCmd.PersistentFlags().StringP("model", "m", "", "Specific model to use")
+	rootCmd.PersistentFlags().StringVarP(&flagProvider, "provider", "p", "anthropic", "AI provider (anthropic|openai|gemini|minimax|moonshot|lmstudio)")
+	rootCmd.PersistentFlags().StringVarP(&flagModel, "model", "m", "", "Specific model to use")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose output")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable colors")
 
@@ -109,9 +113,9 @@ func runCmd() *cobra.Command {
 				prompt = args[0]
 			}
 
-			// Run TypeScript agent
+			// Run TypeScript agent with provider/model env vars
 			script := buildRunScript(prompt, interactive)
-			return runNode(script)
+			return runNodeWithEnv(script, cmd)
 		},
 	}
 
@@ -261,7 +265,7 @@ func shellCmd() *cobra.Command {
 		Use:   "shell",
 		Short: "Start Duck CLI shell",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("shell")
+			return runNodeWithEnv("shell", cmd)
 		},
 	}
 	return cmd
@@ -274,6 +278,26 @@ func runNode(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+// runNodeWithEnv runs node with DUCK_PROVIDER and DUCK_MODEL env vars set
+func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
+	cmdDir := filepath.Dir(os.Args[0])
+	cmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, strings.Fields(script)...)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	// Pass provider and model as env vars
+	env := os.Environ()
+	if flagProvider != "" {
+		env = append(env, "DUCK_PROVIDER="+flagProvider)
+	}
+	if flagModel != "" {
+		env = append(env, "DUCK_MODEL="+flagModel)
+	}
+	cmd.Env = env
 	return cmd.Run()
 }
 

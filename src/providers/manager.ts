@@ -78,19 +78,34 @@ class MiniMaxProvider implements Provider {
 
   async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string }> {
     try {
+      // MiniMax only supports ONE system message - merge multiple into one
+      let systemParts: string[] = [];
+      const nonSystem: any[] = [];
+      for (const m of opts.messages) {
+        if (m.role === 'system') {
+          const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+          systemParts.push(text);
+        } else {
+          nonSystem.push(m);
+        }
+      }
+      const combinedSystem = systemParts.join('\n---\n');
+      const msgs = [
+        { role: 'system', content: combinedSystem },
+        ...nonSystem.map((m: any) => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content.replace(/\n/g, ' ') : m.content
+        }))
+      ];
+      const body = JSON.stringify({ model: 'MiniMax-M2.7', messages: msgs });
+      
       const res = await fetch('https://api.minimax.io/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`
         },
-        body: JSON.stringify({
-          model: 'MiniMax-M2.7',
-          messages: opts.messages.map((m: any) => ({
-            role: m.role,
-            content: typeof m.content === 'string' ? m.content.replace(/\n/g, ' ') : m.content
-          }))
-        })
+        body
       });
 
       const data: any = await res.json();
