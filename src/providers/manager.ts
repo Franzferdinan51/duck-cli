@@ -67,14 +67,15 @@ export class ProviderManager {
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
     let targets = [
       { provider: 'openclaw',  model: 'kimi-k2.5',              label: 'OpenClaw (Moonshot kimi-k2.5)' },
-      { provider: 'minimax',  model: 'MiniMax-M2.7',                   label: 'MiniMax M2.7' },
+      { provider: 'kimi',     model: 'k2p5',                    label: 'Kimi K2.5 (direct)' },
+      { provider: 'minimax',  model: 'MiniMax-M2.7',            label: 'MiniMax M2.7' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free',label: 'OpenRouter Free' },
     ];
 
     if (providerOverride) {
       // -p flag: use that provider first, then fallback chain
       const overrideLabel = providerOverride.toUpperCase();
-      const overrideModel = providerOverride === 'kimi' ? 'moonshot-v1-32k' :
+      const overrideModel = providerOverride === 'kimi' ? 'k2p5' :
                             providerOverride === 'minimax' ? 'MiniMax-M2.7' :
                             providerOverride === 'openclaw' ? 'kimi-k2.5' : undefined;
       targets = [

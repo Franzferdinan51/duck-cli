@@ -2,18 +2,21 @@ import { Provider } from './manager.js';
 
 export class KimiProvider implements Provider {
   name = 'kimi';
-  defaultModel = 'moonshot-v1-32k';
+  defaultModel = 'k2p5';
+  baseUrl = 'https://api.kimi.com/coding/v1';
 
-  constructor(private apiKey: string, private baseUrl = 'https://api.moonshot.cn/v1') {}
+  constructor(private apiKey: string) {}
 
   async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; error?: string }> {
     try {
       const model = opts.model || this.defaultModel;
+
       const res = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'Authorization': `Bearer ${this.apiKey}`,
+          'User-Agent': 'claude-code/0.1.0'  // Required for sk-kimi- keys
         },
         body: JSON.stringify({ model, messages: opts.messages, stream: false })
       });
