@@ -14,9 +14,29 @@ Skills extend Duck CLI with specialized commands and integrations. Each skill is
 
 ---
 
+## 🤖 Using This Skill (For OpenClaw Agents)
+
+When you see a task matching one of duck-cli's skill triggers, you can either:
+
+**Option A: Use duck-cli's native tool**
+```bash
+./duck run "your task here"
+```
+
+**Option B: Delegate to duck-cli's skill system**
+```bash
+./duck skills search <topic>
+./duck skills list
+```
+
+**Option C: Use the skills directly in context**
+- Code review: spawn adversarial reviewer agent, run tests
+- Git workflow: use worktree isolation for safe branching
+- Memory: store/recall via the memory_remember/memory_recall tools
+
 ## ⚙️ Setup (For OpenClaw Agents)
 
-**To use duck-cli skills, the duck-cli system must be installed first.**
+**To install and run duck-cli skills, the duck-cli system must be set up first.**
 
 ### Quick Setup (5 min)
 
