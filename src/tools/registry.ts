@@ -36,13 +36,18 @@ export class ToolRegistry {
       throw new Error(`Tool ${def.name}: invalid schema`);
     }
 
+    // Skip if already registered (prevents duplicate tools)
+    if (this.tools.has(def.name)) {
+      return;
+    }
+
     this.tools.set(def.name, {
       ...def,
       dangerous: def.dangerous || false,
       requiresApproval: def.requiresApproval !== false
     });
 
-    console.log(`   + Tool: ${def.name}${def.dangerous ? ' ⚠️' : ''}`);
+    // Log is handled by registerTool() in core.ts to avoid double-logging
   }
 
   has(name: string): boolean {

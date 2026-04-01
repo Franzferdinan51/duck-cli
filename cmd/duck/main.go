@@ -65,6 +65,7 @@ Features:
 	rootCmd.AddCommand(mcpCmd())
 	rootCmd.AddCommand(skillsCmd())
 	rootCmd.AddCommand(securityCmd())
+	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(councilCmd())
 	rootCmd.AddCommand(shellCmd())
 
@@ -210,6 +211,18 @@ func securityCmd() *cobra.Command {
 	return cmd
 }
 
+// statusCmd - Show agent status
+func statusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show Duck Agent status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNode("status")
+		},
+	}
+	return cmd
+}
+
 // councilCmd - AI Council deliberation
 func councilCmd() *cobra.Command {
 	var mode string
@@ -241,7 +254,7 @@ func shellCmd() *cobra.Command {
 
 // runNode executes the TypeScript agent
 func runNode(args ...string) error {
-	cmd := exec.Command("node", append([]string{"internal/agent/main.js"}, args...)...)
+	cmd := exec.Command("node", append([]string{"dist/cli/main.js"}, args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -253,5 +266,5 @@ func buildRunScript(prompt string, interactive bool) string {
 	if interactive {
 		return "--shell"
 	}
-	return "--run", prompt
+	return "--run " + prompt
 }
