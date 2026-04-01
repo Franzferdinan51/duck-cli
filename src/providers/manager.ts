@@ -66,9 +66,9 @@ export class ProviderManager {
     const priorityEnv = process.env.DUCK_PRIORITY;
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
     let targets = [
-      { provider: 'openclaw',  model: 'kimi-k2.5',              label: 'OpenClaw (Moonshot kimi-k2.5)' },
-      { provider: 'kimi',     model: 'k2p5',                    label: 'Kimi K2.5 (direct)' },
-      { provider: 'minimax',  model: 'MiniMax-M2.7',            label: 'MiniMax M2.7' },
+      { provider: 'minimax',  model: 'MiniMax-M2.7',            label: 'MiniMax M2.7 [PRIMARY]' },
+      { provider: 'openclaw',  model: 'kimi-k2.5',            label: 'OpenClaw (Kimi k2.5)' },
+      { provider: 'kimi',     model: 'k2p5',                  label: 'Kimi K2.5 (direct)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free',label: 'OpenRouter Free' },
     ];
 
