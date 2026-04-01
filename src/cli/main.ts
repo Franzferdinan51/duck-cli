@@ -3,7 +3,7 @@
 
 // Helper: get agent config from env vars (set by Go layer -p / -m flags)
 function getAgentConfig() {
-  const provider = process.env.DUCK_PROVIDER || 'anthropic';
+  const provider = process.env.DUCK_PROVIDER || 'minimax';
   const modelMap: Record<string, string> = {
     openrouter: 'qwen/qwen3.6-plus-preview:free',
     minimax: 'MiniMax-M2.7',

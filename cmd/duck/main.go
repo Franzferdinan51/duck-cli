@@ -273,7 +273,9 @@ func shellCmd() *cobra.Command {
 
 // runNode executes the TypeScript agent
 func runNode(args ...string) error {
-	cmdDir := filepath.Dir(os.Args[0])
+	// Find the actual executable directory, following symlinks
+    exePath, _ := os.Executable()
+    cmdDir := filepath.Dir(exePath)
 	cmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, args...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -283,7 +285,9 @@ func runNode(args ...string) error {
 
 // runNodeWithEnv runs node with DUCK_PROVIDER and DUCK_MODEL env vars set
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
-	cmdDir := filepath.Dir(os.Args[0])
+	// Find the actual executable directory, following symlinks
+    exePath, _ := os.Executable()
+    cmdDir := filepath.Dir(exePath)
 	cmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, strings.Fields(script)...)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -291,6 +295,11 @@ func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 
 	// Pass provider and model as env vars
 	env := os.Environ()
+	// Set NODE_PATH so native modules like better-sqlite3 are found
+	nodeModulesPath := filepath.Join(cmdDir, "node_modules")
+	if _, err := os.Stat(nodeModulesPath); err == nil {
+		env = append(env, "NODE_PATH="+nodeModulesPath)
+	}
 	if flagProvider != "" {
 		env = append(env, "DUCK_PROVIDER="+flagProvider)
 	}
