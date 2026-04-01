@@ -1283,7 +1283,7 @@ async function councilCommand(args: string[]) {
   const topic = topicParts.join(' ');
   
   // Check if council server is running
-  const COUNCIL_URL = process.env.COUNCIL_URL || 'http://localhost:3001';
+  const COUNCIL_URL = process.env.COUNCIL_URL || 'http://localhost:3003';
   
   try {
     const { AICouncilClient } = await import('../council/client.js');
@@ -1314,6 +1314,10 @@ async function councilCommand(args: string[]) {
       topic,
       maxRounds: 1,
     });
+
+    console.error('DEBUG: deliberation complete, result keys:', Object.keys(result));
+    console.error('DEBUG: verdict:', result.verdict);
+    console.error('DEBUG: summary:', result.summary ? result.summary.slice(0,100) : 'none');
 
     console.log(`${c.green}Council Verdict:${c.reset}`);
     const verdict = result.verdict || result.finalRuling || result.summary;
@@ -1566,7 +1570,7 @@ async function councilCommand(args: string[]) {
   const topic = topicParts.join(' ');
   
   // Check if council server is running
-  const COUNCIL_URL = process.env.COUNCIL_URL || 'http://localhost:3001';
+  const COUNCIL_URL = process.env.COUNCIL_URL || 'http://localhost:3003';
   
   try {
     const { AICouncilClient } = await import('../council/client.js');
@@ -1597,6 +1601,10 @@ async function councilCommand(args: string[]) {
       topic,
       maxRounds: 1,
     });
+
+    console.error('DEBUG: deliberation complete, result keys:', Object.keys(result));
+    console.error('DEBUG: verdict:', result.verdict);
+    console.error('DEBUG: summary:', result.summary ? result.summary.slice(0,100) : 'none');
 
     console.log(`${c.green}Council Verdict:${c.reset}`);
     const verdict = result.verdict || result.finalRuling || result.summary;

@@ -346,8 +346,8 @@ export const CORE_COUNCILORS: Councilor[] = [
 
 export class AICouncilClient extends EventEmitter {
   private baseUrl: string;
-  private sessionId: string | null = null;
-  private currentMode: string = 'deliberation';
+  sessionId: string | null = null;
+  currentMode: string = 'deliberation';
   
   constructor(baseUrl: string = 'http://localhost:3001') {
     super();
@@ -381,7 +381,9 @@ export class AICouncilClient extends EventEmitter {
       
       if (response.ok) {
         const data = await response.json();
+        console.error('DEBUG createSession: got data, sessionId=', data.id, 'this.sessionId before=', this.sessionId);
         this.sessionId = data.sessionId;
+        console.error('DEBUG createSession: this.sessionId after=', this.sessionId);
         this.currentMode = mode;
         this.emit('sessionCreated', data);
         return data;
@@ -410,11 +412,12 @@ export class AICouncilClient extends EventEmitter {
     }
   }
   
-  async getSession(): Promise<Session | null> {
-    if (!this.sessionId) return null;
+  async getSession(sessionId?: string): Promise<Session | null> {
+    const id = sessionId || this.sessionId;
+    if (!id) return null;
     
     try {
-      const response = await fetch(`${this.baseUrl}/api/session/${this.sessionId}`);
+      const response = await fetch(`${this.baseUrl}/api/session/${id}`);
       if (response.ok) {
         return await response.json();
       }

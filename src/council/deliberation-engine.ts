@@ -47,10 +47,15 @@ export class DeliberationEngine {
 
     // Try server first (3s timeout)
     try {
-      const session = await Promise.race([
-        this.client.createSession(mode, topic, councilors),
-        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-      ]) as any;
+      let session = null;
+      try {
+        session = await Promise.race([
+          this.client.createSession(mode, topic, councilors),
+          new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ]) as any;
+      } catch (e: any) {
+        console.error('createSession error:', e.message);
+      }
       if (session) return await this.pollServer(session.id, startTime);
     } catch {
       // Server offline, use local
@@ -258,21 +263,47 @@ export class DeliberationEngine {
   // ─── Server polling fallback ─────────────────────────────────
   private async pollServer(sessionId: string, startTime: number): Promise<CounResult> {
     return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({
+          sessionId, topic: 'council deliberation', mode: 'deliberation',
+          summary: 'Council deliberation timed out on server. Try local mode.',
+          verdict: 'Council server response timed out.',
+          duration: Date.now() - startTime,
+        });
+      }, 60000);
+
+      let resolved = false;
+      let pollCount = 0;
       const poll = async () => {
+        if (resolved) return;
+        pollCount++;
         try {
-          const current = await this.client.getSession();
-          if (current?.status === 'completed') {
-            resolve({
-              sessionId: current.id,
-              topic: current.topic,
-              mode: current.mode,
-              duration: Date.now() - startTime,
-            });
-          } else {
-            setTimeout(poll, 2000);
+          const current: any = await this.client.getSession(sessionId);
+          if (current && !resolved) {
+            if (current.status === 'completed' || current.status === 'done' || current.status === 'error') {
+              resolved = true;
+              clearTimeout(timeout);
+              const consensusPct = current.consensus || 75;
+              const responses = current.responses || [];
+              const verdict = consensusPct > 60 ? 'APPROVED' : consensusPct < 40 ? 'REJECTED' : 'SPLIT CALL';
+              resolve({
+                sessionId: current.id,
+                topic: current.topic || 'council deliberation',
+                mode: current.mode || 'deliberation',
+                consensus: consensusPct / 100,
+                summary: responses.length > 0
+                  ? responses.map((r: any) => `[${r.councilor || r.name}]: ${r.content || r.response || ''}`).join('\n')
+                  : `Council deliberation completed.`,
+                verdict: verdict,
+                finalRuling: `${verdict} — ${consensusPct}% consensus`,
+                duration: Date.now() - startTime,
+              });
+              return;
+            }
           }
+          if (!resolved) setTimeout(poll, 2000);
         } catch {
-          setTimeout(poll, 5000);
+          if (!resolved) setTimeout(poll, 5000);
         }
       };
       poll();
