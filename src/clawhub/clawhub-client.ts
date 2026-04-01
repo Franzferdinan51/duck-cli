@@ -43,7 +43,7 @@ export class ClawHubClient {
 
   constructor(config: ClawHubConfig = {}) {
     this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || 'https://clawhub.ai/api';
+    this.baseUrl = config.baseUrl || 'https://clawhub.ai';
   }
 
   /**
@@ -81,7 +81,7 @@ export class ClawHubClient {
 
   /**
    * Search for skills in ClawHub
-   * GET /api/skills/search?q=<query>&page=<page>&limit=<limit>
+   * GET /api/api/v1/search?q=<query>&page=<page>&limit=<limit>
    */
   async searchSkills(
     query: string,
@@ -110,7 +110,7 @@ export class ClawHubClient {
    */
   async getSkill(nameOrId: string): Promise<ClawHubSkill> {
     const data = await this.request<ClawHubSkill>(
-      `/skills/${encodeURIComponent(nameOrId)}`
+      `/api/v1/skills/${encodeURIComponent(nameOrId)}`
     );
 
     return data;
@@ -122,7 +122,7 @@ export class ClawHubClient {
    */
   async getFeatured(): Promise<ClawHubSkill[]> {
     const data = await this.request<{ skills: ClawHubSkill[] }>(
-      '/skills/featured'
+      '/api/v1/skills/featured'
     );
 
     return data.skills || [];
@@ -139,7 +139,7 @@ export class ClawHubClient {
     });
 
     const data = await this.request<ClawHubSearchResult>(
-      `/skills?${params.toString()}`
+      `/api/v1/skills?${params.toString()}`
     );
 
     return data;
@@ -151,7 +151,7 @@ export class ClawHubClient {
    */
   async getTags(): Promise<{ name: string; count: number }[]> {
     const data = await this.request<{ tags: { name: string; count: number }[] }>(
-      '/skills/tags'
+      '/api/v1/skills/tags'
     );
 
     return data.tags || [];
@@ -166,7 +166,7 @@ export class ClawHubClient {
     options: { limit?: number } = {}
   ): Promise<ClawHubSearchResult> {
     const data = await this.request<ClawHubSearchResult>(
-      '/skills/vector-search',
+      '/api/v1/skills/vector-search',
       {
         method: 'POST',
         body: JSON.stringify({
@@ -194,7 +194,7 @@ export class ClawHubClient {
       throw new Error('API key required for publishing. Set with setApiKey() or DUCK_API_KEY env');
     }
 
-    return this.request<{ id: string; url: string }>('/skills/publish', {
+    return this.request<{ id: string; url: string }>('/api/v1/skills/publish', {
       method: 'POST',
       body: JSON.stringify(skill),
     });
@@ -218,7 +218,7 @@ export class ClawHubClient {
     }
 
     const data = await this.request<ClawHubSkill>(
-      `/skills/${encodeURIComponent(id)}`,
+      `/api/v1/skills/${encodeURIComponent(id)}`,
       {
         method: 'PUT',
         body: JSON.stringify(updates),
@@ -237,7 +237,7 @@ export class ClawHubClient {
       throw new Error('API key required for deletion. Set with setApiKey() or DUCK_API_KEY env');
     }
 
-    await this.request(`/skills/${encodeURIComponent(id)}`, {
+    await this.request(`/api/v1/skills/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   }

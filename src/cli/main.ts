@@ -8,6 +8,7 @@
 import { Agent } from '../agent/core.js';
 import * as readline from 'readline';
 import { meshCommand } from './mesh-cmd.js';
+import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
 
 // Colors
@@ -194,6 +195,10 @@ async function main() {
     case 'clawhub':
     case 'skills':
       await clawhubCommand(args);
+      break;
+
+    case 'subconscious':
+      await subconsciousCommand(args);
       break;
 
     case 'souls':
