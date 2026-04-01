@@ -5,7 +5,7 @@
 function getAgentConfig() {
   const provider = process.env.DUCK_PROVIDER || 'anthropic';
   const modelMap: Record<string, string> = {
-    openrouter: 'openrouter/auto',
+    openrouter: 'qwen/qwen3.6-plus-preview:free',
     minimax: 'MiniMax-M2.7',
     moonshot: 'moonshot-v1-32k',
     openai: 'gpt-4o-mini',

@@ -223,7 +223,7 @@ class OpenRouterProvider implements Provider {
           'X-Title': 'Duck Agent'
         },
         body: JSON.stringify({
-          model: opts.model || 'openrouter/auto',  // auto-select best free model
+          model: opts.model || 'qwen/qwen3.6-plus-preview:free',  // auto-select best free model
           messages: opts.messages
         })
       });
