@@ -1,6 +1,6 @@
 /**
- * 🦆 Duck Agent - Advanced AI Agent
- * With SQLite memory, autonomous planning, and dangerous tool guardrails
+ * 🦆 Duck Agent - Super Agent Core
+ * SQLite memory, streaming, planning, cron, subagents, learning loop
  */
 
 import { EventEmitter } from 'events';
@@ -9,11 +9,21 @@ import { MemorySystem } from '../memory/system.js';
 import { ToolRegistry, ToolDefinition } from '../tools/registry.js';
 import { SkillRunner } from '../skills/runner.js';
 import { DesktopControl } from '../integrations/desktop.js';
-import { Planner, Plan, PlanStep } from './planner.js';
 import { DangerousToolGuard, ToolRisk, ApprovalCallback } from '../tools/approval.js';
+import { Planner, Plan, PlanStep } from './planner.js';
+import { SessionStore } from './session-store.js';
+import { StreamManager, streamManager } from './stream-manager.js';
+import { CronScheduler } from './cron-scheduler.js';
+import { SubagentManager } from './subagent-manager.js';
+import { LearningLoop } from './learning-loop.js';
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
+export { SessionStore };
+export { StreamManager, streamManager };
+export { CronScheduler };
+export { SubagentManager };
+export { LearningLoop };
 
 export interface AgentConfig {
   name?: string;
@@ -25,6 +35,11 @@ export interface AgentConfig {
   learningEnabled?: boolean;
   quietMode?: boolean;
   sessionId?: string;
+  streamEnabled?: boolean;
+  planningEnabled?: boolean;
+  cronEnabled?: boolean;
+  subagentEnabled?: boolean;
+  memoryDir?: string;
 }
 
 export interface Message {
@@ -73,11 +88,17 @@ export class Agent extends EventEmitter {
   private desktop: DesktopControl;
   private guard: DangerousToolGuard;
   private planner: Planner;
+  private sessions: SessionStore;
+  private streams: StreamManager;
+  private cron: CronScheduler;
+  private subagents: SubagentManager;
+  private learning: LearningLoop;
   private initialized: boolean = false;
   
   // Conversation
   private history: Message[] = [];
   private maxHistory: number;
+  private sessionId: string;
   
   // Learning
   private learningEnabled: boolean;
@@ -104,13 +125,17 @@ export class Agent extends EventEmitter {
     
     this.id = `duck_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     this.name = config.name || 'Duck Agent';
+    this.sessionId = config.sessionId || `session_${Date.now()}`;
     this.config = {
       maxIterations: config.maxIterations || 10,
       maxHistory: config.maxHistory || 50,
       costBudget: config.costBudget || 10,
       learningEnabled: config.learningEnabled !== false,
       quietMode: config.quietMode !== undefined ? config.quietMode : true,
-      sessionId: config.sessionId || `session_${Date.now()}`,
+      streamEnabled: config.streamEnabled !== false,
+      planningEnabled: config.planningEnabled !== false,
+      cronEnabled: config.cronEnabled !== false,
+      subagentEnabled: config.subagentEnabled !== false,
       ...config
     };
     
@@ -118,16 +143,27 @@ export class Agent extends EventEmitter {
     this.learningEnabled = this.config.learningEnabled!;
     this.costBudget = this.config.costBudget!;
     
+    // Initialize all systems
+    const memDir = this.config.memoryDir || undefined;
     this.providers = new ProviderManager();
-    this.memory = new MemorySystem();
+    this.memory = new MemorySystem(memDir);
     this.tools = new ToolRegistry();
     this.skills = new SkillRunner();
     this.desktop = new DesktopControl();
-    this.guard = new DangerousToolGuard(this.config.sessionId);
+    this.guard = new DangerousToolGuard(this.sessionId);
     this.planner = new Planner(this.memory);
+    this.sessions = new SessionStore(memDir);
+    this.streams = streamManager;
+    this.cron = new CronScheduler();
+    this.subagents = new SubagentManager();
+    this.learning = new LearningLoop(memDir);
     
-    // Set quiet mode (auto-approve low risk, prompt for high)
     this.guard.setQuietMode(this.config.quietMode!);
+    
+    // Subscribe to learning nudges
+    this.learning.on('nudge', (nudge: any) => {
+      this.emit('nudge', nudge);
+    });
   }
 
   async initialize(): Promise<void> {
@@ -141,164 +177,103 @@ export class Agent extends EventEmitter {
     await this.skills.load();
     this.registerTools();
     
-    // Tool telemetry: log tool stats to memory periodically
     const stats = this.memory.stats();
     console.log(`   + Memory: ${stats.memories} entries`);
+    console.log(`   + Sessions: ${this.sessions.stats().totalSessions} stored`);
+    console.log(`   + Learned skills: ${this.learning.stats().learnedSkills}`);
+    console.log(`   + Cron jobs: ${this.cron.stats().totalJobs}`);
     
     console.log(`✅ ${this.name} ready!`);
     console.log(`   Providers: ${this.providers.list().length}`);
     console.log(`   Tools: ${this.tools.list().length}`);
     console.log(`   Skills: ${this.skills.list().length}`);
     console.log(`   Memory: SQLite-backed`);
-    console.log(`   Planning: Autonomous`);
-    console.log(`   Guard: ${this.config.quietMode ? 'Quiet mode (auto-approve low risk)' : 'Interactive (confirm all)'}`);
+    console.log(`   Streaming: ${this.config.streamEnabled ? 'enabled' : 'disabled'}`);
+    console.log(`   Planning: ${this.config.planningEnabled ? 'enabled' : 'disabled'}`);
+    console.log(`   Cron: ${this.config.cronEnabled ? 'enabled' : 'disabled'}`);
+    console.log(`   Subagents: ${this.config.subagentEnabled ? 'enabled' : 'disabled'}`);
+    console.log(`   Learning: ${this.learningEnabled ? 'enabled' : 'disabled'}`);
+    console.log(`   Guard: ${this.config.quietMode ? 'quiet' : 'interactive'}`);
   }
 
-  /**
-   * Set dangerous tool approval callback (for interactive mode)
-   */
   setApprovalCallback(callback: ApprovalCallback): void {
     this.guard.setApprovalCallback(callback);
     this.guard.setQuietMode(false);
   }
 
-  /**
-   * Get the dangerous tool guard for configuration
-   */
-  getGuard(): DangerousToolGuard {
-    return this.guard;
-  }
-
-  /**
-   * Get the planner
-   */
-  getPlanner(): Planner {
-    return this.planner;
-  }
+  // ─── Tools ────────────────────────────────────────────────
 
   private registerTools(): void {
-    // ─── Desktop tools ───────────────────────────────────────
-    this.registerTool({
-      name: 'desktop_open',
-      description: 'Open an application',
-      schema: { app: { type: 'string' } },
-      dangerous: false,
-      handler: async (args: any) => {
-        await this.desktop.openApp(args.app);
-        return `Opened ${args.app}`;
-      }
+    // ─── Desktop ──────────────────────────────────────────
+    this.registerTool({ name: 'desktop_open', description: 'Open an application', schema: { app: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => { await this.desktop.openApp(args.app); return `Opened ${args.app}`; }
     });
-
-    this.registerTool({
-      name: 'desktop_click',
-      description: 'Click at coordinates',
-      schema: { x: { type: 'number' }, y: { type: 'number' } },
-      dangerous: false,
-      handler: async (args: any) => {
-        await this.desktop.click(args.x, args.y);
-        return `Clicked at ${args.x}, ${args.y}`;
-      }
+    this.registerTool({ name: 'desktop_click', description: 'Click at coordinates', schema: { x: { type: 'number' }, y: { type: 'number' } }, dangerous: false,
+      handler: async (args: any) => { await this.desktop.click(args.x, args.y); return `Clicked at ${args.x}, ${args.y}`; }
     });
-
-    this.registerTool({
-      name: 'desktop_type',
-      description: 'Type text',
-      schema: { text: { type: 'string' } },
-      dangerous: false,
-      handler: async (args: any) => {
-        await this.desktop.type(args.text);
-        return `Typed: ${args.text}`;
-      }
+    this.registerTool({ name: 'desktop_type', description: 'Type text', schema: { text: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => { await this.desktop.type(args.text); return `Typed: ${args.text}`; }
     });
-
-    this.registerTool({
-      name: 'desktop_screenshot',
-      description: 'Take a screenshot',
-      schema: {},
-      dangerous: false,
+    this.registerTool({ name: 'desktop_screenshot', description: 'Take a screenshot', schema: {}, dangerous: false,
       handler: async () => this.desktop.screenshot()
     });
 
-    // ─── Memory tools ────────────────────────────────────────
-    this.registerTool({
-      name: 'memory_remember',
-      description: 'Remember information permanently (SQLite-backed)',
-      schema: { 
-        content: { type: 'string' }, 
-        type: { type: 'string', optional: true },
-        tags: { type: 'string', optional: true }
-      },
-      dangerous: false,
+    // ─── Memory ────────────────────────────────────────────
+    this.registerTool({ name: 'memory_remember', description: 'Remember information permanently', 
+      schema: { content: { type: 'string' }, type: { type: 'string', optional: true }, tags: { type: 'string', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const tags = args.tags ? args.tags.split(',').map((t: string) => t.trim()) : [];
         const id = await this.memory.add(args.content, args.type || 'fact', tags);
+        this.streams.memorySave(this.sessionId, id, args.content);
         return `Remembered [${id}]: ${args.content}`;
       }
     });
-
-    this.registerTool({
-      name: 'memory_recall',
-      description: 'Search persistent memories (semantic search)',
-      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } },
-      dangerous: false,
+    this.registerTool({ name: 'memory_recall', description: 'Search persistent memories', 
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const results = await this.memory.recall(args.query, args.limit || 10);
         if (results.length === 0) return 'No memories found';
         return results.map(r => `[${r.type}] ${r.content}`).join('\n---\n');
       }
     });
-
-    this.registerTool({
-      name: 'memory_list',
-      description: 'List all memories, optionally filtered by type',
-      schema: { type: { type: 'string', optional: true }, limit: { type: 'number', optional: true } },
-      dangerous: false,
+    this.registerTool({ name: 'memory_list', description: 'List memories', 
+      schema: { type: { type: 'string', optional: true }, limit: { type: 'number', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const entries = await this.memory.list(args.type as any, args.limit || 50);
         if (entries.length === 0) return 'No memories stored';
         return entries.map(e => `[${e.type}] ${e.content}`).join('\n---\n');
       }
     });
-
-    this.registerTool({
-      name: 'memory_stats',
-      description: 'Show memory statistics',
-      schema: {},
-      dangerous: false,
+    this.registerTool({ name: 'memory_stats', description: 'Show memory statistics', schema: {}, dangerous: false,
       handler: async () => {
         const stats = this.memory.stats();
         const toolStats = await this.memory.getToolStats();
         const failing = await this.memory.getFailingTools();
-        return {
-          ...stats,
-          toolStats,
-          failingTools: failing,
-          approvalStats: this.guard.stats()
-        };
+        return { ...stats, toolStats, failingTools: failing, approvalStats: this.guard.stats() };
       }
     });
 
-    // ─── Shell (GUARDED) ─────────────────────────────────────
-    this.registerTool({
-      name: 'shell',
-      description: 'Execute shell command ⚠️ (dangerous, risk-evaluated)',
-      schema: { command: { type: 'string' }, timeout: { type: 'number', optional: true } },
-      dangerous: true,
+    // ─── Shell (GUARDED) ─────────────────────────────────
+    this.registerTool({ name: 'shell', description: 'Execute shell command ⚠️', 
+      schema: { command: { type: 'string' }, timeout: { type: 'number', optional: true } }, dangerous: true,
       handler: async (args: any) => {
         const start = Date.now();
+        this.streams.toolStart(this.sessionId, 'shell', { command: args.command });
         
-        // Dangerous tool guard check
         const approved = await this.guard.checkApproval('shell', { command: args.command });
         if (!approved) {
+          this.streams.toolEnd(this.sessionId, 'shell', false, undefined, 'Command denied by guard', Date.now() - start);
+          this.streams.guardBlock(this.sessionId, 'shell', { command: args.command }, 'blocked', ['Denied by user/system']);
           return { error: 'Command denied by dangerous tool guard', risk: 'blocked' };
         }
 
-        // Also check dangerous patterns directly
         const risk = this.guard.analyzeRisk(args.command, 'shell', {});
         if (risk.level === 'critical') {
+          this.streams.guardBlock(this.sessionId, 'shell', { command: args.command }, 'critical', risk.reasons);
+          this.streams.toolEnd(this.sessionId, 'shell', false, undefined, `CRITICAL risk: ${risk.reasons.join(', ')}`, Date.now() - start);
           return { error: `CRITICAL risk command blocked: ${risk.reasons.join(', ')}`, risk: 'critical' };
         }
-        
+
         const { exec } = await import('child_process');
         const timeout = args.timeout || 30000;
         
@@ -306,13 +281,17 @@ export class Agent extends EventEmitter {
           exec(args.command, { timeout, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
             const duration = Date.now() - start;
             const success = !error;
-            
-            // Log to memory telemetry
             this.memory.logTool('shell', args.command, success, error?.message, duration).catch(() => {});
             
+            if (risk.level === 'high') {
+              this.streams.guardWarn(this.sessionId, 'shell', { command: args.command }, risk.level, risk.reasons);
+            }
+            
             if (error) {
+              this.streams.toolEnd(this.sessionId, 'shell', false, undefined, error.message, duration);
               resolve({ error: error.message, stderr, duration, risk: risk.level });
             } else {
+              this.streams.toolEnd(this.sessionId, 'shell', true, stdout.slice(0, 5000), undefined, duration);
               resolve({ stdout, stderr, duration, risk: risk.level });
             }
           });
@@ -320,79 +299,60 @@ export class Agent extends EventEmitter {
       }
     });
 
-    // ─── File tools ──────────────────────────────────────────
-    this.registerTool({
-      name: 'file_read',
-      description: 'Read a file',
-      schema: { path: { type: 'string' }, limit: { type: 'number', optional: true } },
-      dangerous: false,
+    // ─── File ──────────────────────────────────────────────
+    this.registerTool({ name: 'file_read', description: 'Read a file', 
+      schema: { path: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const { readFile } = await import('fs/promises');
         try {
           const content = await readFile(args.path, 'utf-8');
           const limit = args.limit || 0;
           if (limit > 0 && content.length > limit) {
-            return content.slice(0, limit) + `\n... [truncated, ${content.length} total bytes]`;
+            return content.slice(0, limit) + `\n... [truncated, ${content.length} total]`;
           }
           return content;
-        } catch (e: any) {
-          return `Error: ${e.message}`;
-        }
+        } catch (e: any) { return `Error: ${e.message}`; }
       }
     });
-
-    this.registerTool({
-      name: 'file_write',
-      description: 'Write to a file ⚠️ (dangerous, risk-evaluated)',
-      schema: { path: { type: 'string' }, content: { type: 'string' } },
-      dangerous: true,
+    this.registerTool({ name: 'file_write', description: 'Write to a file ⚠️', 
+      schema: { path: { type: 'string' }, content: { type: 'string' } }, dangerous: true,
       handler: async (args: any) => {
         const start = Date.now();
+        this.streams.toolStart(this.sessionId, 'file_write', args);
         
-        // Dangerous tool guard check
         const approved = await this.guard.checkApproval('file_write', args);
         if (!approved) {
-          return { error: 'Write denied by dangerous tool guard', risk: 'blocked' };
+          this.streams.toolEnd(this.sessionId, 'file_write', false, undefined, 'Write denied', Date.now() - start);
+          return { error: 'Write denied by guard', risk: 'blocked' };
         }
 
-        const risk = this.guard.analyzeRisk(args.path, 'file_write', args);
-        if (risk.level === 'critical') {
-          return { error: `CRITICAL risk write blocked: ${risk.reasons.join(', ')}`, risk: 'critical' };
-        }
-        
         const { writeFile, mkdir } = await import('fs/promises');
         try {
-          // Ensure directory exists
           const dir = args.path.substring(0, args.path.lastIndexOf('/'));
           if (dir) await mkdir(dir, { recursive: true }).catch(() => {});
-          
           await writeFile(args.path, args.content);
           const duration = Date.now() - start;
           this.memory.logTool('file_write', args.path, true, undefined, duration).catch(() => {});
-          return { written: args.path, bytes: args.content.length, duration, risk: risk.level };
+          this.streams.toolEnd(this.sessionId, 'file_write', true, `${args.path} (${args.content.length}B)`, undefined, duration);
+          return { written: args.path, bytes: args.content.length, duration };
         } catch (e: any) {
           const duration = Date.now() - start;
           this.memory.logTool('file_write', args.path, false, e.message, duration).catch(() => {});
-          return { error: e.message, risk: risk.level };
+          this.streams.toolEnd(this.sessionId, 'file_write', false, undefined, e.message, duration);
+          return { error: e.message };
         }
       }
     });
 
-    // ─── Web search ───────────────────────────────────────────
-    this.registerTool({
-      name: 'web_search',
-      description: 'Search the web',
-      schema: { query: { type: 'string' } },
-      dangerous: false,
+    // ─── Web ──────────────────────────────────────────────
+    this.registerTool({ name: 'web_search', description: 'Search the web', 
+      schema: { query: { type: 'string' } }, dangerous: false,
       handler: async (args: any) => `Searching web for: ${args.query}`
     });
 
-    // ─── Learning / feedback ─────────────────────────────────
-    this.registerTool({
-      name: 'learn_from_feedback',
-      description: 'Learn from feedback to improve future responses',
-      schema: { success: { type: 'boolean' }, feedback: { type: 'string', optional: true } },
-      dangerous: false,
+    // ─── Learning ──────────────────────────────────────────
+    this.registerTool({ name: 'learn_from_feedback', description: 'Learn from feedback', 
+      schema: { success: { type: 'boolean' }, feedback: { type: 'string', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         if (this.learningEnabled) {
           this.learn(args.success, args.feedback);
@@ -402,97 +362,178 @@ export class Agent extends EventEmitter {
       }
     });
 
-    // ─── Metrics ─────────────────────────────────────────────
-    this.registerTool({
-      name: 'get_metrics',
-      description: 'Get agent performance metrics',
-      schema: {},
-      dangerous: false,
+    // ─── Metrics ─────────────────────────────────────────
+    this.registerTool({ name: 'get_metrics', description: 'Get agent metrics', schema: {}, dangerous: false,
       handler: async () => this.getMetrics()
     });
-
-    this.registerTool({
-      name: 'get_cost',
-      description: 'Get cost tracking info',
-      schema: {},
-      dangerous: false,
-      handler: async () => ({
-        totalCost: this.totalCost,
-        budget: this.costBudget,
-        remaining: this.costBudget - this.totalCost,
-        records: this.costRecords.length
-      })
+    this.registerTool({ name: 'get_cost', description: 'Get cost info', schema: {}, dangerous: false,
+      handler: async () => ({ totalCost: this.totalCost, budget: this.costBudget, remaining: this.costBudget - this.totalCost })
     });
 
-    // ─── Planning tools ───────────────────────────────────────
-    this.registerTool({
-      name: 'plan_create',
-      description: 'Create an autonomous plan from a goal',
-      schema: { goal: { type: 'string' }, context: { type: 'string', optional: true } },
-      dangerous: false,
+    // ─── Planning ─────────────────────────────────────────
+    if (this.config.planningEnabled) {
+      this.registerTool({ name: 'plan_create', description: 'Create autonomous plan', 
+        schema: { goal: { type: 'string' }, context: { type: 'string', optional: true } }, dangerous: false,
+        handler: async (args: any) => {
+          const context = args.context ? JSON.parse(args.context) : {};
+          const plan = await this.planner.createPlan(args.goal, context, this.tools.list().map(t => t.name));
+          this.streams.sessionStart(this.sessionId, args.goal);
+          return this.planner.formatProgress(plan);
+        }
+      });
+      this.registerTool({ name: 'plan_status', description: 'Show plan progress', 
+        schema: { planId: { type: 'string', optional: true } }, dangerous: false,
+        handler: async (args: any) => {
+          const plan = args.planId ? this.planner.getPlan(args.planId) : this.planner.listActivePlans()[0];
+          if (!plan) return 'No active plan';
+          return this.planner.formatProgress(plan);
+        }
+      });
+      this.registerTool({ name: 'plan_list', description: 'List active plans', schema: {}, dangerous: false,
+        handler: async () => {
+          const active = this.planner.listActivePlans();
+          const history = this.planner.listHistory(5);
+          return `Active: ${active.length}\nHistory: ${history.length}\n\n` +
+            active.map(p => `• ${p.id}: ${p.goal} (${p.status})`).join('\n');
+        }
+      });
+      this.registerTool({ name: 'plan_abort', description: 'Abort a plan', 
+        schema: { planId: { type: 'string' }, reason: { type: 'string' } }, dangerous: false,
+        handler: async (args: any) => {
+          const plan = this.planner.abortPlan(args.planId, args.reason);
+          return plan ? `Aborted: ${plan.goal}` : 'Plan not found';
+        }
+      });
+    }
+
+    // ─── Session Search ───────────────────────────────────
+    this.registerTool({ name: 'session_search', description: 'Search past conversations', 
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
       handler: async (args: any) => {
-        const context = args.context ? JSON.parse(args.context) : {};
-        const plan = await this.planner.createPlan(args.goal, context, this.tools.list().map(t => t.name));
-        return this.planner.formatProgress(plan);
+        const results = this.sessions.search(args.query, args.limit || 10);
+        if (results.length === 0) return 'No past conversations found';
+        return results.map(r => `[${r.role}] ${r.content}`).join('\n---\n');
       }
     });
-
-    this.registerTool({
-      name: 'plan_status',
-      description: 'Get status of the current plan',
-      schema: { planId: { type: 'string', optional: true } },
-      dangerous: false,
+    this.registerTool({ name: 'session_list', description: 'List recent conversations', 
+      schema: { limit: { type: 'number', optional: true } }, dangerous: false,
       handler: async (args: any) => {
-        const plan = args.planId 
-          ? this.planner.getPlan(args.planId) 
-          : this.planner.listActivePlans()[0];
-        if (!plan) return 'No active plan';
-        return this.planner.formatProgress(plan);
+        const sessions = this.sessions.getRecentSessions(args.limit || 10);
+        if (sessions.length === 0) return 'No past conversations';
+        return sessions.map(s => 
+          `[${new Date(s.timestamp).toLocaleString()}] ${s.topic}: "${s.lastMessage.slice(0, 80)}..." (${s.messageCount} msgs)`
+        ).join('\n');
       }
     });
 
-    this.registerTool({
-      name: 'plan_list',
-      description: 'List all active plans',
-      schema: {},
-      dangerous: false,
-      handler: async () => {
-        const active = this.planner.listActivePlans();
-        const history = this.planner.listHistory(5);
-        return `Active: ${active.length}\nHistory: ${history.length}\n\n` +
-          active.map(p => `• ${p.id}: ${p.goal} (${p.status})`).join('\n');
-      }
-    });
+    // ─── Cron ─────────────────────────────────────────────
+    if (this.config.cronEnabled) {
+      this.registerTool({ name: 'cron_create', description: 'Create scheduled task from natural language', 
+        schema: { name: { type: 'string' }, schedule: { type: 'string' }, task: { type: 'string' }, taskType: { type: 'string', optional: true } }, dangerous: false,
+        handler: async (args: any) => {
+          const job = this.cron.createJob(args.name, args.schedule, args.task, (args.taskType || 'shell') as any);
+          return `Scheduled: "${args.name}" — ${job.schedule}\nNext run: ${job.nextRun ? new Date(job.nextRun!).toLocaleString() : 'N/A'}`;
+        }
+      });
+      this.registerTool({ name: 'cron_list', description: 'List scheduled tasks', schema: {}, dangerous: false,
+        handler: async () => {
+          const jobs = this.cron.listJobs();
+          if (jobs.length === 0) return 'No scheduled tasks';
+          return jobs.map(j => 
+            `[${j.enabled ? 'ON' : 'OFF'}] ${j.name} — ${j.schedule}\n   Task: ${j.task}\n   Last: ${j.lastRun ? new Date(j.lastRun).toLocaleString() : 'never'} | Next: ${j.nextRun ? new Date(j.nextRun).toLocaleString() : 'N/A'}`
+          ).join('\n\n');
+        }
+      });
+      this.registerTool({ name: 'cron_enable', description: 'Enable/disable a task', 
+        schema: { jobId: { type: 'string' }, enabled: { type: 'boolean' } }, dangerous: false,
+        handler: async (args: any) => {
+          this.cron.setEnabled(args.jobId, args.enabled);
+          return `${args.enabled ? 'Enabled' : 'Disabled'} job ${args.jobId}`;
+        }
+      });
+      this.registerTool({ name: 'cron_delete', description: 'Delete a task', 
+        schema: { jobId: { type: 'string' } }, dangerous: false,
+        handler: async (args: any) => {
+          this.cron.deleteJob(args.jobId);
+          return `Deleted job ${args.jobId}`;
+        }
+      });
+      this.registerTool({ name: 'cron_stats', description: 'Show cron statistics', schema: {}, dangerous: false,
+        handler: async () => this.cron.stats()
+      });
+    }
 
-    this.registerTool({
-      name: 'plan_abort',
-      description: 'Abort an active plan',
-      schema: { planId: { type: 'string' }, reason: { type: 'string' } },
-      dangerous: false,
-      handler: async (args: any) => {
-        const plan = this.planner.abortPlan(args.planId, args.reason);
-        return plan ? `Aborted: ${plan.goal}` : 'Plan not found';
-      }
-    });
+    // ─── Subagents ────────────────────────────────────────
+    if (this.config.subagentEnabled) {
+      this.registerTool({ name: 'agent_spawn', description: 'Spawn a subagent', 
+        schema: { task: { type: 'string' }, role: { type: 'string', optional: true }, name: { type: 'string', optional: true } }, dangerous: false,
+        handler: async (args: any) => {
+          const agent = this.subagents.spawn(args.task, { role: (args.role || 'general') as any, name: args.name });
+          return `Spawned ${agent.role} subagent ${agent.id}: ${agent.name}\nTask: ${agent.task}`;
+        }
+      });
+      this.registerTool({ name: 'agent_spawn_team', description: 'Spawn multiple subagents in parallel', 
+        schema: { tasks: { type: 'string' /* JSON array */ } }, dangerous: false,
+        handler: async (args: any) => {
+          const tasks = JSON.parse(args.tasks);
+          const agents = this.subagents.spawnTeam(tasks);
+          return `Spawned ${agents.length} subagents:\n` + 
+            agents.map(a => `• ${a.id} [${a.role}]: ${a.name}`).join('\n');
+        }
+      });
+      this.registerTool({ name: 'agent_list', description: 'List active subagents', schema: {}, dangerous: false,
+        handler: async () => {
+          const active = this.subagents.listActive();
+          const stats = this.subagents.stats();
+          if (active.length === 0) return `No active subagents\nStats: ${stats.total} total, ${stats.completed} completed, ${stats.failed} failed`;
+          return active.map(a => 
+            `[${a.status.toUpperCase()}] ${a.id} [${a.role}]: ${a.progress}% — ${a.task.slice(0, 60)}...`
+          ).join('\n');
+        }
+      });
+      this.registerTool({ name: 'agent_status', description: 'Get subagent status', 
+        schema: { agentId: { type: 'string' } }, dangerous: false,
+        handler: async (args: any) => {
+          const agent = this.subagents.get(args.agentId);
+          if (!agent) return `Subagent not found: ${args.agentId}`;
+          return `[${agent.status.toUpperCase()}] ${agent.name} [${agent.role}]\nTask: ${agent.task}\nProgress: ${agent.progress}%\n` +
+            (agent.result ? `\nResult:\n${agent.result.slice(0, 500)}` : '') +
+            (agent.error ? `\nError: ${agent.error}` : '');
+        }
+      });
+      this.registerTool({ name: 'agent_cancel', description: 'Cancel a subagent', 
+        schema: { agentId: { type: 'string' } }, dangerous: false,
+        handler: async (args: any) => {
+          const ok = this.subagents.cancel(args.agentId);
+          return ok ? `Cancelled ${args.agentId}` : `Failed to cancel ${args.agentId} (not running?)`;
+        }
+      });
+      this.registerTool({ name: 'agent_wait', description: 'Wait for subagent to complete', 
+        schema: { agentId: { type: 'string' }, timeout: { type: 'number', optional: true } }, dangerous: false,
+        handler: async (args: any) => {
+          try {
+            const agent = await this.subagents.waitFor(args.agentId, args.timeout || 300000);
+            return `[${agent.status.toUpperCase()}] ${agent.id}\n` +
+              (agent.result ? `Result:\n${agent.result.slice(0, 500)}` : '') +
+              (agent.error ? `Error: ${agent.error}` : '');
+          } catch (e: any) {
+            return `Wait failed: ${e.message}`;
+          }
+        }
+      });
+    }
 
-    // ─── Guard tools ──────────────────────────────────────────
-    this.registerTool({
-      name: 'guard_check',
-      description: 'Check risk level of a command without executing',
-      schema: { tool: { type: 'string' }, args: { type: 'string' } },
-      dangerous: false,
+    // ─── Guard ────────────────────────────────────────────
+    this.registerTool({ name: 'guard_check', description: 'Check risk level', 
+      schema: { tool: { type: 'string' }, args: { type: 'string' } }, dangerous: false,
       handler: async (args: any) => {
         const parsedArgs = JSON.parse(args.args || '{}');
         const risk = this.guard.analyzeRisk(args.args, args.tool, parsedArgs);
         return this.guard.formatRisk(risk);
       }
     });
-
-    this.registerTool({
-      name: 'guard_log',
-      description: 'Show dangerous tool approval log',
-      schema: { limit: { type: 'number', optional: true } },
-      dangerous: false,
+    this.registerTool({ name: 'guard_log', description: 'Show approval log', 
+      schema: { limit: { type: 'number', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const log = this.guard.getLog(args.limit || 20);
         if (log.length === 0) return 'No approval decisions yet';
@@ -502,13 +543,35 @@ export class Agent extends EventEmitter {
         ).join('\n');
       }
     });
-
-    this.registerTool({
-      name: 'guard_stats',
-      description: 'Show dangerous tool guard statistics',
-      schema: {},
-      dangerous: false,
+    this.registerTool({ name: 'guard_stats', description: 'Show guard statistics', schema: {}, dangerous: false,
       handler: async () => this.guard.stats()
+    });
+
+    // ─── Learning ──────────────────────────────────────────
+    this.registerTool({ name: 'learning_stats', description: 'Show learning statistics', schema: {}, dangerous: false,
+      handler: async () => {
+        const ls = this.learning.stats();
+        const cs = this.cron.stats();
+        const ss = this.sessions.stats();
+        return { learning: ls, cron: cs, sessions: ss };
+      }
+    });
+    this.registerTool({ name: 'learning_context', description: 'Get context for current session', schema: {}, dangerous: false,
+      handler: async () => {
+        const prompt = this.learning.buildContextPrompt(this.sessionId);
+        return prompt || 'No learning context yet';
+      }
+    });
+    this.registerTool({ name: 'user_model', description: 'Get/update user model', 
+      schema: { updates: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        if (args.updates) {
+          const updates = JSON.parse(args.updates);
+          this.learning.updateUserModel(updates);
+          return `Updated user model: ${JSON.stringify(updates)}`;
+        }
+        return JSON.stringify(this.learning.getUserModel(), null, 2);
+      }
     });
   }
 
@@ -517,41 +580,41 @@ export class Agent extends EventEmitter {
     console.log(`   + Tool: ${def.name}${def.dangerous ? ' ⚠️' : ''}`);
   }
 
+  // ─── Chat Loop ─────────────────────────────────────────
+
   async chat(message: string): Promise<string> {
     await this.ensureInitialized();
     this.metrics.totalInteractions++;
-    
-    // Check cost budget
+    const startTime = Date.now();
+
+    this.sessions.addMessage({
+      sessionId: this.sessionId,
+      role: 'user',
+      content: message,
+      timestamp: startTime
+    });
+
     if (this.totalCost >= this.costBudget) {
-      return "⚠️ Cost budget exceeded. Please try a simpler task or wait for budget reset.";
+      return "⚠️ Cost budget exceeded.";
     }
 
-    // Add to history
-    this.history.push({ role: 'user', content: message, timestamp: Date.now() });
+    this.history.push({ role: 'user', content: message, timestamp: startTime });
     
-    // Check for learned patterns
-    const learnedResponse = this.checkLearnedPatterns(message);
-    if (learnedResponse) {
-      this.history.push({ role: 'assistant', content: learnedResponse, timestamp: Date.now() });
-      return learnedResponse;
-    }
-
-    // Build context with compression if needed
+    // Build context with learning loop context
     const context = await this.buildContext();
     
-    // Try providers in order (fallback chain)
+    // Emit thinking
+    this.streams.thinking(this.sessionId, 'Building context...');
+
     let response: string | null = null;
-    let lastError: string = '';
+    let lastError = '';
     
     for (const providerName of this.providers.list()) {
       try {
         const provider = this.providers.get(providerName);
         if (!provider) continue;
         
-        const result = await provider.complete({
-          model: this.config.model,
-          messages: context
-        });
+        const result = await provider.complete({ model: this.config.model, messages: context });
         
         if (result.text) {
           this.trackCost(providerName, this.estimateTokens(JSON.stringify(context)), this.estimateTokens(result.text));
@@ -565,45 +628,75 @@ export class Agent extends EventEmitter {
 
     if (!response) {
       this.metrics.failedInteractions++;
-      return `❌ All providers failed. Last error: ${lastError}`;
+      const errMsg = `❌ All providers failed. Last error: ${lastError}`;
+      this.sessions.addMessage({ sessionId: this.sessionId, role: 'assistant', content: errMsg, timestamp: Date.now() });
+      return errMsg;
     }
 
     // Parse and execute tools
     const toolCalls = this.parseToolCalls(response);
+    const toolsUsed: string[] = [];
+    
     for (const call of toolCalls) {
-      const start = Date.now();
+      const tStart = Date.now();
+      this.streams.toolStart(this.sessionId, call.name, call.args);
+      toolsUsed.push(call.name);
+      
       try {
         const result = await this.tools.execute(call.name, call.args);
-        const duration = Date.now() - start;
-        this.memory.logTool(call.name, JSON.stringify(call.args), true, undefined, duration).catch(() => {});
+        const tDuration = Date.now() - tStart;
+        this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
         response += `\n\n🔧 ${call.name}: ${JSON.stringify(result)}`;
       } catch (e: any) {
-        const duration = Date.now() - start;
-        this.memory.logTool(call.name, JSON.stringify(call.args), false, e.message, duration).catch(() => {});
+        const tDuration = Date.now() - tStart;
+        this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
         response += `\n\n❌ ${call.name} failed: ${e.message}`;
       }
     }
 
-    // Learn from this interaction
+    // Track interaction for learning
+    if (this.learningEnabled) {
+      const duration = Date.now() - startTime;
+      this.learning.trackInteraction({
+        sessionId: this.sessionId,
+        input: message,
+        output: response,
+        outcome: this.metrics.failedInteractions === 0 ? 'success' : 'partial',
+        toolsUsed,
+        duration,
+        timestamp: Date.now()
+      });
+    }
+
+    // Learn from interaction
     if (this.learningEnabled) {
       this.learnFromInteraction(message, response);
     }
 
-    // Save to history
     this.history.push({ role: 'assistant', content: response, timestamp: Date.now() });
     this.metrics.successfulInteractions++;
 
-    // Trim history if needed
+    // Save to session
+    this.sessions.addMessage({
+      sessionId: this.sessionId,
+      role: 'assistant',
+      content: response,
+      timestamp: Date.now()
+    });
+
+    // Trim history
     if (this.history.length > this.maxHistory) {
       this.history = this.history.slice(-this.maxHistory);
     }
+
+    // Emit session end
+    this.streams.sessionEnd(this.sessionId, 'success', Date.now() - startTime, toolsUsed);
 
     return response;
   }
 
   private checkLearnedPatterns(input: string): string | null {
     const inputLower = input.toLowerCase();
-    
     for (const [pattern, response] of this.learnedPatterns) {
       if (inputLower.includes(pattern.toLowerCase())) {
         return `📚 From memory: ${response}`;
@@ -613,226 +706,180 @@ export class Agent extends EventEmitter {
   }
 
   private learnFromInteraction(input: string, output: string): void {
-    const words = input.toLowerCase().split(/\s+/);
-    const significant = words.filter(w => w.length > 4);
-    
-    if (significant.length > 0 && output.length > 20) {
-      const key = significant.slice(0, 3).join(' ');
+    const words = input.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+    if (words.length > 0 && output.length > 20) {
+      const key = words.slice(0, 3).join(' ');
       if (!this.learnedPatterns.has(key)) {
         this.learnedPatterns.set(key, output.slice(0, 200));
       }
     }
-    
-    this.learningLog.push({
-      input,
-      output,
-      success: true,
-      timestamp: Date.now()
-    });
+    this.learningLog.push({ input, output, success: true, timestamp: Date.now() });
   }
 
   learn(success: boolean, feedback?: string): void {
-    const lastInteraction = this.learningLog[this.learningLog.length - 1];
-    if (lastInteraction) {
-      lastInteraction.success = success;
-      lastInteraction.feedback = feedback;
+    const last = this.learningLog[this.learningLog.length - 1];
+    if (last) {
+      last.success = success;
+      last.feedback = feedback;
     }
   }
 
   private async buildContext(): Promise<any[]> {
     const messages: any[] = [];
     
-    // System prompt with SOUL
-    const soul = this.memory.getSoul();
-    const patterns = Array.from(this.learnedPatterns.entries())
-      .map(([k, v]) => `When asked about "${k}": ${v}`)
-      .join('\n');
-    
     const systemPrompt = this.buildSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
 
-    if (soul) {
-      messages.push({ role: 'system', content: soul });
+    // Learning context
+    if (this.learningEnabled) {
+      const learningContext = this.learning.buildContextPrompt(this.sessionId);
+      if (learningContext) {
+        messages.push({ role: 'system', content: learningContext });
+      }
     }
 
-    if (patterns) {
+    // Memory SOUL
+    const soul = this.memory.getSoul();
+    if (soul) messages.push({ role: 'system', content: soul });
+
+    // Learned patterns
+    if (this.learnedPatterns.size > 0) {
+      const patterns = Array.from(this.learnedPatterns.entries())
+        .map(([k, v]) => `When asked about "${k}": ${v}`)
+        .join('\n');
       messages.push({ role: 'system', content: `Learned responses:\n${patterns}` });
     }
 
     // Recent history
-    const recentHistory = this.history.slice(-20);
-    messages.push(...recentHistory);
+    const recent = this.history.slice(-20);
+    messages.push(...recent);
 
     return messages;
   }
 
   private buildSystemPrompt(): string {
     const tools = this.tools.list().map(t => `- ${t.name}: ${t.description}`).join('\n');
-    return `You are ${this.name}, an advanced AI assistant with autonomous planning and dangerous tool guardrails.
+    const capabilities: string[] = ['Be helpful, practical, concise'];
+    
+    if (this.config.planningEnabled) capabilities.push('Use plan_create for complex multi-step tasks');
+    if (this.config.cronEnabled) capabilities.push('Use cron_create to schedule recurring tasks');
+    if (this.config.subagentEnabled) capabilities.push('Use agent_spawn for parallel subagent execution');
+    if (this.learningEnabled) capabilities.push('Use memory_remember to save important information');
+    capabilities.push('Use learn_from_feedback after completing tasks');
+
+    return `You are ${this.name}, an advanced AI assistant with autonomous planning, subagent orchestration, and self-improvement.
 
 Capabilities:
 ${tools}
 
 Guidelines:
-- Be helpful, practical, and concise
-- Use tools when they make tasks easier
-- Use plan_create for complex multi-step tasks
-- Check guard_check before running suspicious commands
-- Remember important information with memory_remember
-- Learn from feedback with learn_from_feedback`;
+${capabilities.join('\n')}`;
   }
 
   private parseToolCalls(text: string): Array<{ name: string; args: any }> {
     const calls: Array<{ name: string; args: any }> = [];
-    
-    // Pattern: [TOOL: name | args: {...}]
     const pattern1 = /\[TOOL:\s*(\w+)\s*\|\s*args:\s*(\{[^}]+\})\]/g;
     let match;
     while ((match = pattern1.exec(text)) !== null) {
-      try {
-        calls.push({ name: match[1], args: JSON.parse(match[2]) });
-      } catch {}
+      try { calls.push({ name: match[1], args: JSON.parse(match[2]) }); } catch {}
     }
+            const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
+        let match2;
+        while ((match2 = pattern2.exec(text)) !== null) {
+          if (this.tools.has(match2[1])) {
+            try { calls.push({ name: match2[1], args: JSON.parse(match2[2]) }); } catch {}
+          }
+        }
+        return calls;
+      }
 
-    // Pattern: tool_name({...})
-    const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
-    while ((match = pattern2.exec(text)) !== null) {
-      if (this.tools.has(match[1])) {
-        try {
-          calls.push({ name: match[1], args: JSON.parse(match[2]) });
-        } catch {}
+      private estimateTokens(text: string): number {
+        return Math.ceil(text.length / 4);
+      }
+
+      private trackCost(provider: string, promptTokens: number, completionTokens: number): void {
+        const costs: Record<string, number> = {
+          'minimax': 0.5, 'openai': 2.0, 'anthropic': 3.0, 'lmstudio': 0
+        };
+        const rate = costs[provider] || 1;
+        const cost = (promptTokens + completionTokens) / 1_000_000 * rate;
+        this.totalCost += cost;
+        this.costRecords.push({ provider, model: this.config.model || 'default', promptTokens, completionTokens, cost, timestamp: Date.now() });
+      }
+
+      getMetrics(): AgentMetrics {
+        return { ...this.metrics, totalCost: this.totalCost };
+      }
+
+      getCostInfo(): { total: number; budget: number; remaining: number } {
+        return { total: this.totalCost, budget: this.costBudget, remaining: this.costBudget - this.totalCost };
+      }
+
+      private async ensureInitialized(): Promise<void> {
+        if (!this.initialized) await this.initialize();
+      }
+
+      async think(input: string): Promise<string> { return this.chat(input); }
+      async execute(input: string): Promise<string> { return this.chat(input); }
+      async remember(content: string): Promise<void> { await this.memory.add(content, 'fact'); }
+      async recall(query: string): Promise<string[]> { return this.memory.search(query); }
+      async openApp(app: string): Promise<void> { await this.desktop.openApp(app); }
+      async click(x: number, y: number): Promise<void> { await this.desktop.click(x, y); }
+      async type(text: string): Promise<void> { await this.desktop.type(text); }
+      async screenshot(): Promise<string> { return this.desktop.screenshot(); }
+
+      getHistory(): Message[] { return [...this.history]; }
+      clearHistory(): void { this.history = []; }
+
+      getStatus() {
+        const activePlans = this.planner.listActivePlans();
+        const memoryStats = this.memory.stats();
+        const sessionStats = this.sessions.stats();
+        const learningStats = this.learning.stats();
+        const cronStats = this.cron.stats();
+        const subagentStats = this.subagents.stats();
+
+        return {
+          id: this.id,
+          name: this.name,
+          sessionId: this.sessionId,
+          providers: this.providers.list().length,
+          tools: this.tools.list().length,
+          toolList: this.tools.list().map(t => ({ name: t.name, dangerous: t.dangerous })),
+          skills: this.skills.list(),
+          historyLength: this.history.length,
+          learnedPatterns: this.learnedPatterns.size,
+          cost: this.getCostInfo(),
+          metrics: this.getMetrics(),
+          memory: memoryStats,
+          sessions: sessionStats,
+          learning: learningStats,
+          cron: cronStats,
+          subagents: subagentStats,
+          planning: { activePlans: activePlans.length, plans: activePlans.map(p => ({ id: p.id, goal: p.goal, status: p.status })) },
+          guard: this.guard.stats()
+        };
+      }
+
+      async shutdown(): Promise<void> {
+        console.log(`\n🦆 ${this.name} shutting down...`);
+        try { this.memory.close(); } catch {}
+        try { this.sessions.endSession(this.sessionId, 'success'); } catch {}
+        try { this.sessions.close(); } catch {}
+        try { this.cron.close(); } catch {}
+        try { this.subagents.close(); } catch {}
+        try { this.learning.close(); } catch {}
+        try { this.streams.sessionEnd(this.sessionId, 'success', 0, []); } catch {}
+        console.log(`   Total cost: $${this.totalCost.toFixed(4)}`);
+        console.log(`   Interactions: ${this.metrics.totalInteractions}`);
+        console.log(`   Success rate: ${this.metrics.totalInteractions > 0 ? (this.metrics.successfulInteractions / this.metrics.totalInteractions * 100).toFixed(1) : 0}%`);
+        try { console.log(`   Sessions: ${this.sessions.stats().totalSessions}`); } catch {}
+        try { console.log(`   Learned skills: ${this.learning.stats().learnedSkills}`); } catch {}
+        try { console.log(`   Cron jobs: ${this.cron.stats().totalJobs}`); } catch {}
+        try { console.log(`   Active subagents: ${this.subagents.stats().active}`); } catch {}
+        console.log(`✅ ${this.name} stopped`);
       }
     }
 
-    return calls;
-  }
-
-  private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  private trackCost(provider: string, promptTokens: number, completionTokens: number): void {
-    const costs: Record<string, number> = {
-      'minimax': 0.5,
-      'openai': 2.0,
-      'anthropic': 3.0,
-      'lmstudio': 0
-    };
+    export default Agent;
     
-    const rate = costs[provider] || 1;
-    const cost = (promptTokens + completionTokens) / 1_000_000 * rate;
-    
-    this.totalCost += cost;
-    this.costRecords.push({
-      provider,
-      model: this.config.model || 'default',
-      promptTokens,
-      completionTokens,
-      cost,
-      timestamp: Date.now()
-    });
-  }
-
-  getMetrics(): AgentMetrics {
-    return {
-      ...this.metrics,
-      totalCost: this.totalCost
-    };
-  }
-
-  getCostInfo(): { total: number; budget: number; remaining: number } {
-    return {
-      total: this.totalCost,
-      budget: this.costBudget,
-      remaining: this.costBudget - this.totalCost
-    };
-  }
-
-  private async ensureInitialized(): Promise<void> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-  }
-
-  // Legacy methods
-  async think(input: string): Promise<string> {
-    return this.chat(input);
-  }
-
-  async execute(input: string): Promise<string> {
-    return this.chat(input);
-  }
-
-  async remember(content: string): Promise<void> {
-    await this.memory.add(content, 'fact');
-  }
-
-  async recall(query: string): Promise<string[]> {
-    return this.memory.search(query);
-  }
-
-  async openApp(app: string): Promise<void> {
-    await this.desktop.openApp(app);
-  }
-
-  async click(x: number, y: number): Promise<void> {
-    await this.desktop.click(x, y);
-  }
-
-  async type(text: string): Promise<void> {
-    await this.desktop.type(text);
-  }
-
-  async screenshot(): Promise<string> {
-    return this.desktop.screenshot();
-  }
-
-  getHistory(): Message[] {
-    return [...this.history];
-  }
-
-  clearHistory(): void {
-    this.history = [];
-  }
-
-  getStatus() {
-    const activePlans = this.planner.listActivePlans();
-    const memoryStats = this.memory.stats();
-    
-    return {
-      id: this.id,
-      name: this.name,
-      providers: this.providers.list().length,
-      tools: this.tools.list().length,
-      toolList: this.tools.list().map(t => ({ name: t.name, dangerous: t.dangerous })),
-      skills: this.skills.list(),
-      historyLength: this.history.length,
-      learnedPatterns: this.learnedPatterns.size,
-      cost: this.getCostInfo(),
-      metrics: this.getMetrics(),
-      memory: memoryStats,
-      planning: {
-        activePlans: activePlans.length,
-        plans: activePlans.map(p => ({ id: p.id, goal: p.goal, status: p.status }))
-      },
-      guard: this.guard.stats()
-    };
-  }
-
-  async shutdown(): Promise<void> {
-    console.log(`\n🦆 ${this.name} shutting down...`);
-    if (this.initialized) {
-      this.memory.close();
-    }
-    console.log(`   Total cost: $${this.totalCost.toFixed(4)}`);
-    console.log(`   Interactions: ${this.metrics.totalInteractions}`);
-    console.log(`   Success rate: ${this.metrics.totalInteractions > 0 ? (this.metrics.successfulInteractions / this.metrics.totalInteractions * 100).toFixed(1) : 0}%`);
-    try {
-      console.log(`   Memories: ${this.memory.stats().memories}`);
-    } catch {}
-    console.log(`   Active plans: ${this.planner.listActivePlans().length}`);
-    console.log(`✅ ${this.name} stopped`);
-  }
-}
-
-export default Agent;

@@ -458,10 +458,10 @@ export class SQLiteStore {
   }
 
   close(): void {
-    if (this.initialized && this.db.open) {
-      this.db.close();
+    try {
+      if (this.db.open) this.db.close();
       this.initialized = false;
-    }
+    } catch {}
   }
 
   stats(): { memories: number; toolLogs: number; sessions: number; patterns: number } {
