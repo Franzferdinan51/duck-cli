@@ -32,6 +32,19 @@ docker-compose up -d
 
 ---
 
+## 📍 Current Direction
+
+Duck Agent keeps the full original plan, but the implementation direction is now clearer:
+- **duck-cli is the main application**
+- **OpenClaw is the base infrastructure** (sessions, gateway, MCP, memory, providers)
+- **AI Council integration is a first-class priority**
+- **openclaude / instructkr-style capabilities are additive bridges**, not destructive rewrites
+- **server consolidation should reduce moving parts where safe without removing existing systems**
+
+Fresh planning docs generated during the architecture pass:
+- `IMPLEMENTATION_BACKLOG.md` — prioritized build roadmap
+- `CONSOLIDATION_PLAN.md` — process/server unification strategy
+
 ## 🖥️ Desktop UI — NOW RUNNABLE
 
 **v0.4.0 brings a fully functional desktop shell** built with Vite + React + CopilotKit + Pretext Canvas.
