@@ -115,7 +115,7 @@ func agentCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List active agents",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--agent-list")
+			return runNode("agent-list")
 		},
 	})
 
@@ -124,7 +124,7 @@ func agentCmd() *cobra.Command {
 		Short: "Spawn a new agent",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--agent-spawn", args[0], args[1])
+			return runNode("agent-spawn", args[0], args[1])
 		},
 	})
 
@@ -142,7 +142,7 @@ func mcpCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List configured MCP servers",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--mcp-list")
+			return runNode("mcp-list")
 		},
 	})
 
@@ -151,7 +151,7 @@ func mcpCmd() *cobra.Command {
 		Short: "Add an MCP server",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--mcp-add", args[0], args[1])
+			return runNode("mcp-add", args[0], args[1])
 		},
 	})
 
@@ -169,7 +169,7 @@ func skillsCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List available skills",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--skills-list")
+			return runNode("skills-list")
 		},
 	})
 
@@ -178,7 +178,7 @@ func skillsCmd() *cobra.Command {
 		Short: "Search skills",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--skills-search", args[0])
+			return runNode("skills-search", args[0])
 		},
 	})
 
@@ -196,7 +196,7 @@ func securityCmd() *cobra.Command {
 		Use:   "audit",
 		Short: "Run security audit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--security-audit")
+			return runNode("security-audit")
 		},
 	})
 
@@ -204,7 +204,7 @@ func securityCmd() *cobra.Command {
 		Use:   "defcon",
 		Short: "Show DEFCON level",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--security-defcon")
+			return runNode("security-defcon")
 		},
 	})
 
@@ -232,7 +232,7 @@ func councilCmd() *cobra.Command {
 		Short: "Ask the AI Council",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--council", mode, strings.Join(args, " "))
+			return runNode("council", mode, strings.Join(args, " "))
 		},
 	}
 
@@ -246,7 +246,7 @@ func shellCmd() *cobra.Command {
 		Use:   "shell",
 		Short: "Start Duck CLI shell",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNode("--shell")
+			return runNode("shell")
 		},
 	}
 	return cmd

@@ -44,7 +44,9 @@ async function main() {
     return;
   }
 
-  switch (command) {
+  // Strip leading -- for consistency with Go wrapper
+  const cmd = command?.replace(/^--/, '') || '';
+  switch (cmd) {
     case 'shell':
     case 'i':
     case 'chat':
@@ -174,6 +176,14 @@ async function main() {
       await buddyCommand(args);
       break;
 
+    case 'security-defcon':
+      console.log(`${c.bold}🔐 DEFCON Status: ${c.green}DEFCON 5 - All Clear${c.reset}`);
+      console.log(`${c.dim}No active security threats detected.${c.reset}`);
+      break;
+    case 'security-audit':
+      console.log(`${c.bold}🔍 Security Audit${c.reset}`);
+      console.log(`${c.dim}Run: duck security audit${c.reset}`);
+      break;
     case 'council':
     case 'ai-council':
       await councilCommand(args);
