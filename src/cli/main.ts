@@ -1305,13 +1305,26 @@ async function councilCommand(args: string[]) {
     console.log('');
     console.log(`${c.yellow}Running deliberation...${c.reset}\n`);
     
-    // Run deliberation
-    const result = await client.runDeliberation(topic, mode || 'legislative');
-    
+    // Run deliberation using the engine (handles server offline + local fallback)
+    const { DeliberationEngine } = await import('../council/deliberation-engine.js');
+    const engine = new DeliberationEngine(client);
+
+    const result = await engine.deliberate({
+      mode: mode || 'deliberation',
+      topic,
+      maxRounds: 1,
+    });
+
     console.log(`${c.green}Council Verdict:${c.reset}`);
-    console.log(result.finalRuling || result.summary);
-    if (result.summary) console.log(result.summary);
-    console.log(`${c.cyan}Confidence: ${result.consensus}%${c.reset}`);
+    const verdict = result.verdict || result.finalRuling || result.summary;
+    console.log(verdict ? verdict.slice(0, 300) : 'No verdict generated');
+    if (result.summary && result.summary !== verdict) {
+      const summaryText = result.summary.slice(0, 500);
+      if (summaryText) console.log(`\n${c.cyan}Details:${c.reset}\n${summaryText}`);
+    }
+    if (result.consensus !== undefined) {
+      console.log(`${c.cyan}Consensus: ${(result.consensus * 100).toFixed(0)}%${c.reset}`);
+    }
     
   } catch (e: any) {
     console.log(`${c.yellow}AI Council not available: ${e.message}${c.reset}`);
@@ -1575,13 +1588,26 @@ async function councilCommand(args: string[]) {
     console.log('');
     console.log(`${c.yellow}Running deliberation...${c.reset}\n`);
     
-    // Run deliberation
-    const result = await client.runDeliberation(topic, mode || 'legislative');
-    
+    // Run deliberation using the engine (handles server offline + local fallback)
+    const { DeliberationEngine } = await import('../council/deliberation-engine.js');
+    const engine = new DeliberationEngine(client);
+
+    const result = await engine.deliberate({
+      mode: mode || 'deliberation',
+      topic,
+      maxRounds: 1,
+    });
+
     console.log(`${c.green}Council Verdict:${c.reset}`);
-    console.log(result.finalRuling || result.summary);
-    if (result.summary) console.log(result.summary);
-    console.log(`${c.cyan}Confidence: ${result.consensus}%${c.reset}`);
+    const verdict = result.verdict || result.finalRuling || result.summary;
+    console.log(verdict ? verdict.slice(0, 300) : 'No verdict generated');
+    if (result.summary && result.summary !== verdict) {
+      const summaryText = result.summary.slice(0, 500);
+      if (summaryText) console.log(`\n${c.cyan}Details:${c.reset}\n${summaryText}`);
+    }
+    if (result.consensus !== undefined) {
+      console.log(`${c.cyan}Consensus: ${(result.consensus * 100).toFixed(0)}%${c.reset}`);
+    }
     
   } catch (e: any) {
     console.log(`${c.yellow}AI Council not available: ${e.message}${c.reset}`);

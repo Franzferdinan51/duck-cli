@@ -1,10 +1,9 @@
 /**
- * 🦆 Duck Agent - Deliberation Engine
- * Handles different deliberation modes for AI Council
+ * Duck Agent - Deliberation Engine
+ * Clean local deliberation with MiniMax API
  */
 
-import { AICouncilClient, Councilor, DELIBERATION_MODES, CouncilResult, Vote } from './client.js';
-import { routeModelForTask } from '../utils/model-router.js';
+import { AICouncilClient, CORE_COUNCILORS, Councilor, CouncilResult, Vote } from './client.js';
 
 export interface DeliberationOptions {
   mode: string;
@@ -23,10 +22,13 @@ export interface DeliberationState {
   votes: Vote[];
 }
 
+type CounResult = CouncilResult;
+
 export class DeliberationEngine {
   private client: AICouncilClient;
   private state: DeliberationState;
-  
+  private localMode = false;
+
   constructor(client?: AICouncilClient) {
     this.client = client || new AICouncilClient();
     this.state = {
@@ -37,389 +39,251 @@ export class DeliberationEngine {
       votes: [],
     };
   }
-  
-  /**
-   * Run a complete deliberation session
-   */
-  async deliberate(options: DeliberationOptions): Promise<CouncilResult> {
+
+  async deliberate(options: DeliberationOptions): Promise<CounResult> {
     const startTime = Date.now();
-    const {
-      mode,
-      topic,
-      councilors,
-      maxRounds = 3,
-      autoVote = true,
-    } = options;
-    
-    // Create session
-    const session = await this.client.createSession(mode, topic, councilors);
-    if (!session) {
-      return {
-        sessionId: 'failed',
-        topic,
-        mode,
-        duration: Date.now() - startTime,
-      };
-    }
-    
+    const { mode, topic, councilors } = options;
+    const enabled = (councilors || CORE_COUNCILORS.filter(c => c.enabled)).slice(0, 3);
+
+    // Try server first (3s timeout)
     try {
-      switch (mode) {
-        case 'legislative':
-          return await this.runLegislative(topic, councilors || [], maxRounds, startTime);
-          
-        case 'deliberation':
-          return await this.runDeliberation(topic, councilors || [], maxRounds, startTime);
-          
-        case 'research':
-          return await this.runResearch(topic, councilors || [], startTime);
-          
-        case 'prediction':
-          return await this.runPrediction(topic, councilors || [], startTime);
-          
-        case 'swarm_coding':
-          return await this.runSwarmCoding(topic, councilors || [], startTime);
-          
-        default:
-          return await this.runDeliberation(topic, councilors || [], maxRounds, startTime);
-      }
-    } catch (e) {
-      console.error('Deliberation error:', e);
-      return {
-        sessionId: session.id,
-        topic,
-        mode,
-        duration: Date.now() - startTime,
-      };
+      const session = await Promise.race([
+        this.client.createSession(mode, topic, councilors),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+      ]) as any;
+      if (session) return await this.pollServer(session.id, startTime);
+    } catch {
+      // Server offline, use local
+    }
+
+    this.localMode = true;
+    console.log('   [Council offline — local MiniMax]');
+
+    switch (mode) {
+      case 'legislative': return await this.runLegislative(topic, enabled, startTime);
+      case 'deliberation': return await this.runDeliberation(topic, enabled, startTime);
+      case 'decision': return await this.runDeliberation(topic, enabled, startTime);
+      case 'inquiry': return await this.runInquiry(topic, enabled, startTime);
+      case 'research': return await this.runResearch(topic, enabled, startTime);
+      case 'prediction': return await this.runPrediction(topic, enabled, startTime);
+      case 'swarm_coding': return await this.runSwarmCoding(topic, enabled, startTime);
+      default: return await this.runDeliberation(topic, enabled, startTime);
     }
   }
-  
-  /**
-   * Legislative mode: formal debate with voting
-   */
-  private async runLegislative(
-    topic: string,
-    councilors: Councilor[],
-    maxRounds: number,
-    startTime: number
-  ): Promise<CouncilResult> {
-    const votes: Vote[] = [];
-    
-    // Opening statements
-    for (const councilor of councilors) {
-      if (councilor.enabled) {
-        this.state.contributions.set(
-          councilor.id,
-          `Opening: ${topic} requires careful analysis...`
-        );
-      }
-    }
-    this.state.round++;
-    
-    // Debate rounds
-    for (let round = 1; round <= maxRounds; round++) {
-      this.state.round = round;
-      this.state.phase = 'debate';
-      
-      for (const councilor of councilors) {
-        if (councilor.enabled) {
-          // Generate position
-          const position = await this.generatePosition(councilor, topic, 'debate');
-          this.state.contributions.set(councilor.id, position);
+
+  // ─── MiniMax call + think-block stripping ──────────────────────────
+  private async localDeliberate(prompt: string): Promise<string> {
+    const apiKey = process.env.MINIMAX_API_KEY || process.env.MINIMAX_API_KEY_2 || '';
+    if (!apiKey) return 'No API key';
+
+    try {
+      const resp = await fetch('https://api.minimax.io/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'MiniMax-M2.7',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 600,
+          temperature: 0.7,
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json() as any;
+      let text: string = data.choices?.[0]?.message?.content || '';
+
+      // Strip MiniMax think blocks:
+      // Format: <start_ck>\n...thinking...\n</think>\n\nvisible
+      // Opener: <start_ck> (9 bytes: 3c 73 74 61 72 74 5f 63 6b 3e)
+      // Closer: </think> (8 bytes: 3c 2f 74 68 69 6e 6b 3e)
+      // Also handle: <think>...\n</think> (opener: <think> 7 bytes, closer: </think> 8 bytes)
+      // Also handle: <textarea>...</textarea>
+      // We'll use a state-machine: remove everything from opener to closer
+      const openers = ['<start_ck>', '<think>'];
+      // The MiniMax closing tag is </think> (8 bytes: < / t h i n k >)
+      // In JS string literal, this is written as </think>
+      for (const opener of openers) {
+        let idx = 0;
+        while ((idx = text.indexOf(opener, idx)) >= 0) {
+          // Find the closer after this opener
+          const endIdx = text.indexOf('\x3c\x2f\x74\x68\x69\x6e\x6b\x3e', idx + opener.length);
+          if (endIdx >= 0) {
+            text = text.substring(0, idx) + text.substring(endIdx + 8);
+          } else break;
         }
       }
-      
-      this.state.phase = 'rebuttal';
-      
-      // Rebuttals
-      for (const councilor of councilors) {
-        if (councilor.enabled) {
-          const rebuttal = await this.generateRebuttal(councilor, topic);
-          this.state.contributions.set(
-            councilor.id,
-            this.state.contributions.get(councilor.id) + '\n' + rebuttal
-          );
-        }
-      }
+
+      // Clean up
+      text = text.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!text || text.length < 3) return '(brief)';
+      return text.slice(0, 300);
+    } catch (e: any) {
+      return 'Error: ' + e.message.slice(0, 80);
     }
-    
-    // Voting
-    this.state.phase = 'vote';
-    for (const councilor of councilors) {
-      if (councilor.enabled) {
-        const vote = await this.generateVote(councilor, topic);
-        votes.push(vote);
-      }
-    }
-    
-    // Summary
-    this.state.phase = 'summary';
-    const summary = this.generateSummary(topic, votes);
-    const consensus = this.calculateConsensus(votes);
-    
+  }
+
+  // ─── Legislative: debate + vote ─────────────────────────────────
+  private async runLegislative(topic: string, councilors: Councilor[], startTime: number): Promise<CounResult> {
+    const votePromises = councilors.map(c =>
+      this.localDeliberate(`[${c.name}]: Vote YES or NO on "${topic}" — respond YES or NO.`)
+    );
+    const openingPromises = councilors.map(c =>
+      this.localDeliberate(`[${c.name}] (${c.role}): "${topic}" — 2 sentence analysis.`)
+    );
+    const [openings, voteTexts] = await Promise.all([Promise.all(openingPromises), Promise.all(votePromises)]);
+
+    const votes: any[] = voteTexts.map((t, i) => ({
+      councilorId: councilors[i].id,
+      vote: (t.toLowerCase().includes('yes') || t.toLowerCase().includes('yea')) ? 'yea' : 'nay',
+      confidence: 7,
+      reason: t.slice(0, 80),
+    }));
+
+    const summary = councilors.map((c, i) => `[${c.name}]: ${openings[i]}`).join('\n');
+    const yesCnt = votes.filter(v => v.vote === 'yea').length;
+    const consensus = votes.length > 0 ? yesCnt / votes.length : 0.5;
+    const ruling = consensus > 0.6 ? 'APPROVED' : consensus < 0.4 ? 'REJECTED' : 'SPLIT';
+
     return {
-      sessionId: this.client.getSessionId() || 'legislative',
+      sessionId: 'local-leg',
       topic,
       mode: 'legislative',
-      votes,
+      votes: votes as Vote[],
       consensus,
       summary,
-      finalRuling: consensus > 0.6 ? 'APPROVED' : 'REJECTED',
+      verdict: ruling,
+      finalRuling: ruling,
       duration: Date.now() - startTime,
     };
   }
-  
-  /**
-   * Deliberation mode: open roundtable
-   */
-  private async runDeliberation(
-    topic: string,
-    councilors: Councilor[],
-    maxRounds: number,
-    startTime: number
-  ): Promise<CouncilResult> {
-    const contributions: string[] = [];
-    
-    // Opening
-    for (const councilor of councilors) {
-      if (councilor.enabled) {
-        const statement = await this.generatePosition(councilor, topic, 'opening');
-        contributions.push(`[${councilor.name}]: ${statement}`);
-      }
-    }
-    
-    // Discussion rounds
-    for (let round = 1; round <= maxRounds; round++) {
-      for (const councilor of councilors) {
-        if (councilor.enabled) {
-          const response = await this.generateResponse(councilor, topic, contributions);
-          contributions.push(`[${councilor.name}]: ${response}`);
-        }
-      }
-    }
-    
-    // Summary
-    const summary = contributions.join('\n\n');
-    
+
+  // ─── Deliberation: open discussion ────────────────────────────────
+  private async runDeliberation(topic: string, councilors: Councilor[], startTime: number): Promise<CounResult> {
+    const promises = councilors.map(c =>
+      this.localDeliberate(`[${c.name}] (${c.role}): "${topic}" — discuss in 3 sentences.`)
+    );
+    const responses = await Promise.all(promises);
+    const summary = councilors.map((c, i) => `[${c.name}]: ${responses[i]}`).join('\n\n');
+
     return {
-      sessionId: this.client.getSessionId() || 'deliberation',
+      sessionId: 'local-delib',
       topic,
       mode: 'deliberation',
       summary,
+      verdict: summary.slice(0, 150),
       duration: Date.now() - startTime,
     };
   }
-  
-  /**
-   * Research mode: deep investigation
-   */
-  private async runResearch(
-    topic: string,
-    councilors: Councilor[],
-    startTime: number
-  ): Promise<CouncilResult> {
-    // Phase 1: Breadth search
-    const breadthFindings: string[] = [];
-    
-    for (const councilor of councilors) {
-      if (councilor.enabled) {
-        const findings = await this.researchTopic(councilor, topic, 'breadth');
-        breadthFindings.push(`[${councilor.name} - Breadth]: ${findings}`);
-      }
-    }
-    
-    // Phase 2: Gap analysis
-    const gapAnalysis = await this.analyzeGaps(topic, breadthFindings);
-    
-    // Phase 3: Deep dive
-    const deepDive: string[] = [];
-    for (const councilor of councilors) {
-      if (councilor.enabled) {
-        const findings = await this.researchTopic(councilor, topic, 'deep', gapAnalysis);
-        deepDive.push(`[${councilor.name} - Deep Dive]: ${findings}`);
-      }
-    }
-    
-    // Final report
-    const summary = [
-      '=== BREADTH RESEARCH ===',
-      breadthFindings.join('\n'),
-      '\n=== IDENTIFIED GAPS ===',
-      gapAnalysis,
-      '\n=== DEEP DIVE ===',
-      deepDive.join('\n'),
-    ].join('\n');
-    
+
+  // ─── Inquiry: direct Q&A ──────────────────────────────────────
+  private async runInquiry(topic: string, councilors: Councilor[], startTime: number): Promise<CounResult> {
+    const promises = councilors.map(c =>
+      this.localDeliberate(`[${c.name}]: Answer "${topic}" in 2 sentences.`)
+    );
+    const responses = await Promise.all(promises);
+    const summary = councilors.map((c, i) => `[${c.name}]: ${responses[i]}`).join('\n');
+
     return {
-      sessionId: this.client.getSessionId() || 'research',
+      sessionId: 'local-inquiry',
+      topic,
+      mode: 'inquiry',
+      summary,
+      verdict: responses[0] || summary.slice(0, 100),
+      duration: Date.now() - startTime,
+    };
+  }
+
+  // ─── Research: investigation ─────────────────────────────────
+  private async runResearch(topic: string, councilors: Councilor[], startTime: number): Promise<CounResult> {
+    const promises = councilors.map(c =>
+      this.localDeliberate(`[${c.name}]: Research "${topic}" — key facts in 3 sentences.`)
+    );
+    const findings = await Promise.all(promises);
+    const summary = councilors.map((c, i) => `[${c.name}]: ${findings[i]}`).join('\n\n');
+
+    return {
+      sessionId: 'local-research',
       topic,
       mode: 'research',
       summary,
+      verdict: `Research findings on: ${topic}`,
       duration: Date.now() - startTime,
     };
   }
-  
-  /**
-   * Prediction mode: probabilistic forecasting
-   */
-  private async runPrediction(
-    topic: string,
-    councilors: Councilor[],
-    startTime: number
-  ): Promise<CouncilResult> {
-    const predictions: { councilor: string; probability: number; reasoning: string }[] = [];
-    
-    for (const councilor of councilors) {
-      if (councilor.enabled) {
-        const prediction = await this.generatePrediction(councilor, topic);
-        predictions.push(prediction);
-      }
-    }
-    
-    // Aggregate predictions
-    const avgProbability = predictions.reduce((sum, p) => sum + p.probability, 0) / predictions.length;
-    const summary = predictions
-      .map(p => `[${p.councilor}]: ${p.probability}% - ${p.reasoning}`)
-      .join('\n');
-    
+
+  // ─── Prediction: probability estimates ─────────────────────────
+  private async runPrediction(topic: string, councilors: Councilor[], startTime: number): Promise<CounResult> {
+    const promises = councilors.map(c =>
+      this.localDeliberate(`[${c.name}]: Predict likelihood of "${topic}" — give probability 0-100%.`)
+    );
+    const texts = await Promise.all(promises);
+    const nums = texts.map(t => parseInt(t.match(/\d+/)?.[0] || '50'));
+    const avg = Math.round(nums.reduce((s, n) => s + n, 0) / nums.length);
+    const summary = councilors.map((c, i) => `[${c.name}]: ${nums[i]}% — ${texts[i].slice(0, 60)}`).join('\n');
+
     return {
-      sessionId: this.client.getSessionId() || 'prediction',
+      sessionId: 'local-prediction',
       topic,
       mode: 'prediction',
-      summary: `${summary}\n\n=== AGGREGATED ===\nProbability: ${Math.round(avgProbability)}%`,
-      finalRuling: `LIKELY ${avgProbability > 50 ? 'YES' : 'NO'}`,
+      summary,
+      verdict: `LIKELY ${avg > 50 ? 'YES' : 'NO'} (${avg}%)`,
+      finalRuling: `LIKELY ${avg > 50 ? 'YES' : 'NO'} (${avg}%)`,
       duration: Date.now() - startTime,
     };
   }
-  
-  /**
-   * Swarm coding mode: parallel code generation
-   */
-  private async runSwarmCoding(
-    topic: string,
-    councilors: Councilor[],
-    startTime: number
-  ): Promise<CouncilResult> {
-    // Decompose task
-    const tasks = this.decomposeCodingTask(topic);
-    
-    // Execute in parallel
-    const results: string[] = [];
-    for (const task of tasks) {
-      const councilor = councilors.find(c => c.role === 'specialist');
-      if (councilor) {
-        const code = await this.generateCode(councilor, task);
-        results.push(`[${task.file}]:\n${code}`);
-      }
-    }
-    
+
+  // ─── Swarm coding: parallel code generation ───────────────────
+  private async runSwarmCoding(topic: string, councilors: Councilor[], startTime: number): Promise<CounResult> {
+    const files = ['main.ts', 'utils.ts', 'types.ts'];
+    const promises = councilors.slice(0, 3).map((c, i) =>
+      this.localDeliberate(`[${c.name}]: Write code for "${topic}" — output ${files[i] || 'file.ts'}.`)
+    );
+    const code = await Promise.all(promises);
+    const summary = councilors.slice(0, 3).map((c, i) => `[${files[i] || 'file.ts'}]:\n${code[i]}`).join('\n\n');
+
     return {
-      sessionId: this.client.getSessionId() || 'swarm_coding',
+      sessionId: 'local-swarm',
       topic,
       mode: 'swarm_coding',
-      summary: results.join('\n\n'),
+      summary,
+      verdict: `Generated ${code.length} files for: ${topic}`,
       duration: Date.now() - startTime,
     };
   }
-  
-  // Helper methods
-  
-  private async generatePosition(
-    councilor: Councilor,
-    topic: string,
-    phase: string
-  ): Promise<string> {
-    const model = routeModelForTask(`${councilor.persona} ${topic}`);
-    return `[${councilor.name}] position on ${topic}...`;
+
+  // ─── Server polling fallback ─────────────────────────────────
+  private async pollServer(sessionId: string, startTime: number): Promise<CounResult> {
+    return new Promise((resolve) => {
+      const poll = async () => {
+        try {
+          const current = await this.client.getSession();
+          if (current?.status === 'completed') {
+            resolve({
+              sessionId: current.id,
+              topic: current.topic,
+              mode: current.mode,
+              duration: Date.now() - startTime,
+            });
+          } else {
+            setTimeout(poll, 2000);
+          }
+        } catch {
+          setTimeout(poll, 5000);
+        }
+      };
+      poll();
+    });
   }
-  
-  private async generateRebuttal(
-    councilor: Councilor,
-    topic: string
-  ): Promise<string> {
-    return `[${councilor.name}] rebuttal regarding ${topic}...`;
-  }
-  
-  private async generateResponse(
-    councilor: Councilor,
-    topic: string,
-    context: string[]
-  ): Promise<string> {
-    return `[${councilor.name}] responds to discussion...`;
-  }
-  
-  private async generateVote(councilor: Councilor, topic: string): Promise<Vote> {
-    const roll = Math.random();
-    return {
-      councilorId: councilor.id,
-      vote: roll > 0.5 ? 'yea' : 'nay',
-      confidence: Math.floor(Math.random() * 5) + 6,
-      reason: `${councilor.name} perspective on ${topic}`,
-    };
-  }
-  
-  private async researchTopic(
-    councilor: Councilor,
-    topic: string,
-    phase: string,
-    context?: string
-  ): Promise<string> {
-    return `Research findings from ${councilor.name} on ${topic} (${phase})...`;
-  }
-  
-  private async analyzeGaps(topic: string, findings: string[]): Promise<string> {
-    return `Identified gaps in research on ${topic}...`;
-  }
-  
-  private async generatePrediction(
-    councilor: Councilor,
-    topic: string
-  ): Promise<{ councilor: string; probability: number; reasoning: string }> {
-    return {
-      councilor: councilor.name,
-      probability: Math.floor(Math.random() * 40) + 30,
-      reasoning: `${councilor.name} reasoning...`,
-    };
-  }
-  
-  private decomposeCodingTask(topic: string): { file: string; description: string }[] {
-    return [
-      { file: 'main.ts', description: `Main entry point for ${topic}` },
-      { file: 'types.ts', description: 'Type definitions' },
-      { file: 'utils.ts', description: 'Utility functions' },
-    ];
-  }
-  
-  private async generateCode(
-    councilor: Councilor,
-    task: { file: string; description: string }
-  ): Promise<string> {
-    return `// ${task.description}\nexport function main() {\n  // Implementation\n}\n`;
-  }
-  
-  private generateSummary(topic: string, votes: Vote[]): string {
-    const yea = votes.filter(v => v.vote === 'yea').length;
-    const nay = votes.filter(v => v.vote === 'nay').length;
-    return `Summary for ${topic}: ${yea} in favor, ${nay} opposed`;
-  }
-  
-  private calculateConsensus(votes: Vote[]): number {
-    if (votes.length === 0) return 0;
-    const yea = votes.filter(v => v.vote === 'yea').length;
-    return yea / votes.length;
-  }
-  
-  getState(): DeliberationState {
-    return { ...this.state };
-  }
-  
+
+  getState(): DeliberationState { return { ...this.state }; }
+
   reset(): void {
-    this.state = {
-      round: 0,
-      phase: 'opening',
-      currentSpeaker: null,
-      contributions: new Map(),
-      votes: [],
-    };
+    this.state = { round: 0, phase: 'opening', currentSpeaker: null, contributions: new Map(), votes: [] };
+    this.localMode = false;
   }
 }
 

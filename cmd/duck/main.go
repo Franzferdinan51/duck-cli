@@ -438,7 +438,7 @@ func councilCmd() *cobra.Command {
 			if m == "" {
 				m = "decision"
 			}
-			return runNode("council", m, strings.Join(args, " "))
+			return runNodeWithEnv("council " + m + " " + strings.Join(args, " "), cmd)
 		},
 	}
 	cmd.Flags().StringVar(&mode, "mode", "decision", "Mode: decision|research|prediction|swarm")

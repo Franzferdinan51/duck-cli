@@ -44,6 +44,7 @@ export interface CouncilResult {
   votes?: Vote[];
   consensus?: number;
   summary?: string;
+  verdict?: string;
   finalRuling?: string;
   duration: number;
 }
