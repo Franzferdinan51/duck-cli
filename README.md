@@ -197,6 +197,36 @@ Local deliberation with 3 councilors (Speaker, Technocrat, Ethicist). No server 
 - **Docker Sandbox** — isolated container execution for untrusted tools
 - **DEFCON Mode** — threat-level security system
 
+### 👻 Sub-Conscious — Self-Reflection Layer
+
+Claude Subconscious-style whisper prompts that run through Duck Agent's own AI — zero external dependencies, no Letta server.
+
+**How it works:** Sub-Conscious intercepts your conversations and silently runs reflection prompts through Duck Agent's own memory and models — surfacing insights, patterns, and nudges without interrupting your flow.
+
+**5 Whisper Triggers:**
+
+| Trigger | When | Whisper |
+|---------|------|---------|
+| Long task | Task completes after 5+ messages | What went well / remember this |
+| Repeated error | Same error 3x in session | Flag pattern for review |
+| User correction | You correct the agent | Learning moment — update memory |
+| Provider mix | 3+ providers in one session | Log routing efficiency |
+| Idle too long | 30+ min silence | Context may be stale |
+
+```bash
+duck subconscious status   # Check enabled/disabled
+duck subconscious enable  # Turn on whisper triggers
+duck subconscious disable # Turn off
+duck subconscious stats   # Whisper history + patterns
+```
+
+**Memory integration:** Sub-Conscious writes findings directly to Duck Agent's memory layer — SOUL.md for identity, AGENTS.md for routing patterns, MEMORY.md for learned preferences.
+
+**Example whisper:**
+```
+👻 Sub-Conscious: "Detected 3 corrections today about tone — consider adjusting SOUL.md"
+```
+
 ### 📈 Self-Improving
 - **Learning Loop** — tracks errors and corrections
 - **Memory** — SQLite + FTS5 full-text search
