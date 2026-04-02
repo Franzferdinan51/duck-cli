@@ -357,3 +357,112 @@ ${meshColors.dim}Starting the mesh server:${meshColors.reset}
   }
 }
 export { meshCommand };
+
+// ============ MESH SERVER DAEMON ============
+
+async function meshServerCommand(args: string[]) {
+  const port = parseInt(args[0] || process.env.MESH_PORT || '4000');
+  const host = process.env.MESH_HOST || '0.0.0.0';
+  const { join } = await import('path');
+  const meshDir = join(process.env.HOME || '/tmp', '.duckagent', 'mesh');
+
+  const meshServerColors = {
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    green: '\x1b[32m',
+    cyan: '\x1b[36m',
+    yellow: '\x1b[33m',
+    red: '\x1b[31m',
+    dim: '\x1b[2m',
+  };
+
+  console.log(`\n${meshServerColors.cyan}${meshServerColors.bold}
+   ╔═══════════════════════════════════════╗
+   ║     🦆 Duck Mesh Server Daemon 🦆    ║
+   ╚═══════════════════════════════════════╝
+${meshServerColors.reset}`);
+
+  // Check if port is in use
+  try {
+    const { createConnection } = await import('net');
+    const checkPort = new Promise<boolean>((resolve) => {
+      const sock = createConnection({ port, host }, () => {
+        sock.destroy();
+        resolve(true);
+      });
+      sock.on('error', () => resolve(false));
+      sock.setTimeout(1000, () => { sock.destroy(); resolve(false); });
+    });
+    
+    const inUse = await checkPort;
+    if (inUse) {
+      console.log(`${meshServerColors.yellow}⚠️  Port ${port} is already in use${meshServerColors.reset}`);
+      console.log(`   A mesh server may already be running.`);
+      console.log(`   Check: ${meshServerColors.bold}curl http://localhost:${port}/health${meshServerColors.reset}`);
+      console.log(`   Or try a different port: ${meshServerColors.bold}duck meshd 5000${meshServerColors.reset}`);
+      return;
+    }
+  } catch (e) {
+    // Ignore port check errors
+  }
+
+  // Spawn server as detached background process
+  const { spawn } = await import('child_process');
+  const serverPath = join(process.cwd(), 'dist', 'daemons', 'mesh-server.js');
+  
+  const child = spawn('node', [serverPath], {
+    detached: true,
+    stdio: 'ignore',
+    env: {
+      ...process.env,
+      MESH_PORT: String(port),
+      MESH_HOST: host,
+    }
+  });
+
+  child.unref(); // Allow parent to exit
+
+  // Wait a moment for server to start
+  await new Promise(r => setTimeout(r, 1500));
+
+  console.log(`   🌐 Starting on: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
+  console.log(`   🔌 WebSocket:   ws://localhost:${port}/ws`);
+  console.log(`   🔑 API Key:     openclaw-mesh-default-key`);
+  console.log(`   📁 Data:       ${meshDir}/`);
+  console.log(`   📊 Health:     GET http://localhost:${port}/api/health/dashboard`);
+  console.log(`   👥 Agents:     GET http://localhost:${port}/api/agents`);
+  console.log(`   💬 Messages:   POST http://localhost:${port}/api/messages`);
+  console.log();
+
+  // Verify it started
+  try {
+    const { createConnection } = await import('net');
+    const check = new Promise<boolean>((resolve) => {
+      const sock = createConnection({ port, host }, () => {
+        sock.destroy();
+        resolve(true);
+      });
+      sock.on('error', () => resolve(false));
+      sock.setTimeout(2000, () => { sock.destroy(); resolve(false); });
+    });
+    
+    const started = await check;
+    if (started) {
+      console.log(`${meshServerColors.green}✅ Duck Mesh Server started!${meshServerColors.reset}\n`);
+      console.log(`   Register an agent:`);
+      console.log(`   ${meshServerColors.bold}curl -X POST http://localhost:${port}/api/agents/register \\${meshServerColors.reset}`);
+      console.log(`     -H "Content-Type: application/json" \\`);
+      console.log(`     -d '{"name": "MyAgent"}'`);
+      console.log();
+      console.log(`${meshServerColors.dim}Server running in background (PID: ${child.pid})`);
+      console.log(`Stop with: kill ${child.pid}${meshServerColors.reset}`);
+    } else {
+      console.log(`${meshServerColors.red}❌ Server failed to start${meshServerColors.reset}`);
+      console.log(`   Check log: ~/.duckagent/mesh/`);
+    }
+  } catch (e) {
+    console.log(`${meshServerColors.red}❌ Error checking server${meshServerColors.reset}`);
+  }
+}
+
+export { meshServerCommand };

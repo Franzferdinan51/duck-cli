@@ -384,10 +384,14 @@ export class AgentMeshClient extends EventEmitter {
   /**
    * Send a message to another agent
    */
-  async sendMessage(toAgentId: string, content: string): Promise<string | null> {
+  async sendMessage(toAgentId: string, content: string, fromName?: string): Promise<string | null> {
+    // Auto-register if not registered
     if (!this.agentId) {
-      console.log('[Mesh] Not registered');
-      return null;
+      const regResult = await this.register();
+      if (!regResult) {
+        console.log('[Mesh] Not registered and auto-register failed');
+        return null;
+      }
     }
 
     const result = await this.request<{
@@ -396,8 +400,9 @@ export class AgentMeshClient extends EventEmitter {
       error?: string;
     }>('POST', '/api/messages', {
       fromAgentId: this.agentId,
+      fromName: fromName || this.agentName,
       toAgentId,
-      message: content,
+      content,
     });
 
     if (result?.success && result.messageId) {
@@ -437,13 +442,18 @@ export class AgentMeshClient extends EventEmitter {
    * Broadcast to all agents
    */
   async broadcast(content: string): Promise<number> {
-    if (!this.agentId) return 0;
+    // Auto-register if not registered
+    if (!this.agentId) {
+      const regResult = await this.register();
+      if (!regResult) return 0;
+    }
 
     const result = await this.request<{
       success: boolean;
       recipientCount?: number;
     }>('POST', '/api/messages/broadcast', {
       fromAgentId: this.agentId,
+      fromName: this.agentName,
       message: content,
     });
 
@@ -588,8 +598,8 @@ export class AgentMeshClient extends EventEmitter {
    */
   async listCatastrophes(status?: 'active' | 'resolved'): Promise<CatastropheEvent[]> {
     const params = status ? `?status=${status}` : '';
-    const result = await this.request<CatastropheEvent[]>('GET', `/api/catastrophe${params}`);
-    return result || [];
+    const result = await this.request<{ catastrophes: CatastropheEvent[]; total: number }>('GET', `/api/catastrophe${params}`);
+    return (result?.catastrophes || []) as CatastropheEvent[];
   }
 
   /**

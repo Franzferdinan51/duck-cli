@@ -98,6 +98,7 @@ Features:
 		buddyCmd(),
 		teamCmd(),
 		meshCmd(),
+		meshdCmd(),
 		rlCmd(),
 		acpServerCmd(),
 		acpSpawnCmd(),
@@ -296,12 +297,28 @@ func meshCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mesh [action]",
 		Short: "Agent Mesh networking (register|list|send|broadcast|inbox|capabilities)",
-		Args:  cobra.MaximumNArgs(2),
+		Args:  cobra.MinimumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return runNodeWithEnv("mesh status", cmd)
 			}
 			return runNodeWithEnv("mesh "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
+// meshdCmd - duck meshd [port]
+func meshdCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "meshd [port]",
+		Short: "Start built-in mesh server daemon (default port 4000)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("meshd", cmd)
+			}
+			return runNodeWithEnv("meshd "+args[0], cmd)
 		},
 	}
 	return cmd

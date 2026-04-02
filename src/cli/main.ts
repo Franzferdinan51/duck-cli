@@ -29,7 +29,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join, dirname } from 'path';
 import * as readline from 'readline';
-import { meshCommand } from './mesh-cmd.js';
+import { meshCommand, meshServerCommand } from './mesh-cmd.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
 
@@ -231,6 +231,16 @@ async function main() {
     case 'subconsciousd':
       // Shortcut: duck subconsciousd → starts daemon
       await subconsciousCommand(['daemon', ...args]);
+      break;
+
+    case 'meshd':
+    case 'mesh-server':
+      // Shortcut: duck meshd → starts mesh server daemon
+      await meshServerCommand(args);
+      break;
+
+    case 'mesh':
+      await meshCommand(args);
       break;
 
     case 'souls':
