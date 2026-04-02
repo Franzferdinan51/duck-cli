@@ -228,6 +228,11 @@ async function main() {
       await subconsciousCommand(args);
       break;
 
+    case 'subconsciousd':
+      // Shortcut: duck subconsciousd → starts daemon
+      await subconsciousCommand(['daemon', ...args]);
+      break;
+
     case 'souls':
       await soulsCommand(args);
       break;

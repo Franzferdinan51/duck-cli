@@ -98,7 +98,7 @@ export class ClawHubClient {
     }
 
     const data = await this.request<ClawHubSearchResult>(
-      `/skills/search?${params.toString()}`
+      `/api/search?${params.toString()}`
     );
 
     return data;
@@ -313,7 +313,7 @@ export class SoulRegistryClient {
     });
 
     const data = await this.request<{ souls: Soul[]; total: number }>(
-      `/souls/search?${params.toString()}`
+      `/api/souls/search?${params.toString()}`
     );
 
     return data;
@@ -324,7 +324,7 @@ export class SoulRegistryClient {
    * GET /api/souls/<name>
    */
   async getSoul(nameOrId: string): Promise<Soul> {
-    return this.request<Soul>(`/souls/${encodeURIComponent(nameOrId)}`);
+    return this.request<Soul>(`/api/souls/${encodeURIComponent(nameOrId)}`);
   }
 
   /**
@@ -332,7 +332,7 @@ export class SoulRegistryClient {
    * GET /api/souls/featured
    */
   async getFeatured(): Promise<Soul[]> {
-    const data = await this.request<{ souls: Soul[] }>('/souls/featured');
+    const data = await this.request<{ souls: Soul[] }>('/api/souls/featured');
     return data.souls || [];
   }
 
@@ -350,7 +350,7 @@ export class SoulRegistryClient {
       throw new Error('API key required for publishing');
     }
 
-    return this.request<{ id: string; url: string }>('/souls/publish', {
+    return this.request<{ id: string; url: string }>('/api/souls/publish', {
       method: 'POST',
       body: JSON.stringify(soul),
     });
@@ -362,7 +362,7 @@ export class SoulRegistryClient {
    */
   async downloadSoul(nameOrId: string): Promise<string> {
     const data = await this.request<{ content: string }>(
-      `/souls/${encodeURIComponent(nameOrId)}/download`
+      `/api/souls/${encodeURIComponent(nameOrId)}/download`
     );
     return data.content;
   }

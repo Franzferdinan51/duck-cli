@@ -236,14 +236,14 @@ func kairosCmd() *cobra.Command {
 // subconsciousCmd - duck subconscious [cmd]
 func subconsciousCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "subconscious [cmd]",
-		Short: "Sub-Conscious control (status|enable|disable|stats)",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "subconscious [cmd] [args...]",
+		Short: "Sub-Conscious control (daemon|status|stats|whisper|recall|council|reset)",
+		Args:  cobra.MinimumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return runNodeWithEnv("subconscious status", cmd)
 			}
-			return runNodeWithEnv("subconscious "+args[0], cmd)
+			return runNodeWithEnv("subconscious "+strings.Join(args, " "), cmd)
 		},
 	}
 	return cmd
