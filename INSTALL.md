@@ -1,222 +1,76 @@
 # 🦆 Duck Agent — Installation Guide
 
-**For OpenClaw agents and AI assistants setting up duck-cli**
-
----
-
 ## Prerequisites
 
-| Dependency | Version | Why |
-|------------|---------|-----|
-| **Node.js** | 20+ | TypeScript agent runtime |
+| Dependency | Version | Notes |
+|------------|---------|-------|
+| **Node.js** | 20+ | TypeScript runtime |
 | **Go** | 1.21+ | CLI wrapper |
 | **Git** | any | Clone repo |
-| **npm** | 10+ | Install Node deps |
+| **npm** | 10+ | Install deps |
 
----
-
-## Quick Install (5 minutes)
+## Install (5 minutes)
 
 ```bash
 # 1. Clone
 git clone https://github.com/Franzferdinan51/duck-cli.git
 cd duck-cli
 
-# 2. Install Node dependencies
+# 2. Install + build
 npm install
-
-# 3. Build TypeScript → JavaScript
-npm run build
-
-# 4. Build Go CLI wrapper
+npm run build          # TypeScript → dist/ + copies skills
 go build -o duck ./cmd/duck/
 
-# 5. Configure API key (REQUIRED for AI features)
-cp .env.example .env
-# Edit .env and add: MINIMAX_API_KEY=your_key_here
+# 3. Install binary
+cp duck ~/.local/bin/duck
+cp -r dist/* ~/.local/bin/dist/
 
-# 6. Test it works
-./duck status
+# 4. Configure API keys
+duck setup            # interactive wizard
+
+# 5. Test
+duck doctor           # should show all green
+duck status           # providers, skills, tools
 ```
 
----
+## Providers
 
-## What Gets Built
-
-| File | What it is |
-|------|-----------|
-| `duck` (binary) | Go CLI wrapper — the command you run |
-| `dist/cli/main.js` | Node.js TypeScript compiled output |
-| `dist/tools/*.js` | Compiled tool modules |
-| `dist/web-server.js` | Web UI server |
-| `dist/agent/core.js` | Core agent engine |
-
-The Go binary (`duck`) calls `dist/cli/main.js` automatically. Keep them together.
-
----
-
-## Configuration
-
-### Required: `.env` file
-
-Create `.env` in the same directory as the `duck` binary:
+Duck Agent supports multiple AI providers. Set up at least one:
 
 ```bash
-# Required for AI features
-MINIMAX_API_KEY=sk-your-key-here
+# MiniMax (recommended default)
+# Get key at: https://platform.minimax.io
+MINIMAX_API_KEY=sk-cp-...
 
-# Optional providers (all work without these)
-# OPENAI_API_KEY=sk-...
-# ANTHROPIC_API_KEY=sk-ant-...
-# LMSTUDIO_URL=http://localhost:1234
-# LMSTUDIO_KEY=local
+# OpenRouter (free tier available)
+# Get key at: https://openrouter.ai
+OPENROUTOR_API_KEY=sk-or-v1-...
+
+# Kimi direct
+# Get key at: https://platform.moonshot.cn
+KIMI_API_KEY=sk-kimi-...
 ```
 
-The binary auto-loads `.env` from:
-1. `./.env` (next to the `duck` binary)
-2. `~/.duck-cli/env`
-3. `.env` in current working directory
+Keys are saved to `~/.duck/.env` by `duck setup`.
 
----
-
-## Commands Reference
+## Usage
 
 ```bash
-# Status check (no API key needed for this)
-./duck status
+# Standalone (for humans)
+duck                  # interactive chat shell
+duck setup            # configure keys
+duck help             # all commands
 
-# Run a task (requires MINIMAX_API_KEY)
-./duck run "explain this code"
-
-# Interactive shell (requires TTY)
-./duck shell
-
-# Web UI
-./duck web           # port 3000
-./duck web 8080      # custom port
-
-# AI Council deliberation
-./duck council decision "should we add caching?"
-
-# Skills
-./duck skills list
-./duck skills search <topic>
-
-# MCP server
-./duck mcp           # port 3850
-./duck mcp 4000      # custom port
-
-# Security
-./duck security defcon
-./duck security audit
-
-# Help
-./duck --help
+# As tool (for AI agents)
+duck run "fix the auth bug"
+duck council "PostgreSQL or MongoDB?"
+duck status
 ```
 
----
-
-## Skills System
-
-Duck CLI has 10 built-in skills that extend its capabilities. Each skill is auto-discovered from `skills/` directory.
-
-| Skill | Trigger | What it does |
-|-------|---------|-------------|
-| `code-review` | `/review`, "code review" | Multi-agent code verification |
-| `git-workflow` | `/git`, "git workflow" | Worktree isolation, smart commits |
-| `context-memory` | automatic | Persistent semantic memory |
-| `mcp-manager` | `/mcp` | MCP server lifecycle |
-| `security-audit` | `/audit` | Vulnerability scanning |
-| `desktop-control` | automatic | Desktop automation tools |
-| `clawd-cursor` | automatic | Cursor-based GUI control |
-| `claude-code-mastery` | automatic | Claude Code patterns |
-| `computer-use` | automatic | Computer use protocols |
-| `desktop-control-lobster` | automatic | Lobster-specific controls |
-
----
-
-## Troubleshooting
-
-### "Providers: 0" — API key not loaded
-```bash
-# Check if .env exists and has the key
-cat .env | grep MINIMAX
-
-# Or set manually
-export MINIMAX_API_KEY=your_key
-./duck status
-```
-
-### "Node.js not found"
-```bash
-# Install Node.js 20+
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-sudo apt install nodejs
-
-# Or via nvm
-nvm install 20
-nvm use 20
-```
-
-### Go build fails
-```bash
-# Install Go 1.21+
-brew install go    # macOS
-# or: https://go.dev/doc/install
-```
-
-### Web UI returns 404
-```bash
-# Make sure you built first
-npm run build
-
-# Start on specific port
-./duck web 3001
-```
-
-### Skills not loading
-```bash
-# Rebuild TypeScript
-npm run build
-
-# Should show "Skills: 10" in status
-./duck status
-```
-
----
-
-## Development
+## Uninstall
 
 ```bash
-# Watch mode (auto-rebuild on changes)
-npm run watch
-
-# Type check only
-npm run typecheck
-
-# Run tests
-npm test
-
-# Lint
-npm run lint
+rm ~/.local/bin/duck
+rm -rf ~/.local/bin/dist/
+rm -rf ~/.duck/        # removes config + memory
 ```
-
----
-
-## Architecture (for agents)
-
-```
-duck (Go binary)
-└── dist/cli/main.js (Node.js entry)
-    ├── dist/agent/core.js (Agent engine)
-    │   ├── dist/providers/*.js (AI provider integration)
-    │   ├── dist/tools/*.js (Tool implementations)
-    │   └── dist/skills/*.js (Skill runners)
-    └── dist/web-server.js (Web UI server)
-```
-
-**Key paths:**
-- Source: `src/`
-- Compiled: `dist/`
-- Skills: `skills/`
-- Config: `.env`

@@ -1,163 +1,94 @@
 # Building Duck CLI from Source
 
-> No npm registry - build from source only
-
 ## Prerequisites
 
-```bash
-# Node.js 20+
-node --version  # Must be 20+
+| Dependency | Version | Notes |
+|------------|---------|-------|
+| **Node.js** | 20+ | Runtime for TypeScript agent |
+| **Go** | 1.21+ | CLI wrapper binary |
+| **Git** | any | Clone repo |
+| **npm** | 10+ | Install dependencies |
 
-# Bun (faster builds) OR npm
-bun --version   # Recommended
-# OR
-npm install -g npm@latest
-```
-
-## Quick Build
+## Build
 
 ```bash
 git clone https://github.com/Franzferdinan51/duck-cli.git
 cd duck-cli
-npm install  # or: bun install
-npm run build  # or: bun run build
-```
-
-## Build Commands
-
-```bash
-# Install dependencies
-bun install
-
-# TypeScript compilation
-bun run build
-
-# Or with npm
 npm install
-npm run build
+npm run build          # tsc + copies skills to dist/
+go build -o duck ./cmd/duck/
 ```
 
-## Link Globally
+## Install
 
 ```bash
-# After build
-npm link
+# Binary
+cp duck ~/.local/bin/duck
 
-# Or with bun
-bun link
-
-# Then use anywhere
-duck run "fix auth bug"
-duck -i
+# Runtime (TypeScript + skills — both required!)
+cp -r dist/* ~/.local/bin/dist/
 ```
 
-## Environment Setup
+That's it. The Go binary reads `dist/` from its own directory at runtime.
+
+## Verify
 
 ```bash
-# Required for AI providers
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional providers
-export OPENAI_API_KEY=sk-...
-export MINIMAX_API_KEY=...
-export MOONSHOT_API_KEY=...
-export GEMINI_API_KEY=...
-
-# Optional channels (use OpenClaw gateway instead of direct polling)
-export TELEGRAM_BOT_TOKEN=...  # Prefer OpenClaw gateway
-export DISCORD_BOT_TOKEN=...    # Prefer OpenClaw gateway
+~/.local/bin/duck --version    # 0.4.0
+~/.local/bin/duck doctor        # All systems operational
+~/.local/bin/duck status       # Providers, skills, tools
+~/.local/bin/duck skills list  # 10 local skills
 ```
 
-## OpenClaw Gateway Integration (RECOMMENDED)
-
-**DON'T poll Telegram/Discord directly from Duck CLI** - OpenClaw already handles channels.
-
-Duck CLI connects to OpenClaw gateway as an ACP client:
+## Build+Reinstall (one liner)
 
 ```bash
-export OPENCLAW_GATEWAY=ws://localhost:18792
-export OPENCLAW_TOKEN=your_token
-
-duck run "task via OpenClaw gateway"
+npm run build && go build -o duck ./cmd/duck/ && cp duck ~/.local/bin/duck && cp -r dist/* ~/.local/bin/dist/
 ```
 
-This avoids:
-- Bot token conflicts
-- getUpdates() polling conflicts  
-- Duplicate message handling
-- Channel state corruption
-
-## OpenClaw Gateway Setup
-
-OpenClaw handles Telegram/Discord natively:
+## Uninstall
 
 ```bash
-# OpenClaw config at ~/.openclaw/openclaw.json
-{
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "botToken": "YOUR_BOT_TOKEN"
-    },
-    "discord": {
-      "enabled": true,
-      "token": "YOUR_DISCORD_TOKEN"
-    }
-  }
-}
+rm ~/.local/bin/duck
+rm -rf ~/.local/bin/dist/
+rm -rf ~/.duck/           # user data (optional)
+```
+
+## Key Paths
+
+| Path | What it is |
+|------|-----------|
+| `~/.local/bin/duck` | Go binary (command you run) |
+| `~/.local/bin/dist/` | TypeScript compiled + skills |
+| `~/.duck/.env` | API keys (created by `duck setup`) |
+| `~/.duck/memory/` | SQLite session DB |
+
+## API Keys
+
+```bash
+# Interactive setup (creates ~/.duck/.env)
+duck setup
+
+# Or create ~/.duck/.env manually:
+MINIMAX_API_KEY=sk-cp-...
+OPENROUTER_API_KEY=sk-or-v1-...
+KIMI_API_KEY=sk-kimi-...
+DUCK_PROVIDER=minimax
 ```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│         OpenClaw Gateway (handles channels)│
-│  Telegram, Discord, Signal, WhatsApp     │
-│  Polling, message routing, sessions       │
-└───────────────┬─────────────────────────┘
-                │
-                │ ACP protocol (ws://)
-                ▼
-┌─────────────────────────────────────────┐
-│           Duck CLI (builds from source)   │
-│  Code editing, tools, skills, memory      │
-│  NO direct channel polling               │
-└─────────────────────────────────────────┘
-```
-
-## Troubleshooting
-
-### "getUpdates conflict" errors
-→ Multiple processes polling same bot token
-→ Use OpenClaw gateway for channels instead
-
-### "token invalid"
-→ Bot token not set or expired
-→ Generate new token via @BotFather
-
-### Build errors
-```bash
-rm -rf node_modules bun.lockb
-bun install
-bun run build
-```
-
-## Files
-
-```
-duck-cli/
-├── src/              # Source code
-├── internal/          # Core modules
-├── built/            # Build output
-├── package.json
-├── tsconfig.json
-└── README.md
-```
-
-## Git
-
-```bash
-git clone https://github.com/Franzferdinan51/duck-cli.git
-cd duck-cli
-git remote add upstream https://github.com/openclaw/duck-cli.git  # If forked from upstream
+~/.local/bin/duck          ← Go binary
+~/.local/bin/dist/
+├── cli/main.js            ← TypeScript CLI entry
+├── agent/                 ← Agent core
+├── council/               ← AI Council deliberation
+├── server/                ← MCP server
+├── providers/             ← Model routing
+├── skills/                ← 10 local skills
+├── voice/                 ← Voice wake + talk
+├── canvas/                ← Live Canvas renderer
+└── security/              ← Skill scanner + Docker sandbox
+~/.duck/                   ← User data (created at runtime)
 ```
