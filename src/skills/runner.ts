@@ -5,7 +5,7 @@
 
 import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 export interface Skill {
   name: string;
@@ -18,8 +18,23 @@ export class SkillRunner {
   private skillsDir: string;
   private skills: Map<string, Skill> = new Map();
 
-  constructor(skillsDir: string = './skills') {
-    this.skillsDir = skillsDir;
+  constructor(skillsDir?: string) {
+    if (skillsDir) {
+      this.skillsDir = skillsDir;
+    } else {
+      // Auto-detect installed skills dir (next to dist/), fallback to CWD
+      const distCliDir = dirname(process.argv[1] || process.execPath);
+      const distDir = join(distCliDir, '..'); // dist/cli/ -> dist/
+      const installedSkills = join(distDir, 'skills'); // ~/.local/bin/dist/skills/
+      if (existsSync(installedSkills)) {
+        this.skillsDir = installedSkills;
+      } else {
+        this.skillsDir = join(distDir, '..', 'skills'); // ~/.local/bin/skills/
+        if (!existsSync(this.skillsDir)) {
+          this.skillsDir = './skills'; // fallback to CWD
+        }
+      }
+    }
   }
 
   async load(): Promise<void> {

@@ -34,7 +34,15 @@ export class SkillInstaller {
   constructor(projectRoot?: string) {
     // Default to project root from current file location
     this.projectRoot = projectRoot || this.findProjectRoot();
-    this.skillsDir = join(this.projectRoot, 'src', 'skills');
+    // Skills live at: <projectRoot>/skills (source) or <distDir>/skills (installed)
+    const distDir = join(dirname(process.argv[1] || process.execPath), '..');
+    const installedSkills = join(distDir, 'skills');
+    if (existsSync(installedSkills)) {
+      this.skillsDir = installedSkills;
+      this.projectRoot = distDir;
+    } else {
+      this.skillsDir = join(this.projectRoot, 'skills');
+    }
     this.manifestPath = join(this.projectRoot, '.duck', 'installed-skills.json');
   }
 

@@ -8,7 +8,7 @@
     "duck-agent": "./dist/cli/main.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r skills dist/",
     "build:watch": "tsc --watch",
     "dev": "tsx src/cli/main.ts",
     "dev:agent": "tsx src/agent/core.ts",
