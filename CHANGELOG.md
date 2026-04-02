@@ -11,29 +11,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+#### Built-in Mesh Server Daemon (NO external dependency)
+- **duck meshd** — starts mesh server as background daemon (port 4000)
+- **src/daemons/mesh-server.ts** — full mesh API server (~500 lines)
+  - Agent registration with name-based identity, WebSocket /ws endpoint
+  - Direct messaging + broadcast, heartbeat tracking
+  - Health dashboard, catastrophe reporting, capability discovery
+  - In-memory store, API key auth (MESH_API_KEY env)
+  - 15+ API endpoints matching agent-mesh-api spec
+- All mesh CLI commands now work with built-in server:
+  `duck mesh list|send|broadcast|inbox|health|capabilities|catastrophe|status`
+  - `duck mesh send` auto-registers, resolves agent name→ID, sends message
+- Updated src/mesh/agent-mesh.ts client (auto-register, response unwrapping)
+- Go meshdCmd() added for `duck meshd` shortcut
+- Dependencies added: express, cors, uuid (+ @types)
+
 #### Sub-Conscious Daemon (LLM-Powered, NO Letta)
 - **subconsciousd** — background HTTP daemon (port 4001) with SQLite persistent memory
-- **LLM Analyzer** — analyzes session transcripts, extracts patterns/decisions/insights using MiniMax/LM Studio
+- **LLM Analyzer** — analyzes session transcripts using MiniMax/LM Studio
 - **Whisper API** — contextual whispers from memories before prompts
-- **SQLite Store** — FTS5 full-text search, persistent memories in `~/.duckagent/subconscious/`
-- **CLI commands**: `daemon`, `whisper`, `recall`, `recent`, `council`
+- **SQLite Store** — FTS5 full-text search in `~/.duckagent/subconscious/`
+- CLI commands: `daemon`, `whisper`, `recall`, `recent`, `council`
 
 #### AI Council → Sub-Conscious Integration
 - Council queries daemon for relevant memories before deliberation
-- Each councilor response injected with prior context
 - Deliberation insights auto-stored to daemon after each run
-- Council learns across sessions — prior deliberations inform future ones
 
 ### Changed
 - **clawhub-client.ts** — fixed search endpoint: `/skills/search` → `/api/search` (clawhub.ai live API)
 - **subconsciousCmd** — fixed Go cobra to accept multiple args for `recall`/`whisper` commands
+- **meshCmd** — fixed Go cobra: MaximumNArgs(2) → MinimumNArgs(0) for multi-word messages
 
 ### Fixed
 - ClawHub search now works (API endpoint path corrected)
-- `duck clawhub search` returns real skills from clawhub.ai
-
-
-### Added
+- `duck mesh send` resolves agent name to ID before sending
+- `duck mesh catastrophe|inbox` properly unwrap API response objects
 - **Standalone Agent Mode** — `duck` (no args) starts interactive shell with welcome message and session resume
 - **Setup Wizard** — `duck setup` interactive API key configuration (creates ~/.duck/.env)
 - **Skills Auto-Install** — `skills/` copied to dist/ on build; SkillsRunner auto-detects installed location
