@@ -240,7 +240,10 @@ agent.updateContext({ meshStatus: 'connected', agents: 3 })
 | 📡 **ACP Client** | Spawn Codex, Claude, Cursor, Gemini, Pi, OpenClaw |
 | 🔗 **ACP Server** | Let OpenClaw connect TO you, port 18794 |
 | 🗣️ **Voice / TTS** | MiniMax speech synthesis |
-| ⏰ **Cron Automation** | 30+ predefined jobs |
+| ⏰ **Cron Automation** | 21 predefined jobs |
+| 🔬 **Diagnostics** | `duck doctor` — system diagnostics |
+| 🚀 **Shell Exec** | `duck exec` — run shell commands |
+| ⚙️ **Setup Wizard** | `duck setup` — configure API keys |
 | 💾 **Memory System** | 3-tier context + learned patterns |
 | 📱 **Channels** | Telegram & Discord integration |
 | 💻 **Desktop Control** | Native macOS/Windows via ClawdCursor |
@@ -626,7 +629,7 @@ duck team status               # Check progress
 
 ## ⏰ Cron Automation — REQUIRED
 
-**30+ predefined jobs**
+**21 predefined jobs**
 
 ```bash
 duck cron list              # List all jobs
@@ -773,11 +776,16 @@ Duck Agent/
 
 ```bash
 # Core
-duck shell              # Interactive TUI
-duck run <task>         # Single task
-duck think <prompt>     # Reasoning
-duck status             # Show status
-duck tools              # List tools
+duck                   # Interactive shell (auto-starts)
+duck setup             # API key setup wizard
+duck doctor            # System diagnostics
+duck exec <cmd>        # Execute shell command
+duck status            # Show providers, skills, tools
+duck tools             # List all 40 tools
+duck history           # Conversation history
+duck clear             # Clear history
+duck think <prompt>    # Reasoning (no tools)
+duck think-speak <text> # Think and speak aloud
 
 # Protocols
 duck unified           # All protocols
@@ -787,6 +795,8 @@ duck acp-server [port] # ACP server (port 18794)
 duck gateway           # REST API (port 18792)
 
 # AI Systems
+duck agent list       # List running agents
+duck agent spawn <m>  # Spawn new agent
 duck kairos [mode]     # KAIROS control
 duck subconscious [cmd] # Sub-Conscious (status/enable/disable/stats)
 duck buddy [action]     # Buddy system
@@ -822,8 +832,13 @@ duck update [action]   # Updates
 
 # Integrations
 duck channels          # Telegram/Discord
-duck desktop           # Desktop control
-duck memory            # Memory commands
+duck desktop [action]  # Desktop control (open|click|type|screenshot)
+duck memory [action]  # Memory (add|search)
+
+# Voice / TTS
+duck voice "text"      # Text-to-speech (MiniMax, 4000 chars/day)
+duck speak "text"      # Alias for voice
+duck tts "text"        # Alias for voice
 ```
 
 ---
@@ -833,7 +848,6 @@ duck memory            # Memory commands
 - **SSRF Validation** — Blocks private IPs, DNS rebinding
 - **Credential Sanitizer** — Prevents API key leaks
 - **State Manager** — Persistent encrypted state
-- **Network Policies** — YAML-based access control
 
 ---
 
