@@ -1576,33 +1576,191 @@ async function councilCommand(args: string[]) {
 // ============ MULTI-AGENT TEAMS ============
 
 async function teamCommand(args: string[]) {
-  const [action, teamType, ...taskParts] = args;
-  const task = taskParts.join(' ');
-  
-  console.log(`${c.cyan}Multi-Agent Team System${c.reset}`);
-  
+  const { TeamManager, TEAM_TEMPLATES, MultiAgentCoordinator } = await import('../multiagent/index.js');
+  const teamManager = new TeamManager();
+  const coordinator = new MultiAgentCoordinator({ maxConcurrent: 5 });
+  const [action, ...actionArgs] = args;
+
+  const c2 = { reset: '\x1b[0m', bold: '\x1b[1m', green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m' };
+
+  console.log(`\n${c2.cyan}${c2.bold}   Duck Agent Team System${c2.reset}\n`);
+
   switch (action) {
-      case 'create':
-        if (!teamType) {
-          console.log(`${c.yellow}Usage: duck team create <type>${c.reset}`);
-          console.log('Types: code-review, research, swarm');
-          return;
+    case 'templates': {
+      console.log(`${c2.bold}Available Team Templates:${c2.reset}\n`);
+      for (const t of TEAM_TEMPLATES) {
+        console.log(`  ${c2.green}${t.name}${c2.reset} — ${t.description}`);
+        for (const r of t.roles) {
+          console.log(`    \u2022 ${r.name} [${r.specialization}]`);
         }
-        console.log(`${c.green}Team ${teamType} created${c.reset}`);
-        break;
-      case 'spawn':
-        if (!teamType || !task) {
-          console.log(`${c.yellow}Usage: duck team spawn <type> <task>${c.reset}`);
-          return;
-        }
-        console.log(`${c.cyan}Spawning ${teamType} team for: ${task}${c.reset}`);
-        break;
-      case 'list':
-        console.log(`${c.cyan}Multi-agent team system${c.reset}`);
-        break;
-      default:
-        console.log(`${c.yellow}Usage: duck team [create|spawn|list]${c.reset}`);
+        console.log();
+      }
+      break;
     }
+
+    case 'create': {
+      const [name, templateName] = actionArgs;
+      if (!name) {
+        console.log(`${c2.yellow}Usage: duck team create <team-name> [template]${c2.reset}`);
+        console.log(`Templates: ${TEAM_TEMPLATES.map(t => t.name).join(', ')}`);
+        return;
+      }
+      let team;
+      if (templateName) {
+        team = teamManager.createFromTemplate(templateName, name);
+      } else {
+        team = teamManager.createTeam(name, `Custom team: ${name}`);
+      }
+      if (team) {
+        console.log(`${c2.green} Team created: ${team.name} (${team.id})${c2.reset}`);
+        console.log(`   Members: ${team.members.size}`);
+      } else {
+        console.log(`${c2.red} Failed to create team${c2.reset}`);
+      }
+      break;
+    }
+
+    case 'list': {
+      const teams = teamManager.getAllTeams();
+      if (teams.length === 0) {
+        console.log(`  ${c2.dim}No teams created yet${c2.reset}\n`);
+      } else {
+        for (const t of teams) {
+          const status = teamManager.getTeamStatus(t.id);
+          const busy = status?.members.filter((m: any) => m.status === 'busy').length || 0;
+          console.log(`  ${c2.bold}${t.name}${c2.reset} (${t.id})`);
+          console.log(`    Members: ${t.members.size} | Active: ${busy}`);
+          console.log();
+        }
+      }
+      break;
+    }
+
+    case 'status': {
+      const [teamId] = actionArgs;
+      if (!teamId) {
+        console.log(`${c2.yellow}Usage: duck team status <team-id>${c2.reset}`);
+        return;
+      }
+      const status = teamManager.getTeamStatus(teamId);
+      if (!status) {
+        console.log(`${c2.red} Team not found${c2.reset}`);
+        return;
+      }
+      console.log(`${c2.bold}Team: ${status.name}${c2.reset}`);
+      console.log(`  ID: ${status.id}`);
+      console.log(`  Members: ${status.totalMembers}`);
+      console.log(`  Active Tasks: ${status.activeTasks}`);
+      console.log(`\n  Members:`);
+      for (const m of status.members) {
+        const icon = m.status === 'busy' ? '\u23f3' : m.status === 'idle' ? '\u2705' : '\u274c';
+        console.log(`    ${icon} ${m.name} [${m.role}]`);
+      }
+      console.log();
+      break;
+    }
+
+    case 'spawn': {
+      const [taskType, ...promptParts] = actionArgs;
+      if (!taskType || !promptParts.length) {
+        console.log(`${c2.yellow}Usage: duck team spawn <type> <task-description>${c2.reset}`);
+        console.log(`Types: worker, research, verification, implementation`);
+        return;
+      }
+      const prompt = promptParts.join(' ');
+      console.log(`${c2.cyan} Spawning ${taskType} agent...${c2.reset}`);
+      console.log(`  Task: ${prompt}`);
+      const taskId = await coordinator.spawnWorker(taskType as any, prompt, prompt, {});
+      console.log(`${c2.green} Worker spawned: ${taskId}${c2.reset}`);
+      console.log(`${c2.dim}Waiting for result...${c2.reset}`);
+      const result = await coordinator.waitForTask(taskId);
+      if (result) {
+        console.log(`${c2.green} Task completed!${c2.reset}`);
+        if (result.result) {
+          const output = result.result.length > 500 ? result.result.slice(0, 500) + '...' : result.result;
+          console.log(`\n${c2.bold}Result:${c2.reset}\n${output}\n`);
+        }
+      }
+      break;
+    }
+
+    case 'swarm': {
+      const [swarmTopic, ...rest] = actionArgs;
+      if (!swarmTopic) {
+        console.log(`${c2.yellow}Usage: duck team swarm <task-description>${c2.reset}`);
+        return;
+      }
+      console.log(`${c2.cyan} Starting coding swarm for: ${swarmTopic}${c2.reset}`);
+      const workers = ['Researcher', 'Implementer', 'Reviewer'];
+      const taskIds = await Promise.all(workers.map(async (w, i) => {
+        const types = ['research', 'implementation', 'verification'] as const;
+        const prompts = [
+          `Research: Find the best approach for "${swarmTopic}". List 3 strategies with pros/cons.`,
+          `Implement: Write the code for "${swarmTopic}". Output a complete working implementation.`,
+          `Review: Review this implementation for "${swarmTopic}". List 3 issues and fixes.`,
+        ];
+        return coordinator.spawnWorker(types[i], `${w} task`, prompts[i], {});
+      }));
+      console.log(`  Spawned ${taskIds.length} workers: ${taskIds.join(', ')}`);
+      console.log(`${c2.dim}Waiting for all workers...${c2.reset}`);
+      const results = await coordinator.waitForAll(120000);
+      console.log(`${c2.green} Swarm complete! ${results.length} results.${c2.reset}\n`);
+      for (const r of results) {
+        const icon = r.status === 'completed' ? '\u2705' : r.status === 'failed' ? '\u274c' : '\u23f3';
+        console.log(`  ${icon} [${r.type}] ${r.description}`);
+        if (r.result && r.status === 'completed') {
+          const out = r.result.length > 300 ? r.result.slice(0, 300) + '...' : r.result;
+          console.log(`      ${out}`);
+        }
+        if (r.error) console.log(`      ${c2.red}Error: ${r.error}${c2.reset}`);
+        console.log();
+      }
+      break;
+    }
+
+    case 'tasks': {
+      const tasks = coordinator.getAllTasks();
+      if (tasks.length === 0) {
+        console.log(`  ${c2.dim}No tasks${c2.reset}\n`);
+      } else {
+        for (const t of tasks.slice(-10)) {
+          const icon = t.status === 'running' ? '\u23f3' : t.status === 'completed' ? '\u2705' : t.status === 'failed' ? '\u274c' : '\u23f8';
+          console.log(`  ${icon} [${t.type}] ${t.description}`);
+          console.log(`     Status: ${t.status} | ID: ${t.id}`);
+        }
+        console.log();
+      }
+      break;
+    }
+
+    case 'stats': {
+      const stats = coordinator.getStats();
+      console.log(`${c2.bold}Coordinator Stats:${c2.reset}`);
+      console.log(`  Total: ${stats.total} | Running: ${stats.running} | Done: ${stats.completed} | Failed: ${stats.failed}`);
+      console.log(`  Tokens: ${stats.totalTokens.toLocaleString()}`);
+      console.log(`  Duration: ${(stats.totalDuration / 1000).toFixed(1)}s\n`);
+      break;
+    }
+
+    default: {
+      console.log(`${c2.bold}Duck Team Commands:${c2.reset}`);
+      console.log(`  ${c2.green}duck team templates${c2.reset}          List available team templates`);
+      console.log(`  ${c2.green}duck team create <name>${c2.reset}    Create a new team`);
+      console.log(`  ${c2.green}duck team list${c2.reset}               List all teams`);
+      console.log(`  ${c2.green}duck team status <id>${c2.reset}       Show team status`);
+      console.log(`  ${c2.green}duck team spawn <type> <task>${c2.reset} Spawn a worker agent`);
+      console.log(`  ${c2.green}duck team swarm <task>${c2.reset}       Start coding swarm (3 parallel agents)`);
+      console.log(`  ${c2.green}duck team tasks${c2.reset}              Show all tasks`);
+      console.log(`  ${c2.green}duck team stats${c2.reset}               Show coordinator stats`);
+      console.log();
+      console.log(`${c2.dim}Examples:${c2.reset}`);
+      console.log(`  duck team templates`);
+      console.log(`  duck team create "MyTeam" research`);
+      console.log(`  duck team swarm Build a REST API with Express`);
+      console.log(`  duck team spawn worker "Fix the login bug"`);
+      console.log();
+    }
+  }
 }
 
 }
@@ -1860,33 +2018,191 @@ async function councilCommand(args: string[]) {
 // ============ MULTI-AGENT TEAMS ============
 
 async function teamCommand(args: string[]) {
-  const [action, teamType, ...taskParts] = args;
-  const task = taskParts.join(' ');
-  
-  console.log(`${c.cyan}Multi-Agent Team System${c.reset}`);
-  
+  const { TeamManager, TEAM_TEMPLATES, MultiAgentCoordinator } = await import('../multiagent/index.js');
+  const teamManager = new TeamManager();
+  const coordinator = new MultiAgentCoordinator({ maxConcurrent: 5 });
+  const [action, ...actionArgs] = args;
+
+  const c2 = { reset: '\x1b[0m', bold: '\x1b[1m', green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m' };
+
+  console.log(`\n${c2.cyan}${c2.bold}   Duck Agent Team System${c2.reset}\n`);
+
   switch (action) {
-      case 'create':
-        if (!teamType) {
-          console.log(`${c.yellow}Usage: duck team create <type>${c.reset}`);
-          console.log('Types: code-review, research, swarm');
-          return;
+    case 'templates': {
+      console.log(`${c2.bold}Available Team Templates:${c2.reset}\n`);
+      for (const t of TEAM_TEMPLATES) {
+        console.log(`  ${c2.green}${t.name}${c2.reset} — ${t.description}`);
+        for (const r of t.roles) {
+          console.log(`    \u2022 ${r.name} [${r.specialization}]`);
         }
-        console.log(`${c.green}Team ${teamType} created${c.reset}`);
-        break;
-      case 'spawn':
-        if (!teamType || !task) {
-          console.log(`${c.yellow}Usage: duck team spawn <type> <task>${c.reset}`);
-          return;
-        }
-        console.log(`${c.cyan}Spawning ${teamType} team for: ${task}${c.reset}`);
-        break;
-      case 'list':
-        console.log(`${c.cyan}Multi-agent team system${c.reset}`);
-        break;
-      default:
-        console.log(`${c.yellow}Usage: duck team [create|spawn|list]${c.reset}`);
+        console.log();
+      }
+      break;
     }
+
+    case 'create': {
+      const [name, templateName] = actionArgs;
+      if (!name) {
+        console.log(`${c2.yellow}Usage: duck team create <team-name> [template]${c2.reset}`);
+        console.log(`Templates: ${TEAM_TEMPLATES.map(t => t.name).join(', ')}`);
+        return;
+      }
+      let team;
+      if (templateName) {
+        team = teamManager.createFromTemplate(templateName, name);
+      } else {
+        team = teamManager.createTeam(name, `Custom team: ${name}`);
+      }
+      if (team) {
+        console.log(`${c2.green} Team created: ${team.name} (${team.id})${c2.reset}`);
+        console.log(`   Members: ${team.members.size}`);
+      } else {
+        console.log(`${c2.red} Failed to create team${c2.reset}`);
+      }
+      break;
+    }
+
+    case 'list': {
+      const teams = teamManager.getAllTeams();
+      if (teams.length === 0) {
+        console.log(`  ${c2.dim}No teams created yet${c2.reset}\n`);
+      } else {
+        for (const t of teams) {
+          const status = teamManager.getTeamStatus(t.id);
+          const busy = status?.members.filter((m: any) => m.status === 'busy').length || 0;
+          console.log(`  ${c2.bold}${t.name}${c2.reset} (${t.id})`);
+          console.log(`    Members: ${t.members.size} | Active: ${busy}`);
+          console.log();
+        }
+      }
+      break;
+    }
+
+    case 'status': {
+      const [teamId] = actionArgs;
+      if (!teamId) {
+        console.log(`${c2.yellow}Usage: duck team status <team-id>${c2.reset}`);
+        return;
+      }
+      const status = teamManager.getTeamStatus(teamId);
+      if (!status) {
+        console.log(`${c2.red} Team not found${c2.reset}`);
+        return;
+      }
+      console.log(`${c2.bold}Team: ${status.name}${c2.reset}`);
+      console.log(`  ID: ${status.id}`);
+      console.log(`  Members: ${status.totalMembers}`);
+      console.log(`  Active Tasks: ${status.activeTasks}`);
+      console.log(`\n  Members:`);
+      for (const m of status.members) {
+        const icon = m.status === 'busy' ? '\u23f3' : m.status === 'idle' ? '\u2705' : '\u274c';
+        console.log(`    ${icon} ${m.name} [${m.role}]`);
+      }
+      console.log();
+      break;
+    }
+
+    case 'spawn': {
+      const [taskType, ...promptParts] = actionArgs;
+      if (!taskType || !promptParts.length) {
+        console.log(`${c2.yellow}Usage: duck team spawn <type> <task-description>${c2.reset}`);
+        console.log(`Types: worker, research, verification, implementation`);
+        return;
+      }
+      const prompt = promptParts.join(' ');
+      console.log(`${c2.cyan} Spawning ${taskType} agent...${c2.reset}`);
+      console.log(`  Task: ${prompt}`);
+      const taskId = await coordinator.spawnWorker(taskType as any, prompt, prompt, {});
+      console.log(`${c2.green} Worker spawned: ${taskId}${c2.reset}`);
+      console.log(`${c2.dim}Waiting for result...${c2.reset}`);
+      const result = await coordinator.waitForTask(taskId);
+      if (result) {
+        console.log(`${c2.green} Task completed!${c2.reset}`);
+        if (result.result) {
+          const output = result.result.length > 500 ? result.result.slice(0, 500) + '...' : result.result;
+          console.log(`\n${c2.bold}Result:${c2.reset}\n${output}\n`);
+        }
+      }
+      break;
+    }
+
+    case 'swarm': {
+      const [swarmTopic, ...rest] = actionArgs;
+      if (!swarmTopic) {
+        console.log(`${c2.yellow}Usage: duck team swarm <task-description>${c2.reset}`);
+        return;
+      }
+      console.log(`${c2.cyan} Starting coding swarm for: ${swarmTopic}${c2.reset}`);
+      const workers = ['Researcher', 'Implementer', 'Reviewer'];
+      const taskIds = await Promise.all(workers.map(async (w, i) => {
+        const types = ['research', 'implementation', 'verification'] as const;
+        const prompts = [
+          `Research: Find the best approach for "${swarmTopic}". List 3 strategies with pros/cons.`,
+          `Implement: Write the code for "${swarmTopic}". Output a complete working implementation.`,
+          `Review: Review this implementation for "${swarmTopic}". List 3 issues and fixes.`,
+        ];
+        return coordinator.spawnWorker(types[i], `${w} task`, prompts[i], {});
+      }));
+      console.log(`  Spawned ${taskIds.length} workers: ${taskIds.join(', ')}`);
+      console.log(`${c2.dim}Waiting for all workers...${c2.reset}`);
+      const results = await coordinator.waitForAll(120000);
+      console.log(`${c2.green} Swarm complete! ${results.length} results.${c2.reset}\n`);
+      for (const r of results) {
+        const icon = r.status === 'completed' ? '\u2705' : r.status === 'failed' ? '\u274c' : '\u23f3';
+        console.log(`  ${icon} [${r.type}] ${r.description}`);
+        if (r.result && r.status === 'completed') {
+          const out = r.result.length > 300 ? r.result.slice(0, 300) + '...' : r.result;
+          console.log(`      ${out}`);
+        }
+        if (r.error) console.log(`      ${c2.red}Error: ${r.error}${c2.reset}`);
+        console.log();
+      }
+      break;
+    }
+
+    case 'tasks': {
+      const tasks = coordinator.getAllTasks();
+      if (tasks.length === 0) {
+        console.log(`  ${c2.dim}No tasks${c2.reset}\n`);
+      } else {
+        for (const t of tasks.slice(-10)) {
+          const icon = t.status === 'running' ? '\u23f3' : t.status === 'completed' ? '\u2705' : t.status === 'failed' ? '\u274c' : '\u23f8';
+          console.log(`  ${icon} [${t.type}] ${t.description}`);
+          console.log(`     Status: ${t.status} | ID: ${t.id}`);
+        }
+        console.log();
+      }
+      break;
+    }
+
+    case 'stats': {
+      const stats = coordinator.getStats();
+      console.log(`${c2.bold}Coordinator Stats:${c2.reset}`);
+      console.log(`  Total: ${stats.total} | Running: ${stats.running} | Done: ${stats.completed} | Failed: ${stats.failed}`);
+      console.log(`  Tokens: ${stats.totalTokens.toLocaleString()}`);
+      console.log(`  Duration: ${(stats.totalDuration / 1000).toFixed(1)}s\n`);
+      break;
+    }
+
+    default: {
+      console.log(`${c2.bold}Duck Team Commands:${c2.reset}`);
+      console.log(`  ${c2.green}duck team templates${c2.reset}          List available team templates`);
+      console.log(`  ${c2.green}duck team create <name>${c2.reset}    Create a new team`);
+      console.log(`  ${c2.green}duck team list${c2.reset}               List all teams`);
+      console.log(`  ${c2.green}duck team status <id>${c2.reset}       Show team status`);
+      console.log(`  ${c2.green}duck team spawn <type> <task>${c2.reset} Spawn a worker agent`);
+      console.log(`  ${c2.green}duck team swarm <task>${c2.reset}       Start coding swarm (3 parallel agents)`);
+      console.log(`  ${c2.green}duck team tasks${c2.reset}              Show all tasks`);
+      console.log(`  ${c2.green}duck team stats${c2.reset}               Show coordinator stats`);
+      console.log();
+      console.log(`${c2.dim}Examples:${c2.reset}`);
+      console.log(`  duck team templates`);
+      console.log(`  duck team create "MyTeam" research`);
+      console.log(`  duck team swarm Build a REST API with Express`);
+      console.log(`  duck team spawn worker "Fix the login bug"`);
+      console.log();
+    }
+  }
 }
 
 // ============ OPENCLAW-RL COMMANDS ============

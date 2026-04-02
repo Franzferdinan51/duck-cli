@@ -284,26 +284,66 @@ export class MultiAgentCoordinator extends EventEmitter {
   }
   
   /**
-   * Execute a worker task
+   * Execute a worker task via MiniMax API
    */
   private async executeWorker(
     task: AgentTask,
     options: any
   ): Promise<{ output: string; usage: AgentTask['usage'] }> {
-    // This would integrate with the actual agent execution
-    // For now, simulate execution
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          output: `Worker ${task.id} completed: ${task.description}`,
-          usage: {
-            total_tokens: 1000,
-            tool_uses: 5,
-            duration_ms: 5000,
-          },
-        });
-      }, 1000);
-    });
+    const apiKey = process.env.MINIMAX_API_KEY || process.env.MINIMAX_API_KEY_2 || '';
+    const model = options.model || 'MiniMax-M2.7';
+    const start = Date.now();
+
+    if (!apiKey) {
+      throw new Error(`No MINIMAX_API_KEY set. Worker cannot execute.`);
+    }
+
+    try {
+      const response = await fetch('https://api.minimax.io/v1/text/chatcompletion_v2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: model.includes('/') ? model : `${
+            model === 'MiniMax-M2.7' ? 'MiniMax/MiniMax-M2.7' :
+            model === 'glm-5' ? 'zhipuai/glm-5' :
+            model === 'glm-4.7' ? 'zhipuai/glm-4.7' :
+            model
+          }`,
+          messages: [
+            {
+              role: 'user',
+              content: task.prompt,
+            },
+          ],
+          max_tokens: 4096,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`MiniMax API error ${response.status}: ${err}`);
+      }
+
+      const json = await response.json() as any;
+      const output = json.choices?.[0]?.message?.content || '';
+      const tokens = json.usage?.total_tokens || output.length / 4;
+      const duration = Date.now() - start;
+
+      return {
+        output,
+        usage: {
+          total_tokens: tokens,
+          tool_uses: 0,
+          duration_ms: duration,
+        },
+      };
+    } catch (e: any) {
+      throw new Error(`Worker execution failed: ${e.message}`);
+    }
   }
   
   /**
@@ -387,6 +427,20 @@ export class MultiAgentCoordinator extends EventEmitter {
     return this.getTasksByStatus('completed');
   }
   
+  /**
+   * Wait for a single task to complete
+   */
+  async waitForTask(taskId: string, timeoutMs = 120000): Promise<AgentTask | null> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const task = this.tasks.get(taskId);
+      if (!task) return null;
+      if (task.status === 'completed' || task.status === 'failed') return task;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return this.tasks.get(taskId) || null;
+  }
+
   /**
    * Wait for all tasks to complete
    */
