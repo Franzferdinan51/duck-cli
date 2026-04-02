@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [v0.4.0] — 2026-04-01
 
+
+## [v0.4.1] — 2026-04-02
+
+### Added
+
+#### Sub-Conscious Daemon (LLM-Powered, NO Letta)
+- **subconsciousd** — background HTTP daemon (port 4001) with SQLite persistent memory
+- **LLM Analyzer** — analyzes session transcripts, extracts patterns/decisions/insights using MiniMax/LM Studio
+- **Whisper API** — contextual whispers from memories before prompts
+- **SQLite Store** — FTS5 full-text search, persistent memories in `~/.duckagent/subconscious/`
+- **CLI commands**: `daemon`, `whisper`, `recall`, `recent`, `council`
+
+#### AI Council → Sub-Conscious Integration
+- Council queries daemon for relevant memories before deliberation
+- Each councilor response injected with prior context
+- Deliberation insights auto-stored to daemon after each run
+- Council learns across sessions — prior deliberations inform future ones
+
+### Changed
+- **clawhub-client.ts** — fixed search endpoint: `/skills/search` → `/api/search` (clawhub.ai live API)
+- **subconsciousCmd** — fixed Go cobra to accept multiple args for `recall`/`whisper` commands
+
+### Fixed
+- ClawHub search now works (API endpoint path corrected)
+- `duck clawhub search` returns real skills from clawhub.ai
+
+
 ### Added
 - **Standalone Agent Mode** — `duck` (no args) starts interactive shell with welcome message and session resume
 - **Setup Wizard** — `duck setup` interactive API key configuration (creates ~/.duck/.env)
