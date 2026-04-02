@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
+> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 42-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -22,7 +22,7 @@ cp -r dist/* ~/.local/bin/dist/
 
 # Start - pick your interface
 duck shell              # Interactive TUI shell
-duck web [port]         # Web UI (http://localhost:3001)
+duck web [port]         # Web UI (http://localhost:3002)
 duck unified            # All protocols (MCP + ACP + WS + Gateway)
 duck mcp                # MCP server only (port 3850)
 duck gateway            # Gateway API (port 18792)
@@ -42,7 +42,7 @@ npm install
 npm run dev
 ```
 
-Serves on **http://localhost:5173** — won't conflict with the web UI (port 3001) or gateway (18792).
+Serves on **http://localhost:5173** — won't conflict with the web UI (port 3002) or gateway (18792).
 
 ### What's Included
 
@@ -153,23 +153,18 @@ ctx.fillText('Hello World', x, y)
 | ₿ **Crypto Cards** | Price charts with particle effects |
 | 🐉 **Theme Cards** | RPG-styled stat cards (OSRS, RS3) |
 
-### Pretext Server (Optional)
+### Canvas Rendering (in Desktop UI)
+
+The Pretext Canvas toolkit is fully integrated into the **Desktop UI**. Run it with:
 
 ```bash
-node ~/.openclaw/workspace/skills/generative-ui/backend/pretext-server.js &
-# Runs on http://localhost:3458
-
-# API:
-# POST /  — measure, lines, shrinkwrap, float
-# GET  /health
+cd src/ui/desktop
+npm install && npm run dev
+# Serves on http://localhost:5173
 ```
 
-### Canvas Generator
-
-```bash
-node ~/.openclaw/workspace/skills/generative-ui/backend/pretext-generator.js "weather 72F sunny Dayton"
-# Generates /tmp/weather-test.html — animated canvas weather card
-```
+Pretext files: `src/ui/desktop/src/pretext/` (PretextCanvas, PretextLayout, PretextStream, SceneEngine)
+Examples: WeatherCard, CryptoChart, CouncilVoteDisplay (in `src/ui/desktop/src/examples/`)
 
 ---
 
@@ -260,7 +255,7 @@ agent.updateContext({ meshStatus: 'connected', agents: 3 })
 | 🖥️ **Desktop UI** | Native desktop application (NOW RUNNABLE!) | `cd src/ui/desktop && npm run dev` |
 | 🌐 **Agent Mesh** | Inter-agent communication network | Start mesh server, set env vars |
 | 🧪 **OpenClaw-RL** | Reinforcement learning self-improvement | Run RL server, connect Duck Agent |
-| 🏛️ **AI Council (45)** | 45-agent deliberative council | LM Studio models, council server |
+| 🏛️ **AI Council** | 42-agent deliberative council | MiniMax (local deliberation, no server) |
 | 🎨 **Pretext Canvas** | Generative UI toolkit | Integrated in Desktop UI |
 | 🤖 **CopilotKit** | Streaming chat + generative UI | Integrated in Desktop UI |
 | 🔧 **ClawHub** | Skill marketplace & sharing | ClawHub server + registry |
@@ -278,7 +273,7 @@ agent.updateContext({ meshStatus: 'connected', agents: 3 })
 | **MCP Server** | 3850 | 3848 |
 | **ACP Server** | 18794 | 18790 |
 | **WebSocket** | 18796 | 18791 |
-| **Web UI** | 3001 | 3000 |
+| **Web UI** | 3002 | 3000 |
 | **Desktop UI** | 5173 | — |
 
 > 💡 **No conflicts!** Run Duck Agent and OpenClaw simultaneously — all ports are separate.
@@ -330,17 +325,17 @@ duck subconscious stats   # Show whisper history
 
 ---
 
-## 🏛️ AI Council Chamber — OPTIONAL (45 Councilors)
+## 🏛️ AI Council Chamber — OPTIONAL (42 Councilors)
 
-**Deliberative decision making with 45 specialized AI perspectives**
+**Deliberative decision making with 42 specialized AI perspectives**
 
 ```bash
 duck council "Should we refactor the auth module?"
-duck council list          # List all 45 councilors
+duck council list          # List all 42 councilors
 duck council summon <role> # Call specific councilor
 ```
 
-### The 45 Councilors
+### The 42 Councilors
 
 | # | Name | Role | Specialty |
 |---|------|------|-----------|
@@ -477,7 +472,7 @@ duck clawhub uninstall <name>     # Remove a skill
 
 ## 👻 SOUL Registry — AI Personas
 
-**onlycrabs.ai** — Download and activate AI persona files (SOUL.md).
+SOUL Registry — Download and activate AI persona files (SOUL.md).
 
 ```bash
 duck souls featured               # Show featured SOULs
@@ -540,7 +535,7 @@ duck voice --voice casual "Hi!"    # Different style
 
 ## 🌐 Web UI — REQUIRED
 
-**Full-featured control interface at http://localhost:3001**
+**Full-featured control interface at http://localhost:3002**
 
 | Panel | Features |
 |-------|----------|
@@ -671,7 +666,7 @@ duck cron disable ai-news   # Disable a job
 | **MCP** | 3850 | 3848 |
 | **ACP** | 18794 | 18790 |
 | **WebSocket** | 18796 | 18791 |
-| **Web UI** | 3001 | 3000 |
+| **Web UI** | 3002 | 3000 |
 | **Desktop UI** | 5173 | — |
 
 ### Running Alongside OpenClaw
@@ -696,7 +691,7 @@ openclaw unified
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │                    User Interfaces                          │  │
-│  │  Shell (TUI) │ Web UI (:3001) │ Desktop UI (:5173) │ Chat │  │
+│  │  Shell (TUI) │ Web UI (:3002) │ Desktop UI (:5173) │ Chat │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                               │                                 │
 │  ┌───────────────────────────▼──────────────────────────────┐  │
@@ -707,7 +702,7 @@ openclaw unified
 │  ┌───────────┐  ┌─────────┐  ┌──────────┐  ┌─────────────┐    │
 │  │  AI      │  │ Agent   │  │ Claude   │  │ Desktop     │    │
 │  │  Council │  │ Mesh    │  │  Code    │  │ Control     │    │
-│  │  45      │  │ (opt)   │  │ Tools    │  │ ClawdCursor │    │
+│  │  42      │  │ (opt)   │  │ Tools    │  │ ClawdCursor │    │
 │  └───────────┘  └─────────┘  └──────────┘  └─────────────┘    │
 │                               │                                 │
 │  ┌───────────────────────────▼──────────────────────────────┐  │
@@ -744,7 +739,7 @@ Duck Agent/
 │   ├── mesh/            # Agent Mesh networking 🌐
 │   ├── rl/              # OpenClaw-RL integration 🧪
 │   ├── buddy/           # Buddy companion
-│   ├── council/         # 45-agent AI Council 🏛️
+│   ├── council/         # 42-agent AI Council 🏛️
 │   ├── multiagent/      # Team coordination
 │   ├── cron/            # Cron scheduler
 │   ├── commands/        # CLI commands
@@ -797,7 +792,7 @@ duck subconscious [cmd] # Sub-Conscious (status/enable/disable/stats)
 duck buddy [action]     # Buddy system
 duck team [action]      # Teams
 duck council [query]    # AI Council
-duck council list       # List 45 councilors
+duck council list       # List 42 councilors
 
 # Optional: Mesh 🌐
 duck mesh register      # Join mesh
@@ -886,7 +881,7 @@ npm run build
 curl http://localhost:18792/health  # Gateway
 curl http://localhost:3850/health  # MCP
 curl http://localhost:18794/health # ACP
-curl http://localhost:3001/health  # Web UI
+curl http://localhost:3002/health  # Web UI
 
 # Desktop UI
 cd src/ui/desktop && npm run build
