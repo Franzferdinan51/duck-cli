@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	version = "0.1.0"
+	version = "0.4.0"
 
 	// Styles
 	brandStyle = lipgloss.NewStyle().
@@ -102,6 +102,14 @@ Features:
 		acpServerCmd(),
 		acpSpawnCmd(),
 		updateCmd(),
+		voiceCmd(),
+		speakCmd(),
+		channelsCmd(),
+		clawhubCmd(),
+		soulsCmd(),
+		desktopCmd(),
+		memoryCmd(),
+		thinkCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -455,6 +463,136 @@ func runNode(args ...string) error {
 	nodeCmd.Stdin = os.Stdin
 	return nodeCmd.Run()
 }
+
+
+// voiceCmd - duck voice [text]
+func voiceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "voice [text]",
+		Short: "Text-to-speech with MiniMax",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			text := strings.Join(args, " ")
+			return runNodeWithEnv("voice " + text, cmd)
+		},
+	}
+}
+
+// speakCmd - duck speak [text] / duck tts [text] - aliases for voice
+func speakCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "speak [text]",
+		Aliases: []string{"tts"},
+		Short:   "Text-to-speech with MiniMax",
+		Args:    cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			text := strings.Join(args, " ")
+			return runNodeWithEnv("voice " + text, cmd)
+		},
+	}
+	return cmd
+}
+
+// channelsCmd - duck channels / duck telegram / duck discord
+func channelsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "channels [subcommand]",
+		Aliases: []string{"telegram", "discord"},
+		Short:   "Start Telegram/Discord channels",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// If called as 'telegram' or 'discord' subcommand, handle directly
+			if cmd.CalledAs() == "telegram" {
+				return runNodeWithEnv("channels telegram", cmd)
+			}
+			if cmd.CalledAs() == "discord" {
+				return runNodeWithEnv("channels discord", cmd)
+			}
+			if len(args) > 0 {
+				return runNodeWithEnv("channels "+args[0], cmd)
+			}
+			return runNodeWithEnv("channels", cmd)
+		},
+	}
+	return cmd
+}
+
+// desktopCmd - duck desktop [action]
+func desktopCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "desktop [action]",
+		Short: "Desktop control",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return runNodeWithEnv("desktop "+args[0], cmd)
+			}
+			return runNodeWithEnv("desktop status", cmd)
+		},
+	}
+}
+
+// clawhubCmd - duck clawhub [action]
+func clawhubCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "clawhub [action]",
+		Short: "ClawHub skill marketplace",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			script := "clawhub"
+			if len(args) > 0 {
+				script += " " + strings.Join(args, " ")
+			}
+			return runNodeWithEnv(script, cmd)
+		},
+	}
+}
+
+// soulsCmd - duck souls [action]
+func soulsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "souls [action]",
+		Short: "SOUL registry - AI personas",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			script := "souls"
+			if len(args) > 0 {
+				script += " " + strings.Join(args, " ")
+			}
+			return runNodeWithEnv(script, cmd)
+		},
+	}
+}
+
+// memoryCmd - duck memory [action]
+func memoryCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "memory [action]",
+		Short: "Memory system commands",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			script := "memory"
+			if len(args) > 0 {
+				script += " " + strings.Join(args, " ")
+			}
+			return runNodeWithEnv(script, cmd)
+		},
+	}
+}
+
+// thinkCmd - duck think [prompt]
+func thinkCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "think [prompt]",
+		Short: "Reasoning mode",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prompt := strings.Join(args, " ")
+			return runNodeWithEnv("think "+prompt, cmd)
+		},
+	}
+}
+
 
 // runNodeWithEnv runs node with provider/model/priority env vars
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
