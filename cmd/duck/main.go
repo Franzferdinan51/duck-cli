@@ -110,6 +110,7 @@ Features:
 		desktopCmd(),
 		memoryCmd(),
 		thinkCmd(),
+		doctorCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -593,6 +594,21 @@ func thinkCmd() *cobra.Command {
 	}
 }
 
+
+
+// doctorCmd - duck doctor
+func doctorCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "doctor",
+		Short:   "Run system diagnostics",
+		Long:    "Check environment, API keys, services, and dependencies",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNode("doctor")
+		},
+	}
+	return cmd
+}
 
 // runNodeWithEnv runs node with provider/model/priority env vars
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {

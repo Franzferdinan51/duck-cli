@@ -233,6 +233,51 @@ async function main() {
       await soulsCommand(args);
       break;
 
+    case 'doctor':
+    case 'diagnostics':
+      {
+        const { existsSync } = await import('fs');
+        let issues = 0;
+        const checks: { name: string; ok: boolean; detail?: string }[] = [];
+        
+        const nodeVer = process.version;
+        checks.push({ name: 'Node.js', ok: nodeVer >= 'v20', detail: nodeVer });
+        
+        const keyChecks: [string, string][] = [
+          ['MINIMAX_API_KEY', 'MiniMax'],
+          ['OPENROUTER_API_KEY', 'OpenRouter'],
+          ['KIMI_API_KEY', 'Kimi'],
+        ];
+        for (const [key, name] of keyChecks) {
+          const val = process.env[key];
+          checks.push({ name, ok: !!val, detail: val ? '***' + val.slice(-4) : 'not set' });
+          if (!val) issues++;
+        }
+        
+        const dirChecks: [string, string][] = [
+          ['node_modules', 'Node modules'],
+          ['src/skills', 'Skills dir'],
+          ['.duck', 'Duck data'],
+        ];
+        for (const [dir, name] of dirChecks) {
+          const ok = existsSync(dir);
+          checks.push({ name, ok, detail: ok ? 'found' : 'missing' });
+          if (!ok) issues++;
+        }
+        
+        console.log(`\n${c.bold}🔍 Duck Agent Doctor${c.reset}`);
+        console.log(`${c.dim}Running system diagnostics...${c.reset}\n`);
+        
+        for (const check of checks) {
+          const icon = check.ok ? `${c.green}✅${c.reset}` : `${c.red}❌${c.reset}`;
+          const detail = check.detail ? ` ${c.dim}(${check.detail})${c.reset}` : '';
+          console.log(`  ${icon} ${check.name}${detail}`);
+        }
+        
+        console.log(`\n${c.bold}Result:${c.reset} ${issues === 0 ? c.green+'✅ All systems operational' : c.yellow+'⚠️ '+issues+' issue(s) found'}${c.reset}\n`);
+      }
+      break;
+
     default:
       await runTask(command + ' ' + args.join(' '));
   }
@@ -356,6 +401,54 @@ ${c.bold}Just type${c.reset} what you want me to help with!
       const results = await agent.recall(args.join(' '));
       console.log(`Found ${results.length} memories:`);
       results.forEach((r, i) => console.log(`  ${i + 1}. ${r}`));
+      break;
+
+    case 'doctor':
+    case 'diagnostics':
+      const { existsSync } = await import('fs');
+      
+      console.log(`\n${c.bold}🔍 Duck Agent Doctor${c.reset}`);
+      console.log(`${c.dim}Running system diagnostics...${c.reset}\n`);
+      
+      let issues = 0;
+      const checks = [];
+      
+      // Check Node.js
+      const nodeVer = process.version;
+      checks.push({ name: 'Node.js', ok: nodeVer >= 'v20', detail: nodeVer });
+      
+      // Check API keys
+      const keyChecks = [
+        ['MINIMAX_API_KEY', 'MiniMax'],
+        ['OPENROUTER_API_KEY', 'OpenRouter'],
+        ['KIMI_API_KEY', 'Kimi'],
+      ];
+      for (const [key, name] of keyChecks) {
+        const val = process.env[key];
+        checks.push({ name, ok: !!val, detail: val ? '***' + val.slice(-4) : 'not set' });
+        if (!val) issues++;
+      }
+      
+      // Check directories
+      const dirChecks = [
+        ['node_modules', 'Node modules'],
+        ['src/skills', 'Skills dir'],
+        ['.duck', 'Duck data'],
+      ];
+      for (const [dir, name] of dirChecks) {
+        const ok = existsSync(dir);
+        checks.push({ name, ok, detail: ok ? 'found' : 'missing' });
+        if (!ok) issues++;
+      }
+      
+      // Print results
+      for (const check of checks) {
+        const icon = check.ok ? `${c.green}✅${c.reset}` : `${c.red}❌${c.reset}`;
+        const detail = check.detail ? ` ${c.dim}(${check.detail})${c.reset}` : '';
+        console.log(`  ${icon} ${check.name}${detail}`);
+      }
+      
+      console.log(`\n${c.bold}Result:${c.reset} ${issues === 0 ? c.green+'✅ All systems operational' : c.yellow+'⚠️ '+issues+' issue(s) found'}${c.reset}\n`);
       break;
 
     case 'model':
