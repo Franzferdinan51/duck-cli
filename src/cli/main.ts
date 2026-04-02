@@ -55,7 +55,7 @@ ${c.gold}${c.bold}
    ██║╚██╗ ██╔╝██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝  ╚═╝
    ██║ ╚████╔╝ ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║   ██╗
    ╚═╝  ╚═══╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝
-${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}v0.3.2 - Super Agent${c.reset}
+${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}0.4.0 - Super Agent${c.reset}
 `;
 
 async function main() {

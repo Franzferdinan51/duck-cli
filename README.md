@@ -1,51 +1,62 @@
 # 🦆 Duck Agent CLI
 
-**An agent for agents** — a unified AI agent command center with multi-agent orchestration, built-in security, and cross-platform capabilities.
+**An AI sidekick for humans and agents** — unified command center with multi-agent orchestration, voice, canvas, and skills.
 
-> *"An agent's toolbelt — standardized MCP/ACP tools, multi-agent coordination, and a 137-skill marketplace, all in one binary."*
-
-## Core Philosophy
-
-Duck Agent runs as a **standalone binary** (Mac/Linux/Windows) that wraps AI models with tool access, memory, scheduling, and agent orchestration. It's designed primarily as a **backend system that AI agents call** — but also works great from CLI.
+> *"Your AI sidekick — just type `duck` and start chatting."*
 
 ## Quick Start
 
 ```bash
 # Install
 git clone https://github.com/Franzferdinan51/duck-cli.git && cd duck-cli
-go build -o duck ./cmd/duck/ && sudo mv duck /usr/local/bin/
+npm install && npm run build
+go build -o duck ./cmd/duck/
+cp duck ~/.local/bin/duck && cp -r dist/* ~/.local/bin/dist/
 
-# Run
+# Run (standalone — for humans)
+duck                  # interactive chat
+duck setup            # configure API keys
+duck help             # all commands
+
+# Run (as tool — for AI agents)
 duck run "fix my authentication bug"
 duck council "Should we use PostgreSQL or MongoDB?"
-duck kairos aggressive  # make it proactive
-duck web              # spin up web UI
+duck status           # show providers, skills, tools
 ```
 
 ## Provider Setup
 
 ```bash
-export MINIMAX_API_KEY=sk-...          # Kimi/MiniMax
-export OPENROUTER_API_KEY=sk-or-...    # OpenRouter
-export KIMI_API_KEY=sk-...           # Kimi direct
-export DUCK_PROVIDER=minimax          # Default provider
+# Auto-reads from ~/.duck/.env or current directory .env
+# Keys: MINIMAX_API_KEY, OPENROUTER_API_KEY, KIMI_API_KEY
+# Provider: DUCK_PROVIDER=minimax (default)
+
+duck setup            # guided interactive setup
 ```
 
-## Commands
+## All Commands
+
+### 💬 Chat & Run
+| Command | Description |
+|---------|-------------|
+| `duck` | Interactive shell (welcome + chat) |
+| `duck run [task]` | Execute single task (smart routing) |
+| `duck setup` | Guided API key configuration |
+| `duck help` | Show all commands |
+| `duck --version` | Show version |
 
 ### 🧠 AI Models & Routing
 | Command | Description |
 |---------|-------------|
-| `duck run [task]` | Smart routing — picks best model automatically |
-| `duck status` | Show 137 skills, 39 tools, 4 providers |
-| `duck model [name]` | Switch model mid-session |
-| `duck think [prompt]` | Reasoning mode (no tool use) |
+| `duck status` | Show providers, tools, skills |
+| `duck think [prompt]` | Reasoning mode (no tools) |
+| `duck think-speak [text]` | Think and speak aloud |
 
 ### 🏛️ AI Council
 | Command | Description |
 |---------|-------------|
-| `duck council [mode] [topic]` | Local deliberation (no server needed) |
-| `duck council legislative "motion"` | Vote-based decision |
+| `duck council [topic]` | Local deliberation (MiniMax) |
+| `duck council legislative "motion"` | Vote-based decisions |
 | `duck council research "topic"` | Investigation mode |
 | `duck council prediction "event"` | Probability estimate |
 
@@ -53,204 +64,175 @@ export DUCK_PROVIDER=minimax          # Default provider
 | Command | Description |
 |---------|-------------|
 | `duck agent list` | List running agents |
-| `duck agent spawn [type]` | Spawn new agent |
-| `duck agent spawn_team [n] [type]` | Spawn N agents in parallel |
-| `duck buddy hatch` | Initialize AI buddy system |
-| `duck buddy list` | List AI buddies |
+| `duck buddy hatch` | Initialize AI companion |
+| `duck buddy list` | List companions |
 | `duck team create [name]` | Create agent team |
-| `duck mesh status` | Agent Mesh network status |
-| `duck rl status` | Reinforcement learning status |
+| `duck mesh status` | Agent Mesh network |
+| `duck rl status` | OpenClaw-RL status |
 
-### 🔧 MCP & Protocols
+### 🔧 Protocols
 | Command | Description |
 |---------|-------------|
-| `duck mcp` | Start MCP server (39 tools) |
-| `duck gateway` | Start REST API gateway |
-| `duck unified` | Start all protocols at once |
-| `duck acp-server` | ACP agent server |
+| `duck mcp` | Start MCP server (port 3850) |
+| `duck gateway` | Start REST API (port 18792) |
+| `duck unified` | All protocols at once |
+| `duck acp-server` | ACP agent server (port 18794) |
 
-### 🌐 Web & UI
+### 🌐 Web & Automation
 | Command | Description |
 |---------|-------------|
-| `duck web` | DuckWebAgent web UI (port 3001) |
-| `duck kairos [mode]` | KAIROS proactive AI engine |
-| `duck kairos aggressive` | Aggressive monitoring mode |
+| `duck web` | Web UI (port 3001) |
+| `duck kairos aggressive` | Proactive monitoring |
 | `duck subconscious` | Self-reflection system |
+| `duck cron list` | List scheduled jobs |
+| `duck cron enable/disable` | Toggle cron |
 
 ### 🎙️ Voice & TTS
 | Command | Description |
 |---------|-------------|
 | `duck voice [text]` | Text-to-speech (MiniMax) |
-| `duck speak [text]` | Alias for voice |
-| `duck tts [text]` | Alias for voice |
+| `duck speak [text]` | Same as voice |
 
 ### 🔍 Diagnostics & Security
 | Command | Description |
 |---------|-------------|
-| `duck doctor` | System diagnostics (API keys, services, deps) |
-| `duck security defcon` | DEFCON security mode |
+| `duck doctor` | System diagnostics |
+| `duck security-defcon` | DEFCON security mode |
 | `duck security audit` | Security audit |
-| `duck cron list` | List scheduled jobs |
-| `duck cron add [spec] [cmd]` | Add cron job |
 
-### 💾 Memory & Context
+### 💾 Memory & Skills
 | Command | Description |
 |---------|-------------|
-| `duck memory status` | Memory system status |
-| `duck remember [text]` | Store in memory |
-| `duck recall [query]` | Search memory |
-
-### 📦 Skills & Tools
-| Command | Description |
-|---------|-------------|
-| `duck skills list` | List 137 installed skills |
-| `duck skills search [query]` | Search skill marketplace |
+| `duck memory` | Memory system |
+| `duck skills list` | List installed skills |
+| `duck skills search [q]` | Search ClawHub |
 | `duck clawhub install [name]` | Install from ClawHub |
-| `duck skills scan [path]` | Security scan skill code |
-
-### 🐳 Execution & Sandboxing
-| Command | Description |
-|---------|-------------|
-| `duck exec [cmd]` | Execute shell command |
-| `duck sandbox [cmd]` | Run in Docker container (isolated) |
-| `duck docker build` | Build Docker image |
-| `duck desktop [action]` | Desktop control |
 
 ### 💬 Channels
 | Command | Description |
 |---------|-------------|
 | `duck channels` | Start all channels |
-| `duck channels telegram` | Start Telegram |
-| `duck channels discord` | Start Discord |
-| `duck telegram` | Alias for channels telegram |
-| `duck discord` | Alias for channels discord |
+| `duck channels telegram` | Telegram only |
+| `duck channels discord` | Discord only |
 
-### 🦆 Duck Utilities
+### 🖥️ Desktop & Tools
 | Command | Description |
 |---------|-------------|
-| `duck update check` | Check for updates |
-| `duck shell` | Interactive shell mode |
-| `duck --version` | Show version |
-| `duck --help` | Show this help |
+| `duck desktop [action]` | Desktop control |
+| `duck exec [cmd]` | Execute shell command |
+| `duck tools` | List all MCP tools |
 
 ## Tool System
 
-Duck Agent exposes **39 MCP tools** to agents:
+Duck Agent exposes **40 MCP tools** to agents:
 
 ```
-execute          - Run shell commands
-spawn_agent      - Spawn sub-agent with model/router
-spawn_team       - Spawn N agents in parallel  
-think_parallel   - Multi-model reasoning
-cron_schedule    - Schedule recurring tasks
-cron_run_now    - Run job immediately
-memory_search   - Search DuckDB memory
-memory_write    - Write to memory
-mcp_delegate    - Delegate to MCP server
-http_request    - Make HTTP requests
+file_read        - Read file contents
+file_write       - Write/edit files
+glob             - Find files by pattern
+bash             - Execute shell commands
+grep             - Search file contents
+web_search       - Web search
+web_fetch        - Fetch URL content
+vision_analyze   - Analyze images
+image_generate   - Generate images
+speak            - Text-to-speech
+remember         - Save to memory
+recall           - Search memory
+session_search   - Search conversations
+todo             - Task planning
+delegate_task    - Spawn subagent
 browser_navigate - Navigate browser
-browser_screenshot - Take screenshot
-browser_click   - Click element
-tts_generate    - Generate speech
+browser_click    - Click element
+browser_type     - Type text
+browser_screenshot - Screenshot
 ```
 
 ## Architecture
 
 ```
 duck (Go binary)
-├── node dist/cli/main.js  ← CLI handler
-│   ├── src/agent/core.ts       ← Agent brain
-│   ├── src/agent/kairos.ts    ← Proactive AI
-│   ├── src/agent/proactive/   ← Automation engine
-│   ├── src/agent/learning-loop.ts ← Self-improvement
-│   ├── src/council/           ← AI Council deliberation
-│   ├── src/mcp/server.ts      ← MCP server (39 tools)
-│   ├── src/memory/            ← SQLite + FTS5
-│   ├── src/skills/            ← 137 skills
-│   └── src/providers/          ← Model routing
-├── src/voice/                ← Voice wake + talk
-├── src/canvas/               ← Live canvas rendering  
-├── src/security/              ← Skill scanner + Docker sandbox
-└── src/tools/                 ← MCP tool implementations
+├── cmd/duck/main.go         # CLI wrapper, cobra commands
+├── dist/cli/main.js         # TypeScript CLI handler
+│   ├── src/agent/core.ts        # Agent brain
+│   ├── src/agent/proactive/    # KAIROS proactive AI
+│   ├── src/agent/learning-loop.ts  # Self-improvement
+│   ├── src/agent/session-store.ts  # SQLite + FTS5 memory
+│   ├── src/council/             # AI Council deliberation
+│   ├── src/server/mcp-server.ts  # MCP server (40 tools)
+│   ├── src/providers/            # Model routing
+│   ├── dist/skills/             # Installed skills
+│   ├── src/voice/              # Voice wake + talk
+│   ├── src/canvas/             # Live Canvas renderer
+│   ├── src/security/           # Scanner + Docker sandbox
+│   └── src/tools/              # Tool implementations
+└── ~/.duck/                   # User data dir
 ```
 
 ## Models
 
 | Provider | Model | Best For |
 |----------|-------|----------|
-| **MiniMax** | MiniMax-M2.7 | Agents, research |
+| **MiniMax** | MiniMax-M2.7 | Default, agents, research |
 | **Kimi** | kimi-k2.5 | Vision, coding |
-| **OpenRouter** | qwen3.6-plus (free) | Budget inference |
+| **OpenRouter** | qwen3.6-plus (free) | Free tier |
 | **ChatGPT OAuth** | gpt-5.4 | Premium reasoning |
-| **LM Studio** | qwen3-vl-8b (local) | Free vision |
+| **LM Studio** | qwen3-vl-8b (local) | Free local vision |
+
+Smart router picks the best for each task automatically.
 
 ## Key Features
 
-### 🧠 Native AI Council
-Local deliberation with 3 councilors (~15s). No external server needed. Vote-based decisions, research, prediction modes.
+### 🏛️ AI Council
+Local deliberation with 3 councilors (Speaker, Technocrat, Ethicist). No server needed. Vote-based decisions in ~15s.
 
-### 🛰️ Multi-Protocol Support
-- **MCP** (Model Context Protocol) — 39 built-in tools
-- **ACP** (Agent Communication Protocol) — multi-agent coordination  
-- **REST Gateway** — HTTP API for any client
-- **WebSocket** — real-time streaming
+### 🛰️ Multi-Protocol
+- **MCP** — 40 built-in tools via `duck mcp`
+- **ACP** — multi-agent coordination via `duck acp-server`
+- **REST Gateway** — HTTP API via `duck gateway`
+- **WebSocket** — real-time via unified server
 
-### 🛡️ Security-First
-- **Skills Code Scanner** — scans for dangerous patterns before install
-- **Docker Sandbox** — run untrusted tools in isolated containers
+### 🛡️ Security
+- **Skills Code Scanner** — scans skill code for dangerous patterns
+- **Docker Sandbox** — isolated container execution for untrusted tools
 - **DEFCON Mode** — threat-level security system
-- **Approval Queue** — human-in-the-loop for sensitive ops
 
 ### 📈 Self-Improving
-- **Learning Loop** — tracks errors, corrections, patterns
+- **Learning Loop** — tracks errors and corrections
 - **Memory** — SQLite + FTS5 full-text search
 - **Buddy System** — persistent AI companion
-- **KAIROS** — proactive monitoring and automation
+- **KAIROS** — proactive monitoring
 
 ### 🎨 Live Canvas
 - Real-time Canvas rendering via pretext measurement
 - AI Council vote panels, consensus meters
-- Streaming message pre-measured for perfect fit
+- Streaming messages pre-measured for perfect fit
 
-### 🗣️ Voice Native
-- Wake word detection (platform-aware)
+### 🗣️ Voice
+- Wake word detection (platform-aware: macOS/Linux/Windows)
 - Voice conversation mode
 - MiniMax TTS integration
-
-## Files
-
-```
-duck-cli/
-├── cmd/duck/main.go          # Go binary wrapper
-├── src/
-│   ├── agent/               # Agent brain + KAIROS + proactive
-│   ├── council/              # AI Council deliberation
-│   ├── mcp/                 # MCP server + 39 tools
-│   ├── memory/               # SQLite + FTS5 memory
-│   ├── providers/            # Model routing
-│   ├── skills/               # 137 skills
-│   ├── channels/             # Telegram + Discord
-│   ├── voice/               # Voice wake + conversation
-│   ├── canvas/               # Live Canvas renderer
-│   ├── security/            # Scanner + Docker sandbox
-│   └── tools/                # Tool implementations
-├── web-ui/                  # DuckWebAgent UI
-└── duck/                    # Built binary
-```
 
 ## Configuration
 
 ```bash
-# Environment variables
-MINIMAX_API_KEY=sk-...           # Primary model key
-MINIMAX_API_KEY_2=sk-...          # Fallback key  
-OPENROUTER_API_KEY=sk-or-...      # OpenRouter
-KIMI_API_KEY=sk-...              # Kimi direct
-DUCK_PROVIDER=minimax            # Default provider
-DUCK_MODEL=MiniMax-M2.7          # Default model
-DUCK_MESH_URL=http://...          # Mesh network URL
+# ~/.duck/.env (created by `duck setup`)
+MINIMAX_API_KEY=sk-cp-...
+OPENROUTER_API_KEY=sk-or-...
+KIMI_API_KEY=sk-kimi-...
+DUCK_PROVIDER=minimax        # default provider
+DUCK_MODEL=MiniMax-M2.7      # default model
 ```
 
-## Status
+## Data & Logs
 
-✅ **Production Ready** — All core features implemented and tested
+```
+~/.duck/
+├── .env                    # API keys (created by duck setup)
+└── memory/
+    └── sessions.db         # SQLite + FTS5 session memory
+```
+
+## Version
+
+**v0.4.0** — See `CHANGELOG.md` for full release history.

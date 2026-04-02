@@ -165,7 +165,7 @@ export class ACPServer extends EventEmitter {
               capabilities: this.getCapabilities(),
               serverInfo: {
                 name: 'duck-agent-acp',
-                version: '0.3.0',
+                version: '0.4.0',
                 description: 'Duck Agent ACP Backend'
               }
             }

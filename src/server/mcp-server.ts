@@ -86,7 +86,7 @@ export class MCPServer {
         capabilities: this.getServerCapabilities() as MCPServerCapabilities,
         serverInfo: {
           name: 'duck-agent',
-          version: '0.3.0',
+          version: '0.4.0',
           description: 'Duck Agent - Super AI Agent with KAIROS, Claude Code Tools'
         },
         instructions: 'Duck Agent MCP Server. Use tools/call to execute tasks.',
@@ -513,7 +513,7 @@ export class MCPServer {
         await this.handleStreamableHTTP(req, res);
       } else if (req.method === 'GET' && url.pathname === '/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', server: 'duck-agent-mcp', version: '0.3.0' }));
+        res.end(JSON.stringify({ status: 'ok', server: 'duck-agent-mcp', version: '0.4.0' }));
       } else if (req.method === 'GET' && url.pathname === '/tools') {
         const tools = Array.from(this.tools.values()).map(t => ({ name: t.name, description: t.description }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -523,7 +523,7 @@ export class MCPServer {
         res.end(JSON.stringify(this.getServerCapabilities()));
       } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end(`🦆 Duck Agent MCP Server v0.3.0\n\nEndpoints:\n  POST /mcp - MCP protocol\n  GET  /mcp/sse - SSE events\n  GET  /health - Health check\n  GET  /tools - Tool list\n  GET  /capabilities - Server capabilities\n\nWebSocket: ws://localhost:${this.port}/ws\n`);
+        res.end(`🦆 Duck Agent MCP Server v0.4.0\n\nEndpoints:\n  POST /mcp - MCP protocol\n  GET  /mcp/sse - SSE events\n  GET  /health - Health check\n  GET  /tools - Tool list\n  GET  /capabilities - Server capabilities\n\nWebSocket: ws://localhost:${this.port}/ws\n`);
       }
     });
 
@@ -533,7 +533,7 @@ export class MCPServer {
 
     return new Promise((resolve) => {
       this.httpServer!.listen(this.port, () => {
-        console.log(`\n🦆 Duck Agent Deep MCP Server v0.3.0`);
+        console.log(`\n🦆 Duck Agent Deep MCP Server v0.4.0`);
         console.log(`   HTTP:     http://localhost:${this.port}/mcp`);
         console.log(`   SSE:      http://localhost:${this.port}/mcp/sse`);
         console.log(`   WebSocket: ws://localhost:${this.port}/ws`);

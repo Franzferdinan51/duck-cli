@@ -223,7 +223,7 @@ export class OpenClawCompatibilityChecker extends EventEmitter {
       
       // Integration features
       openclawsExtension: await this.check('OpenClaws extension point', async () => {
-        // This is always true for Duck Agent v0.3.0+
+        // This is always true for Duck Agent v0.4.0+
         return true;
       }),
       
@@ -387,7 +387,7 @@ export class OpenClawCompatibilityChecker extends EventEmitter {
       name: this.formatFeatureName(name),
       available: this.features[name] || false,
       fallback: this.features[name] ? undefined : fallbacks[name],
-      version: '0.3.0',
+      version: '0.4.0',
       notes: this.features[name] ? 'Available' : `Fallback: ${fallbacks[name] || 'Not available'}`,
     }));
   }
@@ -485,7 +485,7 @@ export class OpenClawPolyfills {
       uptime: process.uptime(),
       memory: process.memoryUsage(),
       cpu: process.cpuUsage(),
-      version: '0.3.0',
+      version: '0.4.0',
       adapter: 'duck-agent',
       polyfilled: true,
     };

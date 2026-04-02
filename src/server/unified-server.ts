@@ -403,7 +403,7 @@ export class UnifiedServer extends EventEmitter {
         params: {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          clientInfo: { name: 'duck-agent', version: '0.3.0' }
+          clientInfo: { name: 'duck-agent', version: '0.4.0' }
         }
       }));
 

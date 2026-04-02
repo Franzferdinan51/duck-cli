@@ -101,7 +101,7 @@ export class RemoteMCPClient extends EventEmitter {
         protocolVersion: '2024-11-05',
         clientInfo: {
           name: 'duck-agent',
-          version: '0.3.0',
+          version: '0.4.0',
         },
         capabilities: {
           tools: {},

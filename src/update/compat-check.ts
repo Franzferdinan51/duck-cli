@@ -150,7 +150,7 @@ export class CompatChecker {
         category: 'core',
         severity: 'low',
         status: pkg.version ? 'pass' : 'fail',
-        expected: 'Semantic version (e.g., 0.3.0)',
+        expected: 'Semantic version (e.g., 0.4.0)',
         actual: pkg.version || 'missing',
       });
       
