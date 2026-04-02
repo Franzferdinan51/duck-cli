@@ -1315,9 +1315,6 @@ async function councilCommand(args: string[]) {
       maxRounds: 1,
     });
 
-    console.error('DEBUG: deliberation complete, result keys:', Object.keys(result));
-    console.error('DEBUG: verdict:', result.verdict);
-    console.error('DEBUG: summary:', result.summary ? result.summary.slice(0,100) : 'none');
 
     console.log(`${c.green}Council Verdict:${c.reset}`);
     const verdict = result.verdict || result.finalRuling || result.summary;
@@ -1602,9 +1599,6 @@ async function councilCommand(args: string[]) {
       maxRounds: 1,
     });
 
-    console.error('DEBUG: deliberation complete, result keys:', Object.keys(result));
-    console.error('DEBUG: verdict:', result.verdict);
-    console.error('DEBUG: summary:', result.summary ? result.summary.slice(0,100) : 'none');
 
     console.log(`${c.green}Council Verdict:${c.reset}`);
     const verdict = result.verdict || result.finalRuling || result.summary;

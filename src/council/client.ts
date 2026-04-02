@@ -381,9 +381,7 @@ export class AICouncilClient extends EventEmitter {
       
       if (response.ok) {
         const data = await response.json();
-        console.error('DEBUG createSession: got data, sessionId=', data.id, 'this.sessionId before=', this.sessionId);
         this.sessionId = data.sessionId;
-        console.error('DEBUG createSession: this.sessionId after=', this.sessionId);
         this.currentMode = mode;
         this.emit('sessionCreated', data);
         return data;
