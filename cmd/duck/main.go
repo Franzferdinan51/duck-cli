@@ -113,6 +113,13 @@ Features:
 		doctorCmd(),
 	)
 
+	// No args → start interactive shell (standalone mode for humans)
+	rootCmd.Run = func(cmd *cobra.Command, args []string) {
+		runNode("shell")
+	}
+
+	rootCmd.AddCommand(setupCmd())
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(errorStyle.Render("Error: ") + err.Error())
 		os.Exit(1)
@@ -145,6 +152,18 @@ func runCmd() *cobra.Command {
 }
 
 // shellCmd - duck shell
+// setupCmd - Interactive first-run setup wizard
+func setupCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "setup",
+		Short: "[32m[1m🦆[0m Configure API keys and settings",
+		Long:  "Interactive setup wizard - configure API keys for MiniMax, OpenRouter, Kimi",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNode("setup")
+		},
+	}
+}
+
 func shellCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "shell",

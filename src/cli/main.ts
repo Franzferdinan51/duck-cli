@@ -24,6 +24,10 @@ function getAgentConfig() {
  */
 
 import { Agent } from '../agent/core.js';
+import { SessionStore } from '../agent/session-store.js';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { join, dirname } from 'path';
 import * as readline from 'readline';
 import { meshCommand } from './mesh-cmd.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
@@ -57,21 +61,16 @@ ${c.reset}${c.cyan}  ${c.bold}AI Agent${c.reset} ${c.dim}v0.3.2 - Super Agent${c
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
-  if (!command || command === '--help' || command === '-h') {
-    showHelp();
+  // Strip leading -- for consistency with Go wrapper
+  const cmd = command?.replace(/^--/, '') || '';
+
+  // duck (no args) → interactive shell (standalone mode for humans)
+  if (!command || cmd === 'shell' || cmd === 'i' || cmd === 'chat' || cmd === 'interactive') {
+    await startShell();
     return;
   }
 
-  // Strip leading -- for consistency with Go wrapper
-  const cmd = command?.replace(/^--/, '') || '';
   switch (cmd) {
-    case 'shell':
-    case 'i':
-    case 'chat':
-    case 'interactive':
-      await startShell();
-      break;
-
     case 'run':
     case 'exec':
     case 'execute':
@@ -233,6 +232,12 @@ async function main() {
       await soulsCommand(args);
       break;
 
+    case 'setup':
+    case 'configure':
+    case 'init':
+      await runSetup();
+      break;
+
     case 'doctor':
     case 'diagnostics':
       {
@@ -287,11 +292,49 @@ async function main() {
 
 async function startShell() {
   console.log(logo);
-  console.log(`${c.green}Starting Duck Agent shell...${c.reset}`);
-  console.log(`${c.dim}Type /help for commands, /quit to exit${c.reset}\n`);
+  const cfg = getAgentConfig();
+  const store = new SessionStore();
 
-  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
+  // Try to resume last session
+  let lastSession = null;
+  try {
+    const rows = (store as any).db?.prepare?.("SELECT sessionId FROM sessions WHERE timestamp > ? ORDER BY timestamp DESC LIMIT 1")
+      .all(Date.now() - 7 * 24 * 60 * 60 * 1000) || [];
+    lastSession = rows.length > 0 ? rows[0].sessionId : null;
+  } catch {}
+
+  console.log(`${c.green}🦆 Duck Agent — Your AI sidekick${c.reset}`);
+  console.log(`${c.dim}Type /help for commands, /quit to exit${c.reset}`);
+
+  let sessionContext: { role: string; content: string }[] = [];
+  if (lastSession) {
+    const messages = store.getSessionMessages(lastSession, 10);
+    if (messages.length > 0) {
+      console.log(`${c.dim}\n📜 Resuming previous conversation (${messages.length} messages)${c.reset}`);
+      for (const msg of messages.slice(0, 20)) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          sessionContext.push({ role: msg.role, content: msg.content });
+        }
+      }
+      console.log(`${c.dim}   Say hi and we\'ll pick up where we left off!${c.reset}`);
+    }
+  } else {
+    console.log(`\n${c.bold}👋 Hey! I\'m Duck Agent.${c.reset}`);
+    console.log(`${c.dim}I can help you with all sorts of things — just ask!${c.reset}`);
+    console.log(`${c.dim}Try: "build a website", "research AI news", "fix my code", "plan a trip"${c.reset}\n`);
+  }
+
+  const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
+
+  // Inject previous session context
+  if (sessionContext.length > 0) {
+    try {
+      for (const msg of sessionContext) {
+        (agent as any).history.push(msg);
+      }
+    } catch {}
+  }
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -401,6 +444,12 @@ ${c.bold}Just type${c.reset} what you want me to help with!
       const results = await agent.recall(args.join(' '));
       console.log(`Found ${results.length} memories:`);
       results.forEach((r, i) => console.log(`  ${i + 1}. ${r}`));
+      break;
+
+    case 'setup':
+    case 'configure':
+    case 'init':
+      await runSetup();
       break;
 
     case 'doctor':
@@ -896,43 +945,126 @@ async function memoryCommand(args: string[]) {
 
 // ============ HELP ============
 
+// ============ SETUP WIZARD ============
+
+async function runSetup() {
+  console.log(`\n${c.bold}${c.cyan}🦆 Duck Agent Setup${c.reset}`);
+  console.log(`${c.dim}Let's get you configured...${c.reset}\n`);
+
+  const DuckDir = join(homedir(), '.duck');
+  const envPath = join(DuckDir, '.env');
+  
+  // Load existing .env if present
+  let env: Record<string, string> = {};
+  if (existsSync(envPath)) {
+    try {
+      const content = readFileSync(envPath, 'utf-8');
+      for (const line of content.split('\n')) {
+        const m = line.match(/^([^#=]+)=(.*)$/);
+        if (m) env[m[1].trim()] = m[2].trim();
+      }
+    } catch {}
+  }
+
+  // Detect existing keys
+  const hasMinimax = !!process.env.MINIMAX_API_KEY || !!env.MINIMAX_API_KEY;
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY || !!env.OPENROUTER_API_KEY;
+  const hasKimi = !!process.env.KIMI_API_KEY || !!env.KIMI_API_KEY;
+
+  console.log(`${c.bold}Current status:${c.reset}`);
+  console.log(`  ${hasMinimax ? c.green+'✅' : c.red+'❌'} MiniMax API Key ${hasMinimax ? '(found)' : '(not found)'}`);
+  console.log(`  ${hasOpenRouter ? c.green+'✅' : c.red+'❌'} OpenRouter API Key ${hasOpenRouter ? '(found)' : '(not found)'}`);
+  console.log(`  ${hasKimi ? c.green+'✅' : c.red+'❌'} Kimi API Key ${hasKimi ? '(found)' : '(not found)'}`);
+  console.log(`  ${c.green+'✅'} Duck data dir ${DuckDir}`);
+  console.log('');
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (q: string) => new Promise<string>(res => {
+    rl.question(`${c.cyan}${q}${c.reset}: `, a => res(a));
+  });
+
+  console.log(`\n${c.bold}${c.yellow}API Key Setup${c.reset}`);
+  console.log(`${c.dim}Get free keys at:\n  MiniMax: https://platform.minimax.io\n  OpenRouter: https://openrouter.ai\n  Kimi: https://platform.moonshot.cn${c.reset}\n`);
+
+  const minikey = await ask('MiniMax API Key (press Enter to skip)');
+  const openrouter = await ask('OpenRouter API Key (press Enter to skip)');
+  const kimi = await ask('Kimi API Key (press Enter to skip)');
+  const provider = await ask(`Default provider (minimax/openrouter/kimi) [minimax]`);
+
+  rl.close();
+
+  // Update env
+  if (minikey.trim()) env.MINIMAX_API_KEY = minikey.trim();
+  if (openrouter.trim()) env.OPENROUTER_API_KEY = openrouter.trim();
+  if (kimi.trim()) env.KIMI_API_KEY = kimi.trim();
+  if (provider.trim()) env.DUCK_PROVIDER = provider.trim();
+
+  // Save .env
+  mkdirSync(DuckDir, { recursive: true });
+  const envContent = Object.entries(env).map(([k,v]) => `${k}=${v}`).join('\n') + '\n';
+  writeFileSync(envPath, envContent, { mode: 0o600 });
+  
+  console.log(`\n${c.green}✅ Configuration saved to ${envPath}${c.reset}`);
+  console.log(`${c.dim}Restart duck to use new settings, or run 'duck shell' to start chatting!${c.reset}\n`);
+}
+
+import { mkdirSync } from 'fs';
+
 function showHelp() {
   console.log(logo);
-  console.log(`
-${c.bold}Usage:${c.reset}
-  duck [command] [options]
-
-${c.bold}Commands:${c.reset}
-  ${c.green}shell${c.reset}           Start interactive TUI shell
-  ${c.green}run <task>${c.reset}      Execute a single task
-  ${c.green}think <prompt>${c.reset}   Think about something
-  ${c.green}status${c.reset}           Show agent status
-  ${c.green}tools${c.reset}           List available tools
-  ${c.green}history${c.reset}         Show conversation history
-  ${c.green}mcp [port]          Start MCP server (default: 3850))
-  ${c.green}memory${c.reset}           Memory commands
-  ${c.green}channels${c.reset}          Start Telegram/Discord channels
-  ${c.green}send <ch> <id> <msg>${c.reset}  Send message to channel
-  ${c.green}desktop${c.reset}          Desktop control
-  ${c.green}clawhub${c.reset}          ClawHub skill marketplace
-  ${c.green}souls${c.reset}            SOUL registry (AI personas)
-
-${c.bold}Examples:${c.reset}
-  duck shell                      # Interactive mode
-  duck run "open Safari"         # Single task
-  duck think "Why is sky blue?"   # Reasoning
-  duck tools                     # List tools
-  duck mcp                       # MCP server
-  duck clawhub explore            # Browse skill marketplace
-  duck clawhub search "web"       # Search skills
-  duck souls search "assistant"   # Search AI personas
-
-${c.bold}Environment Variables:${c.reset}
-  MINIMAX_API_KEY    MiniMax API key
-  ANTHROPIC_API_KEY  Anthropic API key
-  OPENAI_API_KEY     OpenAI API key
-  LMSTUDIO_URL       LM Studio URL
-`);
+  const lines = [
+    "",
+    "[1m[36m[2mDuck Agent [0m[1m[2m— AI sidekick for humans & agents[0m",
+    "",
+    "[1mQUICK START:[0m",
+    "  [32mduck[0m               Start chatting (no args = interactive mode)",
+    "  [32mduck shell[0m          Interactive shell (same thing)",
+    '  [32mduck run "build me a website"[0m   One-shot task',
+    "  [32mduck web[0m            Start web UI in browser",
+    "",
+    "[1mWHAT TO SAY:[0m",
+    '  "Build me a REST API with authentication"',
+    '  "Research the latest AI news"',
+    '  "Fix the bug in my authentication code"',
+    '  "Plan a weekend trip to Nashville"',
+    '  "Teach me how to code in Python"',
+    '  "What\'s the weather in Dayton?"',
+    "",
+    "[1mCOMMANDS:[0m",
+    "  [32mduck[0m / [32mduck shell[0m    Chat with me!",
+    "  [32mduck run [task][0}     One task then exit",
+    "  [32mduck web[0m           Web UI in browser",
+    "  [32mduck council [topic][0}  AI council debate",
+    "  [32mduck doctor[0}         System diagnostics",
+    "  [32mduck setup[0}         Configure API keys",
+    "  [32mduck status[0}         Show what's running",
+    "  [32mduck mcp[0}           Start MCP server (39 tools)",
+    "  [32mduck channels[0}       Telegram + Discord bots",
+    "  [32mduck kairos aggressive[0m  Proactive AI mode",
+    "  [32mduck skills list[0}     137 available skills",
+    "",
+    "[1mINSIDE THE SHELL:[0m",
+    "  /help           Show this help",
+    "  /quit           Exit",
+    "  /status         Agent status",
+    "  /history        Conversation history",
+    "  /tools          List all tools",
+    "  /remember [x]   Remember something",
+    "  /recall [x]     Search memory",
+    "  /model [name]   Switch AI model",
+    "",
+    "[1mAPI KEYS (optional but recommended):[0m",
+    "  [2mexport MINIMAX_API_KEY=sk-...[0m",
+    "  [2mexport KIMI_API_KEY=sk-...[0m",
+    "  [2mexport OPENROUTER_API_KEY=sk-or-...[0m",
+    "  [2mduck setup  # guided setup[0m",
+    "",
+    "[1mMORE INFO:[0m",
+    "  [2mduck doctor               Diagnose setup issues[0m",
+    "  [2mduck --help              Full command list[0m",
+    "",
+  ];
+  console.log(lines.join('\n') + '\n');
 }
 
 main().catch(e => {
