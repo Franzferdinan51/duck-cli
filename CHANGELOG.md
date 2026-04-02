@@ -4,6 +4,27 @@ All notable changes to Duck Agent will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v0.4.0] — 2026-04-01
+
+### Added
+- **Standalone Agent Mode** — `duck` (no args) starts interactive shell with welcome message and session resume
+- **Setup Wizard** — `duck setup` interactive API key configuration (creates ~/.duck/.env)
+- **Skills Auto-Install** — `skills/` copied to dist/ on build; SkillsRunner auto-detects installed location
+- **Skills Auto-Detect** — SkillsRunner finds skills at ~/.local/bin/dist/skills/ on installed systems
+- **Version Sync** — All source files updated to v0.4.0 (was mixed 0.3.0/0.3.2)
+- **Session Persistence** — Shell resumes previous conversations from SQLite SessionStore
+
+### Changed
+- **README Complete Rewrite** — Removed 137-skill fiction, fake commands, wrong architecture paths
+- **INSTALL.md Fixed** — Correct install steps, duck setup, correct env vars
+- **BUILD.md Fixed** — Correct build steps, ~/.local/bin paths, accurate architecture
+- **Duck Doctor** — Now detects skills dir; shows 7 checks (all ✅)
+
+### Fixed
+- `duck doctor` skills dir check (was always ❌)
+- SkillsRunner skillsDir detection (was hardcoded ./skills)
+- `duck` no-args behavior (was showing help, now starts shell)
+
 ## v0.3.2 — 2026-03-31
 
 ### Added
