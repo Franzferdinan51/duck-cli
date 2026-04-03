@@ -29,12 +29,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import cors from 'cors';
+import { homeDir, tempDir } from '../utils/cross-platform.js';
 
 // ============ Config ============
 const MESH_PORT = parseInt(process.env.MESH_PORT || process.env.PORT || '4000');
 const MESH_HOST = process.env.MESH_HOST || '0.0.0.0';
 const API_KEY = process.env.MESH_API_KEY || process.env.AGENT_MESH_API_KEY || 'openclaw-mesh-default-key';
-const DATA_DIR = join(process.env.HOME || '/tmp', '.duckagent', 'mesh');
+const DATA_DIR = join(homeDir(), '.duckagent', 'mesh');
 const DB_PATH = join(DATA_DIR, 'mesh.db');
 
 // Ensure data dir exists

@@ -150,13 +150,21 @@ export class DangerousToolGuard {
       level = 'medium';
     }
 
-    // Special args checks
+    // Special args checks (cross-platform)
     if (args.path && typeof args.path === 'string') {
+      // Expand ~ for comparison
+      const expandedPath = args.path.replace(/^~/, process.env.HOME || '');
       if (args.path.includes('~') && !args.path.startsWith('~/')) {
         reasons.push('Path contains ~ outside home directory');
         level = 'medium';
       }
-      if (args.path.includes('/etc/') || args.path.includes('/usr/bin/')) {
+      // Check for system directories (cross-platform)
+      const isSystemDir = (
+        expandedPath.includes('/etc/') || expandedPath.includes('/usr/bin/') ||
+        expandedPath.includes('\\Windows\\') || expandedPath.includes('\\Program Files\\') ||
+        expandedPath.includes('/System/') || expandedPath.includes('/Library/')
+      );
+      if (isSystemDir) {
         reasons.push('Modifies system directories');
         level = level === 'low' ? 'medium' : level;
       }

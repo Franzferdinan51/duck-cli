@@ -4,8 +4,9 @@
  */
 
 import { execSync, exec } from 'child_process';
-import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from 'fs';
 import { join, dirname, basename, extname } from 'path';
+import { mkdirp, expandPath } from '../../utils/cross-platform.js';
 
 export interface ToolResult {
   success: boolean;
@@ -55,13 +56,13 @@ export class FileWriteTool {
 
   async execute(filePath: string, content: string): Promise<ToolResult> {
     try {
-      // Ensure directory exists
-      const dir = dirname(filePath);
+      // Ensure directory exists (cross-platform)
+      const dir = dirname(expandPath(filePath));
       if (!existsSync(dir)) {
-        execSync(`mkdir -p "${dir}"`);
+        mkdirp(dir);
       }
 
-      writeFileSync(filePath, content, 'utf-8');
+      writeFileSync(expandPath(filePath), content, 'utf-8');
       return { success: true, path: filePath };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };

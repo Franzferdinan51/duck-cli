@@ -12,6 +12,7 @@
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';
+import { homeDir } from '../utils/cross-platform.js';
 
 // ============================================================================
 // Types
@@ -127,8 +128,7 @@ export class TaskRegistry extends EventEmitter {
   constructor(dataDir?: string) {
     super();
     
-    const home = process.env.HOME || '/tmp';
-    const dir = dataDir || path.join(home, '.duckagent', 'data');
+    const dir = dataDir || path.join(homeDir(), '.duckagent', 'data');
     
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });

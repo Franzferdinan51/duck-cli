@@ -3,6 +3,8 @@
  * Text-to-speech with MiniMax speech-2.8-hd
  */
 
+import { playAudio } from '../utils/cross-platform.js';
+
 export interface TTSConfig {
   apiKey: string;
   voice?: string;
@@ -168,13 +170,12 @@ export class TTSService {
       return { success: false, error: result.error };
     }
 
-    // Play the audio
+    // Play the audio (cross-platform)
     try {
-      const { execSync } = await import('child_process');
-      execSync(`afplay "${result.path}"`, { stdio: 'ignore' });
+      playAudio(result.path);
       return { success: true };
     } catch {
-      // afplay might not be available on all systems
+      // Audio player might not be available
       return { success: true }; // File was generated successfully
     }
   }
