@@ -124,11 +124,14 @@ export class MCPServer {
           }
         }
         
-        const inputSchema = {
+        const inputSchema: any = {
           type: 'object',
           properties,
-          ...(required.length > 0 ? { required } : {}),
+          additionalProperties: true,
         };
+        if (required.length > 0) {
+          inputSchema.required = required;
+        }
         
         return {
           name: t.name,
