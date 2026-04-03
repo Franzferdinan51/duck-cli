@@ -807,6 +807,82 @@ export class Agent extends EventEmitter {
         });
       }
     });
+
+    // ─── Stress Test Tool ───────────────────────────────────────
+    this.registerTool({ name: 'duck_stress_test', description: '🧪 Stress test ALL tools and report status',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const results: any = { timestamp: new Date().toISOString(), tools: [], summary: { pass: 0, fail: 0, total: 0 } };
+        
+        // Test each tool category
+        const testGroups = [
+          { name: 'Status Tools', tools: [
+            { name: 'duck_status', fn: async () => { const r = await this.executeTool('duck_status', {}); return r.success; } },
+            { name: 'duck_doctor', fn: async () => { const r = await this.executeTool('duck_doctor', {}); return r.success && !r.result?.error; } },
+            { name: 'duck_kairos', fn: async () => { const r = await this.executeTool('duck_kairos', {}); return r.success; } },
+          ]},
+          { name: 'Memory Tools', tools: [
+            { name: 'memory_stats', fn: async () => { const r = await this.executeTool('memory_stats', {}); return r.success; } },
+            { name: 'memory_recall', fn: async () => { const r = await this.executeTool('memory_recall', { query: 'test', limit: 1 }); return r.success; } },
+            { name: 'memory_list', fn: async () => { const r = await this.executeTool('memory_list', {}); return r.success; } },
+          ]},
+          { name: 'Agent Tools', tools: [
+            { name: 'agent_list', fn: async () => { const r = await this.executeTool('agent_list', {}); return r.success; } },
+            { name: 'get_metrics', fn: async () => { const r = await this.executeTool('get_metrics', {}); return r.success; } },
+            { name: 'get_cost', fn: async () => { const r = await this.executeTool('get_cost', {}); return r.success; } },
+          ]},
+          { name: 'Planning Tools', tools: [
+            { name: 'plan_list', fn: async () => { const r = await this.executeTool('plan_list', {}); return r.success; } },
+            { name: 'learning_stats', fn: async () => { const r = await this.executeTool('learning_stats', {}); return r.success; } },
+            { name: 'learning_context', fn: async () => { const r = await this.executeTool('learning_context', {}); return r.success; } },
+          ]},
+          { name: 'Cron Tools', tools: [
+            { name: 'cron_list', fn: async () => { const r = await this.executeTool('cron_list', {}); return r.success; } },
+            { name: 'cron_stats', fn: async () => { const r = await this.executeTool('cron_stats', {}); return r.success; } },
+          ]},
+          { name: 'Guard Tools', tools: [
+            { name: 'guard_stats', fn: async () => { const r = await this.executeTool('guard_stats', {}); return r.success; } },
+            { name: 'guard_log', fn: async () => { const r = await this.executeTool('guard_log', { limit: 1 }); return r.success; } },
+          ]},
+          { name: 'CLI Commands', tools: [
+            { name: 'duck_update', fn: async () => { const r = await this.executeTool('duck_update', {}); return r.success; } },
+            { name: 'duck_skills', fn: async () => { const r = await this.executeTool('duck_skills', { action: 'list' }); return r.success; } },
+            { name: 'duck_team', fn: async () => { const r = await this.executeTool('duck_team', { action: 'list' }); return r.success; } },
+            { name: 'duck_security', fn: async () => { const r = await this.executeTool('duck_security', { action: 'status' }); return r.success; } },
+            { name: 'duck_mesh', fn: async () => { const r = await this.executeTool('duck_mesh', { action: 'list' }); return r.success; } },
+            { name: 'duck_cron', fn: async () => { const r = await this.executeTool('duck_cron', { action: 'list' }); return r.success; } },
+          ]},
+          { name: 'Desktop Tools', tools: [
+            { name: 'desktop_screenshot', fn: async () => { const r = await this.executeTool('desktop_screenshot', {}); return r.success; } },
+          ]},
+        ];
+        
+        let allPass = true;
+        for (const group of testGroups) {
+          const groupResult: any = { name: group.name, tools: [], pass: 0, fail: 0 };
+          for (const tool of group.tools) {
+            try {
+              const success = await tool.fn();
+              groupResult.tools.push({ name: tool.name, status: success ? 'PASS' : 'FAIL' });
+              if (success) { groupResult.pass++; results.summary.pass++; }
+              else { groupResult.fail++; results.summary.fail++; allPass = false; }
+            } catch (e: any) {
+              groupResult.tools.push({ name: tool.name, status: 'ERROR', error: e.message });
+              groupResult.fail++; results.summary.fail++; allPass = false;
+            }
+          }
+          results.summary.total += groupResult.tools.length;
+          results.tools.push(groupResult);
+        }
+        
+        results.summary.status = allPass ? '✅ ALL PASSING' : '⚠️ SOME FAILING';
+        results.summary.passRate = results.summary.total > 0 
+          ? Math.round((results.summary.pass / results.summary.total) * 100) + '%' 
+          : '0%';
+        
+        return JSON.stringify(results, null, 2);
+      }
+    });
   }
 
   private registerTool(def: ToolDefinition): void {
