@@ -104,12 +104,39 @@ export class MCPServer {
       
       // Get all tools from agent's registry
       const agentTools = this.agent.getTools();
-      const tools = agentTools.map(t => ({
-        name: t.name,
-        description: t.description,
-        inputSchema: t.schema,
-        annotations: { destructive: t.dangerous, idempotent: !t.dangerous },
-      }));
+      const tools = agentTools.map(t => {
+        // Convert simplified schema to proper JSON Schema format
+        const schema = t.schema || {};
+        const properties: Record<string, any> = {};
+        const required: string[] = [];
+        
+        for (const [key, spec] of Object.entries(schema)) {
+          if (typeof spec === 'object' && spec !== null) {
+            // It's a property definition
+            const { type, description, optional, ...rest } = spec as any;
+            properties[key] = { type, description, ...rest };
+            if (!optional) {
+              required.push(key);
+            }
+          } else {
+            // It's just a type string
+            properties[key] = { type: spec };
+          }
+        }
+        
+        const inputSchema = {
+          type: 'object',
+          properties,
+          ...(required.length > 0 ? { required } : {}),
+        };
+        
+        return {
+          name: t.name,
+          description: t.description,
+          inputSchema,
+          annotations: { destructive: t.dangerous, idempotent: !t.dangerous },
+        };
+      });
       return { tools };
     });
 
@@ -423,9 +450,13 @@ export class MCPServer {
    * Reads JSON-RPC requests from stdin, writes responses to stdout
    */
   async startStdio(): Promise<void> {
-    await this.agent.initialize();
+    // Suppress stdout during stdio mode to prevent polluting JSON-RPC stream
+    // All console output goes to stderr instead
+    const originalLog = console.log;
+    console.log = (...args: any[]) => console.error('[init]', ...args);
     
-    console.error('[MCP] Starting stdio server...');
+    await this.agent.initialize();
+    console.error('[MCP] Starting stdio server (tools: %d)...', this.agent.getTools().length);
     
     // Send initializtion response to complete handshake
     const initRequest: MCPRequest = {
