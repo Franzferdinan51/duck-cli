@@ -17,11 +17,30 @@ export class ProviderManager {
   private active: Provider | undefined;
 
   async load(): Promise<void> {
+    // LM Studio - local models (NO API KEY NEEDED!)
+    // Auto-detect if LM Studio is running locally
+    const lmstudioUrl = process.env.LMSTUDIO_URL || 'http://localhost:1234';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const testRes = await fetch(`${lmstudioUrl}/v1/models`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (testRes.ok) {
+        this.providers.set('lmstudio', new LMStudioProvider(lmstudioUrl, process.env.LMSTUDIO_KEY || 'not-needed'));
+        console.log('[Provider] LM Studio loaded (local models, no API key needed!)');
+      }
+    } catch {
+      // LM Studio not running, skip
+    }
+    
+    // MiniMax
     if (process.env.MINIMAX_API_KEY) {
       this.providers.set('minimax', new MiniMaxProvider(process.env.MINIMAX_API_KEY));
     }
-    if (process.env.LMSTUDIO_URL) {
-      this.providers.set('lmstudio', new LMStudioProvider(process.env.LMSTUDIO_URL, process.env.LMSTUDIO_KEY));
+    
+    // LM Studio (explicit URL)
+    if (process.env.LMSTUDIO_URL && !this.providers.has('lmstudio')) {
+      this.providers.set('lmstudio', new LMStudioProvider(process.env.LMSTUDIO_URL, process.env.LMSTUDIO_KEY || 'not-needed'));
     }
     if (process.env.ANTHROPIC_API_KEY) {
       this.providers.set('anthropic', new AnthropicProvider(process.env.ANTHROPIC_API_KEY));
@@ -65,11 +84,14 @@ export class ProviderManager {
     // Build target list from DUCK_PRIORITY env var, or use default
     const priorityEnv = process.env.DUCK_PRIORITY;
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
+    
+    // Smart default: prefer local (free) > API > paid
     let targets = [
-      { provider: 'minimax',  model: 'MiniMax-M2.7',            label: 'MiniMax M2.7 [PRIMARY]' },
-      { provider: 'openclaw',  model: 'kimi-k2.5',            label: 'OpenClaw (Kimi k2.5)' },
-      { provider: 'kimi',     model: 'k2p5',                  label: 'Kimi K2.5 (direct)' },
-      { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free',label: 'OpenRouter Free' },
+      { provider: 'lmstudio',  model: undefined,             label: 'LM Studio (local, FREE)' },
+      { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
+      { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'OpenClaw (Kimi k2.5)' },
+      { provider: 'minimax',   model: 'MiniMax-M2.7',        label: 'MiniMax M2.7' },
+      { provider: 'kimi',      model: 'k2p5',                label: 'Kimi K2.5 (direct)' },
     ];
 
     if (providerOverride) {

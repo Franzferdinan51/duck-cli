@@ -896,6 +896,38 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── Provider Tools ─────────────────────────────────────────────
+    this.registerTool({ name: 'provider_list', description: '🔌 List available AI providers and their status',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const providers = this.providers.list();
+        const status = providers.map(p => {
+          const isLocal = p === 'lmstudio';
+          const icon = isLocal ? '🖥️' : '☁️';
+          const cost = isLocal ? 'FREE (local)' : 'API cost';
+          return `${icon} ${p}: ${cost}`;
+        }).join('\n');
+        
+        return {
+          available: providers,
+          summary: `${providers.length} providers configured`,
+          details: `Available providers:\n${status}\n\nTo use a specific provider, set DUCK_PROVIDER env var or use 'duck run -p provider_name'`,
+          lmstudio_url: process.env.LMSTUDIO_URL || 'http://localhost:1234 (auto-detected)'
+        };
+      }
+    });
+
+    this.registerTool({ name: 'provider_set', description: '⚙️ Set active AI provider',
+      schema: { name: { type: 'string', description: 'Provider name: lmstudio, minimax, kimi, openrouter, openai, anthropic' } }, dangerous: false,
+      handler: async (args: any) => {
+        const success = this.providers.setActive(args.name);
+        if (success) {
+          return { success: true, provider: args.name, message: `Active provider set to: ${args.name}` };
+        }
+        return { success: false, error: `Provider '${args.name}' not available. Use provider_list to see available providers.` };
+      }
+    });
+
     // ─── Stress Test Tool (Registry Check + Lightweight Execution) ─────────────
     this.registerTool({ name: 'duck_stress_test', description: '🧪 Test MCP server stability - checks tool registry',
       schema: { mode: { type: 'string', optional: true, description: 'Mode: registry (fast) or exec (full test, slower)' } }, dangerous: false,
