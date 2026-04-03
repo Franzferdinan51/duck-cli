@@ -730,12 +730,13 @@ export class Agent extends EventEmitter {
         });
       }
     });
-    this.registerTool({ name: 'duck_security', description: '🛡️ Security operations (audit|defcon)',
-      schema: { action: { type: 'string' }, target: { type: 'string', optional: true } }, dangerous: false,
+    this.registerTool({ name: 'duck_security', description: '🛡️ Security operations (audit, defcon <level>, status)',
+      schema: { action: { type: 'string', description: 'Action: audit|defcon|status' }, level: { type: 'string', optional: true, description: 'For defcon: 1-5' } }, dangerous: false,
       handler: async (args: any) => {
         const { exec } = await import('child_process');
         return new Promise((resolve) => {
-          exec(`~/.local/bin/duck security ${args.action} ${args.target || ''}`, (e, stdout, stderr) => {
+          const cmd = args.action === 'defcon' && args.level ? `defcon ${args.level}` : args.action;
+          exec(`~/.local/bin/duck security ${cmd}`, (e, stdout, stderr) => {
             resolve(e ? `Error: ${e.message}` : stdout);
           });
         });
@@ -752,12 +753,13 @@ export class Agent extends EventEmitter {
         });
       }
     });
-    this.registerTool({ name: 'duck_team', description: '👥 Multi-agent teams (create|spawn|status|list)',
-      schema: { action: { type: 'string' }, params: { type: 'string', optional: true } }, dangerous: false,
+    this.registerTool({ name: 'duck_team', description: '👥 Multi-agent teams (create|spawn|status <team-id>|list)',
+      schema: { action: { type: 'string' }, teamId: { type: 'string', optional: true, description: 'Team ID (required for status command)' } }, dangerous: false,
       handler: async (args: any) => {
         const { exec } = await import('child_process');
         return new Promise((resolve) => {
-          exec(`~/.local/bin/duck team ${args.action} ${args.params || ''}`, (e, stdout, stderr) => {
+          const teamId = args.teamId || args.action === 'list' || args.action === 'create' ? '' : 'YOUR_TEAM_ID';
+          exec(`~/.local/bin/duck team ${args.action} ${teamId}`, (e, stdout, stderr) => {
             resolve(e ? `Error: ${e.message}` : stdout);
           });
         });
@@ -785,11 +787,12 @@ export class Agent extends EventEmitter {
         });
       }
     });
-    this.registerTool({ name: 'duck_doctor', description: '🩺 Run system diagnostics', schema: {}, dangerous: false,
+    this.registerTool({ name: 'duck_doctor', description: '🩺 Run system diagnostics', 
+      schema: {}, dangerous: false,
       handler: async () => {
         const { exec } = await import('child_process');
         return new Promise((resolve) => {
-          exec('~/.local/bin/duck doctor', (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
+          exec('cd /tmp/duck-cli-main-sync && ~/.local/bin/duck doctor', (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
         });
       }
     });
