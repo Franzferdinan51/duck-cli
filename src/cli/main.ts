@@ -100,7 +100,12 @@ async function main() {
 
     case 'mcp':
     case 'server':
-      await startMCP(parseInt(args[0]) || 3850);
+      // Check for --stdio flag
+      if (args.includes('--stdio') || args.includes('-s')) {
+        await startMCPStdio();
+      } else {
+        await startMCP(parseInt(args[0]) || 3850);
+      }
       break;
 
     case 'unified':
@@ -762,6 +767,17 @@ async function startMCP(port: number) {
   console.log(`\n${c.dim}Press Ctrl+C to stop${c.reset}`);
 
   await new Promise(() => {});
+}
+
+/**
+ * Start MCP server with stdio transport (for LM Studio, Claude Desktop, etc.)
+ */
+async function startMCPStdio() {
+  console.error('[MCP] Starting stdio server (for LM Studio)...');
+  
+  const { MCPServer } = await import('../server/mcp-server.js');
+  const server = new MCPServer(3850);
+  await server.startStdio();
 }
 
 // ============ WEB UI ============

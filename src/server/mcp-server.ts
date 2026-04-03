@@ -543,6 +543,121 @@ export class MCPServer {
     });
   }
 
+  /**
+   * Start MCP server using stdio transport (for LM Studio, Claude Desktop, etc.)
+   * Reads JSON-RPC requests from stdin, writes responses to stdout
+   */
+  async startStdio(): Promise<void> {
+    await this.agent.initialize();
+    
+    console.error('[MCP] Starting stdio server...');
+    
+    // Send initializtion response to complete handshake
+    const initRequest: MCPRequest = {
+      jsonrpc: '2.0',
+      id: null,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: this.getServerCapabilities(),
+        clientInfo: { name: 'lm-studio', version: '0.0.1' }
+      }
+    };
+    
+    // Wait for client to send initialize, then respond
+    process.stdin.setEncoding('utf8');
+    let initialized = false;
+    let initializedResolve: () => void;
+    const initPromise = new Promise<void>((resolve) => { initializedResolve = resolve; });
+    
+    let buffer = '';
+    
+    process.stdin.on('data', async (chunk: string) => {
+      buffer += chunk;
+      
+      // Process complete JSON-RPC messages (newline-delimited)
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+      
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        try {
+          const request = JSON.parse(line) as MCPRequest;
+          
+          // Handle initialize specially - it's the first message
+          if (request.method === 'initialize' && !initialized) {
+            initialized = true;
+            const response: MCPResponse = {
+              jsonrpc: '2.0',
+              id: request.id,
+              result: {
+                protocolVersion: '2024-11-05',
+                capabilities: this.getServerCapabilities(),
+                serverInfo: {
+                  name: 'duck-agent',
+                  version: '0.4.0',
+                  description: 'Duck Agent MCP Server'
+                }
+              }
+            };
+            process.stdout.write(JSON.stringify(response) + '\n');
+            
+            // Send notifications/initialized
+            const notif: MCPResponse = {
+              jsonrpc: '2.0',
+              id: null,
+              result: null
+            };
+            process.stdout.write(JSON.stringify(notif) + '\n');
+            
+            initializedResolve?.();
+            continue;
+          }
+          
+          // Wait for initialization before processing other requests
+          if (!initialized) {
+            await initPromise;
+          }
+          
+          // Process the request
+          const response = await this.processRequest(request);
+          
+          // Only send responses for requests with id
+          if (request.id !== undefined && request.id !== null) {
+            process.stdout.write(JSON.stringify(response) + '\n');
+          }
+        } catch (error: any) {
+          console.error('[MCP stdio] Error:', error.message);
+          const errorResponse: MCPResponse = {
+            jsonrpc: '2.0',
+            id: null,
+            error: { code: -32603, message: error.message }
+          };
+          process.stdout.write(JSON.stringify(errorResponse) + '\n');
+        }
+      }
+    });
+    
+    process.stdin.on('end', () => {
+      console.error('[MCP] Stdin closed');
+    });
+    
+    // Keep process alive
+    await new Promise<void>((resolve) => {
+      process.on('SIGINT', () => {
+        console.error('[MCP] Received SIGINT');
+        resolve();
+      });
+      process.on('SIGTERM', () => {
+        console.error('[MCP] Received SIGTERM');
+        resolve();
+      });
+    });
+    
+    await this.stop();
+  }
+
   async stop(): Promise<void> {
     // Close all WebSocket clients
     for (const client of this.wsClients.values()) {
@@ -568,7 +683,7 @@ export class MCPServer {
     }
 
     await this.agent.shutdown();
-    console.log('[MCP] Server stopped');
+    console.error('[MCP] Server stopped');
   }
 }
 

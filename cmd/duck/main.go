@@ -417,14 +417,20 @@ func mcpCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp [port]",
 		Short: "Start MCP server (default port 3850)",
+		Long:  "Start MCP server. Use --stdio for LM Studio/Claude Desktop compatibility.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			stdioFlag, _ := cmd.Flags().GetBool("stdio")
+			if stdioFlag {
+				return runNodeWithEnv("mcp --stdio", cmd)
+			}
 			if len(args) > 0 {
 				return runNodeWithEnv("mcp-server "+args[0], cmd)
 			}
 			return runNodeWithEnv("mcp-server", cmd)
 		},
 	}
+	cmd.Flags().BoolP("stdio", "s", false, "Use stdio transport (for LM Studio, Claude Desktop)")
 	return cmd
 }
 
