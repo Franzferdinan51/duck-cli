@@ -9,6 +9,7 @@ import { MemorySystem } from '../memory/system.js';
 import { ToolRegistry, ToolDefinition } from '../tools/registry.js';
 import { SkillRunner } from '../skills/runner.js';
 import { DesktopControl } from '../integrations/desktop.js';
+import { osType, homeDir } from '../utils/platform.js';
 import { DangerousToolGuard, ToolRisk, ApprovalCallback } from '../tools/approval.js';
 import { Planner, Plan, PlanStep } from './planner.js';
 import { SessionStore } from './session-store.js';
@@ -219,14 +220,47 @@ export class Agent extends EventEmitter {
       handler: async (args: any) => {
         const fs = await import('fs');
         const path = await import('path');
+        const platform = osType();
         
         try {
-          // Find most recent screenshot before taking new one
-          const desktopPath = path.join(process.env.HOME || '', 'Desktop');
+          // Get Desktop path for current platform
+          const getDesktopPath = () => {
+            if (platform === 'windows') {
+              return path.join(homeDir(), 'Desktop');
+            } else if (platform === 'darwin') {
+              return path.join(homeDir(), 'Desktop');
+            } else {
+              // Linux - common DE desktops
+              const xdg = process.env.XDG_DESKTOP_DIR;
+              if (xdg && fs.existsSync(xdg)) return xdg;
+              return path.join(homeDir(), 'Desktop');
+            }
+          };
+          
+          // Get screenshot file filter for current platform
+          const getScreenshotFilter = (filename: string) => {
+            if (platform === 'darwin') {
+              return filename.startsWith('Screenshot ') && (filename.endsWith('.png') || filename.endsWith('.jpg'));
+            } else if (platform === 'windows') {
+              // Windows: often has Screen Shot, Capture, etc.
+              const lower = filename.toLowerCase();
+              return (lower.includes('screen') || lower.includes('capture') || lower.includes('screenshot')) &&
+                     (filename.endsWith('.png') || filename.endsWith('.jpg') || filename.endsWith('.jpeg'));
+            } else {
+              // Linux - various formats
+              const lower = filename.toLowerCase();
+              return (lower.includes('screen') || lower.includes('capture')) &&
+                     (filename.endsWith('.png') || filename.endsWith('.jpg'));
+            }
+          };
+          
+          const desktopPath = getDesktopPath();
+          
           const getRecentScreenshot = () => {
             try {
+              if (!fs.existsSync(desktopPath)) return null;
               const files = fs.readdirSync(desktopPath)
-                .filter(f => f.startsWith('Screenshot ') && (f.endsWith('.png') || f.endsWith('.jpg')))
+                .filter(getScreenshotFilter)
                 .map(f => ({ name: f, path: path.join(desktopPath, f), mtime: fs.statSync(path.join(desktopPath, f)).mtime }))
                 .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
               return files[0]?.path || null;
@@ -235,7 +269,7 @@ export class Agent extends EventEmitter {
           
           const beforeShot = getRecentScreenshot();
           
-          // Take screenshot via ClawdCursor
+          // Take screenshot via ClawdCursor (macOS) or native
           const result = await this.desktop.screenshot();
           
           // Wait for file to be written
@@ -246,7 +280,7 @@ export class Agent extends EventEmitter {
           const screenshotPath = afterShot && afterShot !== beforeShot ? afterShot : afterShot;
           
           if (args.mode === 'path') {
-            return screenshotPath || 'Screenshot saved to Desktop';
+            return screenshotPath || `Screenshot saved to ${desktopPath}`;
           }
           
           // Default: return base64 image data for vision
@@ -265,7 +299,7 @@ export class Agent extends EventEmitter {
             return `data:image/png;base64,${base64}`;
           }
           
-          return { success: false, error: 'Screenshot file not found on Desktop' };
+          return { success: false, error: `Screenshot not found. Desktop: ${desktopPath}` };
         } catch (e: any) {
           return { success: false, error: e.message };
         }
