@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 42-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
+> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -328,13 +328,13 @@ duck subconscious stats   # Show whisper history
 
 ---
 
-## 🏛️ AI Council Chamber — OPTIONAL (42 Councilors)
+## 🏛️ AI Council Chamber — OPTIONAL (45 Councilors)
 
-**Deliberative decision making with 42 specialized AI perspectives**
+**Deliberative decision making with 45 specialized AI perspectives**
 
 ```bash
 duck council "Should we refactor the auth module?"
-duck council list          # List all 42 councilors
+duck council list          # List all 45 councilors
 duck council summon <role> # Call specific councilor
 ```
 
@@ -573,10 +573,23 @@ duck unified
 ### 🔌 MCP Server
 
 ```bash
-duck mcp
+duck mcp                  # HTTP server on port 3850
+duck mcp --stdio          # Stdio transport (for LM Studio, Claude Desktop)
 ```
 
-**Built-in Tools (14+):** execute, think, remember, recall, kairos_status, kairos_action, desktop_screenshot, desktop_open, desktop_click, desktop_type, get_status, list_tools, ping, spawn_agent
+**Built-in Tools (61+):** Full tool suite including:
+- Duck CLI: `duck_run`, `duck_status`, `duck_doctor`, `duck_kairos`, `duck_council`, `duck_update`, `duck_skills`, `duck_team`, `duck_security`, `duck_mesh`, `duck_cron`, `duck_agent`, `duck_think`, `duck_buddy`
+- Provider: `provider_list`, `provider_set`
+- Memory: `memory_stats`, `memory_recall`, `memory_list`, `memory_remember`
+- Agent: `agent_list`, `agent_spawn`, `agent_spawn_team`, `agent_status`, `agent_cancel`, `agent_wait`, `get_metrics`, `get_cost`
+- Planning: `plan_list`, `plan_status`, `plan_abort`, `learning_stats`, `learning_context`
+- Cron: `cron_list`, `cron_stats`, `cron_enable`, `cron_delete`, `cron_create`
+- Guard: `guard_stats`, `guard_log`, `guard_check`
+- Skills: `skill_git_workflow`, `skill_code_review`, `skill_security_audit`, etc.
+- Desktop: `desktop_screenshot`, `desktop_open`, `desktop_click`, `desktop_type`
+- Test: `duck_stress_test` (test all tools)
+
+**Protocol:** MCP 2024-11-05 (stdio + HTTP)
 
 ### 🔗 ACP Client — Spawn External Agents
 
@@ -781,7 +794,7 @@ duck setup             # API key setup wizard
 duck doctor            # System diagnostics
 duck exec <cmd>        # Execute shell command
 duck status            # Show providers, skills, tools
-duck tools             # List all 40 tools
+duck tools             # List all 60+ tools
 duck history           # Conversation history
 duck clear             # Clear history
 duck think <prompt>    # Reasoning (no tools)
@@ -922,7 +935,7 @@ Inspired by and integrating features from:
 
 ## 🦆 LM Studio MCP Integration
 
-Duck CLI can be used as an MCP server with LM Studio!
+Duck CLI has full **stdio MCP support** — works directly with LM Studio!
 
 ### LM Studio Configuration
 
@@ -932,38 +945,54 @@ Add this to your `~/.lmstudio/mcp.json`:
 {
   "mcpServers": {
     "duck-cli": {
-      "command": "/path/to/duck",
-      "args": ["unified"],
+      "command": "node",
+      "args": ["/path/to/duck-cli/dist/cli/main.js", "mcp", "--stdio"],
       "env": {
-        "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+        "MINIMAX_API_KEY": "your-key",
+        "LMSTUDIO_URL": "http://localhost:1234"
       }
     }
   }
 }
 ```
 
-**Important:** Use `duck unified` (not `duck mcp`) — `unified` keeps all protocols running, while `mcp` alone shuts down immediately.
+### Quick Start
 
-### Usage
+```bash
+# 1. Build duck-cli
+npm run build
 
-1. Start LM Studio
-2. Duck CLI will auto-connect as an MCP server
-3. Use duck-cli's full capabilities from within LM Studio
+# 2. Add to LM Studio MCP config (~/.lmstudio/mcp.json)
+# Use the config above
 
+# 3. Restart LM Studio
+# Duck CLI tools will appear in LM Studio's model context
+```
 
----
+### Features via LM Studio MCP
 
-## ⚠️ LM Studio Compatibility Note
+| Tool | Description |
+|------|-------------|
+| `duck_run` | Run tasks with smart routing |
+| `duck_status` | System status |
+| `duck_doctor` | Diagnostics |
+| `provider_list` | Show available AI providers |
+| `provider_set` | Switch active provider |
+| `memory_*` | Memory tools |
+| `agent_*` | Agent management |
+| `desktop_screenshot` | Take screenshots (base64 for vision) |
+| `duck_stress_test` | Test all tools |
+| + 60 more tools | Full tool suite |
 
-**Status:** duck-cli's MCP implementation is HTTP-based (server mode), while LM Studio's MCP bridge expects stdio-based MCP. These are incompatible transport mechanisms.
+### Provider Priority (Free First)
 
-**Current workaround:** 
-- Use duck CLI directly via terminal: `duck unified`
-- Connect to duck's MCP via HTTP client pointing to `localhost:3850`
-- Or use OpenClaw's MCP bridge which supports both modes
+1. **LM Studio** — local models (FREE, no API key)
+2. **OpenRouter** — free tier models
+3. **OpenClaw** — Kimi k2.5
+4. **MiniMax** — M2.7
+5. **Kimi** — k2.5 direct
 
-**If you need LM Studio integration**, consider:
-1. Using OpenClaw as the MCP hub (supports stdio + HTTP)
-2. Creating an MCP proxy that bridges stdio ↔ HTTP
-3. Running duck as a standalone service and connecting via HTTP URL
+### Cross-Platform
+
+Works on **macOS**, **Linux**, and **Windows**!
 
