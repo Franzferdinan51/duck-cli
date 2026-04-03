@@ -82,8 +82,18 @@ export class MCPServer {
     // Initialize
     this.requestHandlers.set('initialize', async (params) => {
       const clientInfo = params?.clientInfo;
+      
+      // Detect LM Studio client for compatibility
+      const isLMStudio = clientInfo?.name && (
+        clientInfo.name.toLowerCase().includes('lm-studio') ||
+        clientInfo.name.includes('LM Studio')
+      );
+      
+      // LM Studio may need protocol version 2024-11-05 or earlier compatibility
+      const protocolVersion = isLMStudio ? '2024-11-05' : '2024-11-05';
+      
       return {
-        protocolVersion: '2024-11-05',
+        protocolVersion,
         capabilities: this.getServerCapabilities() as MCPServerCapabilities,
         serverInfo: {
           name: 'duck-agent',
@@ -115,13 +125,23 @@ export class MCPServer {
           if (typeof spec === 'object' && spec !== null) {
             // It's a property definition - extract properly
             const propSpec = spec as any;
-            // Build property with explicit type
+            // Build property with explicit type - ensure types are strings for JSON Schema compatibility
             const prop: any = {};
-            if (propSpec.type) prop.type = propSpec.type;
+            if (propSpec.type) {
+              // Ensure type is a valid JSON Schema type string
+              const typeStr = String(propSpec.type).toLowerCase();
+              if (['string', 'number', 'boolean', 'object', 'array', 'null', 'integer'].includes(typeStr)) {
+                prop.type = typeStr;
+              } else {
+                prop.type = 'string'; // Default to string for unknown types
+              }
+            }
             if (propSpec.description) prop.description = propSpec.description;
+            if (propSpec.default !== undefined) prop.default = propSpec.default;
+            if (propSpec.enum) prop.enum = propSpec.enum;
             // Add any other fields except reserved schema keywords
             for (const [k, v] of Object.entries(propSpec)) {
-              if (k !== 'type' && k !== 'description' && k !== 'optional') {
+              if (!['type', 'description', 'default', 'enum', 'optional'].includes(k)) {
                 prop[k] = v;
               }
             }
@@ -130,8 +150,13 @@ export class MCPServer {
               required.push(key);
             }
           } else {
-            // It's just a type string
-            properties[key] = { type: String(spec) };
+            // It's just a type string - ensure valid JSON Schema type
+            const typeStr = String(spec).toLowerCase();
+            if (['string', 'number', 'boolean', 'object', 'array', 'null', 'integer'].includes(typeStr)) {
+              properties[key] = { type: typeStr };
+            } else {
+              properties[key] = { type: 'string' }; // Default to string
+            }
           }
         }
         
@@ -140,13 +165,14 @@ export class MCPServer {
           properties,
           additionalProperties: true,
         };
-        if (required.length > 0) {
-          inputSchema.required = required;
+        // Ensure required is an array of strings
+        if (required.length > 0 && Array.isArray(required)) {
+          inputSchema.required = required.filter(r => typeof r === 'string');
         }
         
         return {
           name: t.name,
-          description: t.description,
+          description: this.categorizeToolDescription(t.name, t.description),
           inputSchema,
           annotations: { destructive: t.dangerous, idempotent: !t.dangerous },
         };
@@ -236,6 +262,23 @@ export class MCPServer {
       return { timestamp: Date.now() };
     });
 
+    // Sampling - for LM Studio compatibility (progress/cancel notifications)
+    this.requestHandlers.set('sampling/createMessage', async (params) => {
+      // LM Studio may request sampling - we reject gracefully
+      return {
+        content: [{ type: 'text', text: 'Sampling not supported by Duck Agent MCP Server' }],
+        role: 'assistant',
+        stopReason: 'rejected',
+      };
+    });
+
+    // Sampling messages - handle progress/cancel notifications from LM Studio
+    this.requestHandlers.set('samplingMessages', async (params) => {
+      // LM Studio may send progress/cancel notifications
+      // Return empty success - we don't support interactive sampling
+      return { success: true };
+    });
+
     // Notifications
     this.requestHandlers.set('notifications/initialized', async () => {
       return null;
@@ -249,6 +292,52 @@ export class MCPServer {
       prompts: { list: true },
       sampling: {},
     };
+  }
+
+  // Tool categorization emoji prefixes for LM Studio compatibility
+  private categorizeToolDescription(name: string, description: string): string {
+    const lowerName = name.toLowerCase();
+    const lowerDesc = description.toLowerCase();
+    
+    // Categorize based on tool name and description keywords
+    if (lowerName.includes('search') || lowerName.includes('find') || lowerName.includes('browse') ||
+        lowerDesc.includes('search') || lowerDesc.includes('find information') || lowerDesc.includes('web search')) {
+      return '🔍 ' + description;
+    }
+    if (lowerName.includes('code') || lowerName.includes('git') || lowerName.includes('file') ||
+        lowerName.includes('edit') || lowerName.includes('write') || lowerName.includes('read') ||
+        lowerDesc.includes('code') || lowerDesc.includes('programming') || lowerDesc.includes('file operation')) {
+      return '💻 ' + description;
+    }
+    if (lowerName.includes('image') || lowerName.includes('photo') || lowerName.includes('picture') ||
+        lowerName.includes('draw') || (lowerName.includes('generate') && (lowerName.includes('image') || lowerName.includes('art'))) ||
+        lowerDesc.includes('image') || lowerDesc.includes('picture') || lowerDesc.includes('art')) {
+      return '🎨 ' + description;
+    }
+    if (lowerName.includes('speak') || lowerName.includes('speech') || lowerName.includes('tts') ||
+        lowerName.includes('audio') || lowerName.includes('voice') || lowerName.includes('say') ||
+        lowerDesc.includes('speech') || lowerDesc.includes('text to speech') || lowerDesc.includes('voice')) {
+      return '🎤 ' + description;
+    }
+    if (lowerName.includes('system') || lowerName.includes('shell') || lowerName.includes('exec') ||
+        lowerName.includes('run') || lowerName.includes('command') || lowerName.includes('bash') ||
+        lowerDesc.includes('system command') || lowerDesc.includes('shell execution')) {
+      return '⚡ ' + description;
+    }
+    if (lowerName.includes('agent') || lowerName.includes('task') || lowerName.includes('spawn') ||
+        lowerDesc.includes('agent') || lowerDesc.includes('sub-agent') || lowerDesc.includes('spawn')) {
+      return '🤖 ' + description;
+    }
+    if (lowerName.includes('memory') || lowerName.includes('remember') || lowerName.includes('learn') ||
+        lowerDesc.includes('memory') || lowerDesc.includes('remember') || lowerDesc.includes('context')) {
+      return '🧠 ' + description;
+    }
+    if (lowerName.includes('browser') || lowerName.includes('web') || lowerName.includes('url') ||
+        lowerName.includes('http') || lowerDesc.includes('browser') || lowerDesc.includes('web page')) {
+      return '🌐 ' + description;
+    }
+    // Default - general purpose tool
+    return '🔧 ' + description;
   }
 
   // ============ HTTP HANDLERS ============
@@ -318,6 +407,19 @@ export class MCPServer {
       try {
         const message = JSON.parse(data.toString()) as MCPRequest;
         
+        // Detect LM Studio from initialize request
+        if (message.method === 'initialize' && message.params?.clientInfo) {
+          const clientInfo = message.params.clientInfo;
+          const isLMStudio = clientInfo?.name && (
+            clientInfo.name.toLowerCase().includes('lm-studio') ||
+            clientInfo.name.includes('LM Studio')
+          );
+          if (isLMStudio) {
+            console.log(`[MCP] LM Studio WebSocket client: ${clientInfo.name} ${clientInfo.version || ''}`);
+            client.info = clientInfo;
+          }
+        }
+        
         if (message.method) {
           // Request
           const response = await this.processRequest({
@@ -332,7 +434,15 @@ export class MCPServer {
           }
         }
       } catch (error: any) {
-        ws.send(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32603, message: error.message } }));
+        ws.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32603,
+            message: `WebSocket error: ${error.message}`,
+            data: { hint: 'Ensure message is valid JSON-RPC 2.0' }
+          }
+        }));
       }
     });
 
@@ -348,24 +458,85 @@ export class MCPServer {
 
   // ============ REQUEST PROCESSING ============
 
+  // JSON-RPC error codes
+  private static readonly ERR_PARSE_ERROR = -32700;
+  private static readonly ERR_INVALID_REQUEST = -32600;
+  private static readonly ERR_METHOD_NOT_FOUND = -32601;
+  private static readonly ERR_INVALID_PARAMS = -32602;
+  private static readonly ERR_INTERNAL_ERROR = -32603;
+
+  // Human-readable error messages
+  private getErrorMessage(code: number, method?: string, details?: string): string {
+    const messages: Record<number, string> = {
+      [MCPServer.ERR_PARSE_ERROR]: 'Invalid JSON received. Request must be valid JSON-RPC 2.0 format.',
+      [MCPServer.ERR_INVALID_REQUEST]: `Invalid request structure. Ensure method name is a string and id is valid.`,
+      [MCPServer.ERR_METHOD_NOT_FOUND]: `Method '${method || 'unknown'}' not found. Available methods: initialize, tools/list, tools/call, ping, prompts/list, prompts/get, resources/list, resources/read.`,
+      [MCPServer.ERR_INVALID_PARAMS]: `Invalid parameters for method '${method || 'unknown'}'. ${details || 'Check parameter types and required fields.'}`,
+      [MCPServer.ERR_INTERNAL_ERROR]: `Internal server error${details ? `: ${details}` : '. Please try again.'}`,
+    };
+    return messages[code] || `Unknown error (code: ${code})`;
+  }
+
   private async processRequest(request: MCPRequest): Promise<MCPResponse> {
     const { id, method, params } = request;
     
     try {
+      // Validate JSON-RPC structure
+      if (!request || typeof request.jsonrpc !== 'string' || request.jsonrpc !== '2.0') {
+        return {
+          jsonrpc: '2.0',
+          id: id ?? null,
+          error: {
+            code: MCPServer.ERR_PARSE_ERROR,
+            message: this.getErrorMessage(MCPServer.ERR_PARSE_ERROR),
+            data: { hint: 'Ensure request has "jsonrpc": "2.0" and valid structure' }
+          }
+        };
+      }
+
+      if (!method || typeof method !== 'string') {
+        return {
+          jsonrpc: '2.0',
+          id: id ?? null,
+          error: {
+            code: MCPServer.ERR_INVALID_REQUEST,
+            message: this.getErrorMessage(MCPServer.ERR_INVALID_REQUEST),
+            data: { hint: 'Method must be a non-empty string' }
+          }
+        };
+      }
+
       if (method?.startsWith('notifications/')) {
-        // One-way notifications
+        // One-way notifications - no response needed
         return { jsonrpc: '2.0', id: null };
       }
 
       const handler = this.requestHandlers.get(method);
       if (!handler) {
-        return { jsonrpc: '2.0', id, error: { code: -32601, message: `Unknown method: ${method}` } };
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: {
+            code: MCPServer.ERR_METHOD_NOT_FOUND,
+            message: this.getErrorMessage(MCPServer.ERR_METHOD_NOT_FOUND, method),
+            data: { availableMethods: Array.from(this.requestHandlers.keys()) }
+          }
+        };
       }
 
       const result = await handler(params);
       return { jsonrpc: '2.0', id, result };
     } catch (error: any) {
-      return { jsonrpc: '2.0', id, error: { code: -32603, message: error.message } };
+      console.error(`[MCP] Error handling ${method}:`, error.message);
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: {
+          code: MCPServer.ERR_INTERNAL_ERROR,
+          message: this.getErrorMessage(MCPServer.ERR_INTERNAL_ERROR, method, error.message),
+          data: { originalError: error.message, stack: error.stack?.split('\n')[1]?.trim() }
+        }
+      };
     }
   }
 
@@ -472,18 +643,6 @@ export class MCPServer {
     await this.agent.initialize();
     console.error('[MCP] Starting stdio server (tools: %d)...', this.agent.getTools().length);
     
-    // Send initializtion response to complete handshake
-    const initRequest: MCPRequest = {
-      jsonrpc: '2.0',
-      id: null,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: this.getServerCapabilities(),
-        clientInfo: { name: 'lm-studio', version: '0.0.1' }
-      }
-    };
-    
     // Wait for client to send initialize, then respond
     process.stdin.setEncoding('utf8');
     let initialized = false;
@@ -491,6 +650,7 @@ export class MCPServer {
     const initPromise = new Promise<void>((resolve) => { initializedResolve = resolve; });
     
     let buffer = '';
+    let clientInfo: { name?: string; version?: string } | null = null;
     
     process.stdin.on('data', async (chunk: string) => {
       buffer += chunk;
@@ -508,6 +668,18 @@ export class MCPServer {
           // Handle initialize specially - it's the first message
           if (request.method === 'initialize' && !initialized) {
             initialized = true;
+            
+            // Extract client info for LM Studio detection
+            clientInfo = request.params?.clientInfo || null;
+            const isLMStudio = clientInfo?.name && (
+              clientInfo.name.toLowerCase().includes('lm-studio') ||
+              clientInfo.name.includes('LM Studio')
+            );
+            
+            if (isLMStudio) {
+              console.error('[MCP] LM Studio client detected:', clientInfo.name, clientInfo.version);
+            }
+            
             const response: MCPResponse = {
               jsonrpc: '2.0',
               id: request.id,
@@ -552,7 +724,11 @@ export class MCPServer {
           const errorResponse: MCPResponse = {
             jsonrpc: '2.0',
             id: null,
-            error: { code: -32603, message: error.message }
+            error: {
+              code: -32603,
+              message: `Internal error: ${error.message}`,
+              data: { hint: 'Check request format is valid JSON-RPC 2.0' }
+            }
           };
           process.stdout.write(JSON.stringify(errorResponse) + '\n');
         }

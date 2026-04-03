@@ -609,6 +609,201 @@ export class Agent extends EventEmitter {
         return JSON.stringify(this.learning.getUserModel(), null, 2);
       }
     });
+
+    // ─── Skill Runner Tools ─────────────────────────────────
+    this.registerTool({ name: 'skill_git_workflow', description: 'Run git workflow skill',
+      schema: { action: { type: 'string', optional: true }, repo: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ action: args.action, repo: args.repo });
+        return await this.skills.execute('git-workflow', input);
+      }
+    });
+    this.registerTool({ name: 'skill_code_review', description: 'Run code review skill',
+      schema: { code: { type: 'string' }, language: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ code: args.code, language: args.language });
+        return await this.skills.execute('code-review', input);
+      }
+    });
+    this.registerTool({ name: 'skill_security_audit', description: 'Run security audit skill',
+      schema: { target: { type: 'string', optional: true }, level: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ target: args.target, level: args.level });
+        return await this.skills.execute('security-audit', input);
+      }
+    });
+    this.registerTool({ name: 'skill_claude_code_mastery', description: 'Claude Code mastery skill',
+      schema: { topic: { type: 'string', optional: true }, level: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ topic: args.topic, level: args.level });
+        return await this.skills.execute('claude-code-mastery', input);
+      }
+    });
+    this.registerTool({ name: 'skill_clawd_cursor', description: 'Clawd Cursor desktop control',
+      schema: { task: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ task: args.task });
+        return await this.skills.execute('clawd-cursor', input);
+      }
+    });
+    this.registerTool({ name: 'skill_computer_use', description: 'Computer use skill',
+      schema: { task: { type: 'string' }, mode: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ task: args.task, mode: args.mode });
+        return await this.skills.execute('computer-use', input);
+      }
+    });
+    this.registerTool({ name: 'skill_context_memory', description: 'Context memory skill',
+      schema: { action: { type: 'string' }, query: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ action: args.action, query: args.query });
+        return await this.skills.execute('context-memory', input);
+      }
+    });
+    this.registerTool({ name: 'skill_desktop_control', description: 'Desktop control skill',
+      schema: { action: { type: 'string' }, target: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ action: args.action, target: args.target });
+        return await this.skills.execute('desktop-control', input);
+      }
+    });
+    this.registerTool({ name: 'skill_mcp_manager', description: 'MCP manager skill',
+      schema: { action: { type: 'string', optional: true }, server: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const input = JSON.stringify({ action: args.action, server: args.server });
+        return await this.skills.execute('mcp-manager', input);
+      }
+    });
+
+    // ─── Duck CLI Command Tools ─────────────────────────────────
+    this.registerTool({ name: 'duck_run', description: '💻 Run a task with Duck CLI (auto-routes through smart provider chain)',
+      schema: { prompt: { type: 'string' }, interactive: { type: 'boolean', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        const interactive = args.interactive ? '-i' : '';
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck run ${interactive} "${args.prompt}"`, { timeout: 120000 }, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_council', description: '🏛️ Ask the AI Council (45 deliberative agents)',
+      schema: { question: { type: 'string' }, mode: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        const mode = args.mode ? `--mode ${args.mode}` : '';
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck council "${args.question}" ${mode}`, { timeout: 180000 }, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_kairos', description: '⏰ KAIROS proactive AI control',
+      schema: { mode: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck kairos ${args.mode || 'status'}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_status', description: '📊 Show Duck CLI status', schema: {}, dangerous: false,
+      handler: async () => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec('~/.local/bin/duck status', (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_skills', description: '🛒 Skills marketplace',
+      schema: { action: { type: 'string' }, name: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck skills ${args.action} ${args.name || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_security', description: '🛡️ Security operations (audit|defcon)',
+      schema: { action: { type: 'string' }, target: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck security ${args.action} ${args.target || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_cron', description: '⏱️ Cron automation (list|enable|disable|run)',
+      schema: { action: { type: 'string' }, jobId: { type: 'string', optional: true }, task: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck cron ${args.action} ${args.jobId || ''} ${args.task || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_team', description: '👥 Multi-agent teams (create|spawn|status|list)',
+      schema: { action: { type: 'string' }, params: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck team ${args.action} ${args.params || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_mesh', description: '🌐 Agent Mesh networking (register|list|send|broadcast)',
+      schema: { action: { type: 'string' }, target: { type: 'string', optional: true }, message: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck mesh ${args.action} ${args.target || ''} ${args.message || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_update', description: '🔄 Update Duck CLI (check|install|backup|restore)',
+      schema: { action: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck update ${args.action || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_doctor', description: '🩺 Run system diagnostics', schema: {}, dangerous: false,
+      handler: async () => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec('~/.local/bin/duck doctor', (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
+        });
+      }
+    });
+    this.registerTool({ name: 'duck_agent', description: '🤖 Manage agents and sub-agents',
+      schema: { action: { type: 'string' }, agentId: { type: 'string', optional: true }, params: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+          exec(`~/.local/bin/duck agent ${args.action} ${args.agentId || ''} ${args.params || ''}`, (e, stdout, stderr) => {
+            resolve(e ? `Error: ${e.message}` : stdout);
+          });
+        });
+      }
+    });
   }
 
   private registerTool(def: ToolDefinition): void {
