@@ -814,51 +814,130 @@ export class Agent extends EventEmitter {
       handler: async () => {
         const results: any = { timestamp: new Date().toISOString(), tools: [], summary: { pass: 0, fail: 0, total: 0 } };
         
-        const testGroups = [
-          { name: 'Status Tools', tools: ['duck_status', 'duck_doctor', 'duck_kairos', 'duck_update'] },
-          { name: 'Memory Tools', tools: ['memory_stats', 'memory_recall', 'memory_list'] },
-          { name: 'Agent Tools', tools: ['agent_list', 'get_metrics', 'get_cost'] },
-          { name: 'Planning Tools', tools: ['plan_list', 'learning_stats', 'learning_context'] },
-          { name: 'Cron Tools', tools: ['cron_list', 'cron_stats'] },
-          { name: 'Guard Tools', tools: ['guard_stats', 'guard_log'] },
-          { name: 'CLI Commands', tools: ['duck_skills', 'duck_team', 'duck_security', 'duck_mesh', 'duck_cron', 'duck_agent'] },
-          { name: 'Desktop Tools', tools: ['desktop_screenshot'] },
+        // ALL tools to test (60+ tools)
+        const allTools = [
+          // Duck CLI Core (6)
+          { name: 'duck_run', args: { prompt: 'test' } },
+          { name: 'duck_status', args: {} },
+          { name: 'duck_doctor', args: {} },
+          { name: 'duck_update', args: {} },
+          { name: 'duck_kairos', args: {} },
+          { name: 'duck_council', args: { question: 'test', mode: 'quick' } },
+          
+          // Duck CLI Commands (8)
+          { name: 'duck_skills', args: { action: 'list' } },
+          { name: 'duck_team', args: { action: 'list' } },
+          { name: 'duck_security', args: { action: 'status' } },
+          { name: 'duck_mesh', args: { action: 'list' } },
+          { name: 'duck_cron', args: { action: 'list' } },
+          { name: 'duck_agent', args: { action: 'list' } },
+          { name: 'duck_think', args: { prompt: 'test' } },
+          { name: 'duck_buddy', args: { action: 'status' } },
+          
+          // Memory Tools (4)
+          { name: 'memory_stats', args: {} },
+          { name: 'memory_recall', args: { query: 'test', limit: 1 } },
+          { name: 'memory_list', args: {} },
+          { name: 'memory_remember', args: { content: 'test', type: 'test' } },
+          
+          // Session Tools (2)
+          { name: 'session_search', args: { query: 'test', limit: 1 } },
+          { name: 'session_list', args: {} },
+          
+          // Agent Tools (7)
+          { name: 'agent_list', args: {} },
+          { name: 'agent_spawn', args: { task: 'test', role: 'helper' } },
+          { name: 'agent_spawn_team', args: { tasks: [] } },
+          { name: 'agent_status', args: { agentId: 'none' } },
+          { name: 'agent_cancel', args: { agentId: 'none' } },
+          { name: 'agent_wait', args: { agentId: 'none' } },
+          { name: 'get_metrics', args: {} },
+          { name: 'get_cost', args: {} },
+          
+          // Planning Tools (4)
+          { name: 'plan_list', args: {} },
+          { name: 'plan_status', args: { planId: 'none' } },
+          { name: 'plan_abort', args: { planId: 'none', reason: 'test' } },
+          { name: 'learning_stats', args: {} },
+          { name: 'learning_context', args: {} },
+          
+          // Cron Tools (5)
+          { name: 'cron_list', args: {} },
+          { name: 'cron_stats', args: {} },
+          { name: 'cron_enable', args: { jobId: 'none', enabled: true } },
+          { name: 'cron_delete', args: { jobId: 'none' } },
+          { name: 'cron_create', args: { name: 'test', schedule: 'hourly', task: 'echo test' } },
+          
+          // Guard Tools (3)
+          { name: 'guard_stats', args: {} },
+          { name: 'guard_log', args: { limit: 1 } },
+          { name: 'guard_check', args: { tool: 'shell', args: { command: 'echo test' } } },
+          
+          // Skills (9)
+          { name: 'skill_git_workflow', args: { action: 'status' } },
+          { name: 'skill_code_review', args: { action: 'status' } },
+          { name: 'skill_security_audit', args: { action: 'status' } },
+          { name: 'skill_claude_code_mastery', args: { action: 'status' } },
+          { name: 'skill_clawd_cursor', args: { action: 'status' } },
+          { name: 'skill_computer_use', args: { action: 'status' } },
+          { name: 'skill_context_memory', args: { action: 'status' } },
+          { name: 'skill_desktop_control', args: { action: 'status' } },
+          { name: 'skill_mcp_manager', args: { action: 'status' } },
+          
+          // Desktop Tools (4)
+          { name: 'desktop_screenshot', args: {} },
+          { name: 'desktop_open', args: { app: 'Safari' } },
+          { name: 'desktop_click', args: { x: 100, y: 100 } },
+          { name: 'desktop_type', args: { text: 'test' } },
+          
+          // File Tools (2)
+          { name: 'file_read', args: { path: '/tmp' } },
+          { name: 'file_write', args: { path: '/tmp/stress_test.txt', content: 'test' } },
+          
+          // Shell (1) - dangerous
+          { name: 'shell', args: { command: 'echo stress_test_ok', timeout: 5000 } },
+          
+          // Web (1)
+          { name: 'web_search', args: { query: 'test' } },
+          
+          // Learning (3)
+          { name: 'learn_from_feedback', args: { success: true, feedback: 'test' } },
+          { name: 'user_model', args: { updates: {} } },
+          { name: 'plan_create', args: { goal: 'test', context: 'stress test' } },
         ];
         
         const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+        const groups: any = {};
         
-        for (const group of testGroups) {
-          const groupResult: any = { name: group.name, tools: [], pass: 0, fail: 0 };
+        for (const tool of allTools) {
+          const groupName = tool.name.split('_')[0] + ' Tools';
+          if (!groups[groupName]) groups[groupName] = { name: groupName, tools: [], pass: 0, fail: 0 };
           
-          for (const toolName of group.tools) {
-            try {
-              const r: any = await this.executeTool(toolName, toolName.includes('memory_recall') ? { query: 'test', limit: 1 } : {});
-              const success = r && r.success === true;
-              
-              if (success) {
-                groupResult.tools.push({ name: toolName, status: 'PASS' });
-                groupResult.pass++;
-                results.summary.pass++;
-              } else {
-                const errMsg = r?.error || r?.message || (typeof r === 'string' ? r.slice(0, 100) : 'Failed');
-                groupResult.tools.push({ name: toolName, status: 'FAIL', error: errMsg });
-                groupResult.fail++;
-                results.summary.fail++;
-              }
-            } catch (e: any) {
-              groupResult.tools.push({ name: toolName, status: 'ERROR', error: e.message });
-              groupResult.fail++;
+          try {
+            const r: any = await this.executeTool(tool.name, tool.args);
+            const success = r && r.success === true;
+            
+            if (success) {
+              groups[groupName].tools.push({ name: tool.name, status: 'PASS' });
+              groups[groupName].pass++;
+              results.summary.pass++;
+            } else {
+              const errMsg = r?.error || r?.message || (typeof r === 'string' ? r.slice(0, 100) : 'Failed');
+              groups[groupName].tools.push({ name: tool.name, status: 'FAIL', error: errMsg });
+              groups[groupName].fail++;
               results.summary.fail++;
             }
-            
-            // Small delay between tools to avoid overwhelming
-            await sleep(100);
+          } catch (e: any) {
+            groups[groupName].tools.push({ name: tool.name, status: 'ERROR', error: e.message });
+            groups[groupName].fail++;
+            results.summary.fail++;
           }
           
-          results.summary.total += groupResult.tools.length;
-          results.tools.push(groupResult);
+          results.summary.total++;
+          await sleep(100); // Delay to avoid overwhelming
         }
         
+        results.tools = Object.values(groups);
         const allPass = results.summary.fail === 0;
         results.summary.status = allPass ? '✅ ALL PASSING' : '⚠️ SOME FAILING';
         results.summary.passRate = results.summary.total > 0 
