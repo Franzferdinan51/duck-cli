@@ -808,75 +808,62 @@ export class Agent extends EventEmitter {
       }
     });
 
-    // ─── Stress Test Tool (LIGHTWEIGHT - only tests MCP server stability) ─────
-    this.registerTool({ name: 'duck_stress_test', description: '🧪 Quick MCP health check - tests server stability',
-      schema: { testTool: { type: 'string', optional: true, description: 'Test a specific tool by name' } }, dangerous: false,
-      handler: async (args: any) => {
-        // Lightweight test - just verify server is responsive
-        const results: any = { 
-          timestamp: new Date().toISOString(), 
-          server: 'RESPONSIVE',
-          toolCount: Object.keys(this.tools['_tools'] || {}).length || 0,
-          tests: []
-        };
+    // ─── Stress Test Tool ─────────────────────────────────────────────
+    this.registerTool({ name: 'duck_stress_test', description: '🧪 Stress test ALL tools and report status',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const results: any = { timestamp: new Date().toISOString(), tools: [], summary: { pass: 0, fail: 0, total: 0 } };
         
-        try {
-          // Test 1: Verify duck_status works (lightweight)
-          const statusResult = await this.executeTool('duck_status', {});
-          results.tests.push({ 
-            name: 'duck_status', 
-            status: statusResult.success ? 'PASS' : 'FAIL',
-            error: statusResult.success ? null : (statusResult.error || 'Failed')
-          });
+        const testGroups = [
+          { name: 'Status Tools', tools: ['duck_status', 'duck_doctor', 'duck_kairos', 'duck_update'] },
+          { name: 'Memory Tools', tools: ['memory_stats', 'memory_recall', 'memory_list'] },
+          { name: 'Agent Tools', tools: ['agent_list', 'get_metrics', 'get_cost'] },
+          { name: 'Planning Tools', tools: ['plan_list', 'learning_stats', 'learning_context'] },
+          { name: 'Cron Tools', tools: ['cron_list', 'cron_stats'] },
+          { name: 'Guard Tools', tools: ['guard_stats', 'guard_log'] },
+          { name: 'CLI Commands', tools: ['duck_skills', 'duck_team', 'duck_security', 'duck_mesh', 'duck_cron', 'duck_agent'] },
+          { name: 'Desktop Tools', tools: ['desktop_screenshot'] },
+        ];
+        
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+        
+        for (const group of testGroups) {
+          const groupResult: any = { name: group.name, tools: [], pass: 0, fail: 0 };
           
-          // Test 2: Verify duck_doctor works (lightweight)
-          const doctorResult = await this.executeTool('duck_doctor', {});
-          results.tests.push({ 
-            name: 'duck_doctor', 
-            status: doctorResult.success ? 'PASS' : 'FAIL',
-            error: doctorResult.success ? null : (doctorResult.error || 'Failed')
-          });
-          
-          // Test 3: Verify memory_stats works (lightweight)
-          const memResult = await this.executeTool('memory_stats', {});
-          results.tests.push({ 
-            name: 'memory_stats', 
-            status: memResult.success ? 'PASS' : 'FAIL',
-            error: memResult.success ? null : (memResult.error || 'Failed')
-          });
-          
-          // Test 4: Verify agent_list works (lightweight)
-          const agentResult = await this.executeTool('agent_list', {});
-          results.tests.push({ 
-            name: 'agent_list', 
-            status: agentResult.success ? 'PASS' : 'FAIL',
-            error: agentResult.success ? null : (agentResult.error || 'Failed')
-          });
-          
-          // Test 5: Specific tool test if requested
-          if (args.testTool) {
-            const toolResult = await this.executeTool(args.testTool, {});
-            results.tests.push({ 
-              name: args.testTool, 
-              status: toolResult.success ? 'PASS' : 'FAIL',
-              error: toolResult.success ? null : (toolResult.error || 'Failed')
-            });
+          for (const toolName of group.tools) {
+            try {
+              const r: any = await this.executeTool(toolName, toolName.includes('memory_recall') ? { query: 'test', limit: 1 } : {});
+              const success = r && r.success === true;
+              
+              if (success) {
+                groupResult.tools.push({ name: toolName, status: 'PASS' });
+                groupResult.pass++;
+                results.summary.pass++;
+              } else {
+                const errMsg = r?.error || r?.message || (typeof r === 'string' ? r.slice(0, 100) : 'Failed');
+                groupResult.tools.push({ name: toolName, status: 'FAIL', error: errMsg });
+                groupResult.fail++;
+                results.summary.fail++;
+              }
+            } catch (e: any) {
+              groupResult.tools.push({ name: toolName, status: 'ERROR', error: e.message });
+              groupResult.fail++;
+              results.summary.fail++;
+            }
+            
+            // Small delay between tools to avoid overwhelming
+            await sleep(100);
           }
           
-          // Summary
-          const passCount = results.tests.filter((t: any) => t.status === 'PASS').length;
-          results.summary = {
-            pass: passCount,
-            fail: results.tests.length - passCount,
-            total: results.tests.length,
-            status: passCount === results.tests.length ? '✅ ALL PASSING' : '⚠️ SOME FAILING'
-          };
-          
-        } catch (e: any) {
-          results.server = 'ERROR';
-          results.error = e.message;
-          results.summary = { pass: 0, fail: 0, total: 0, status: '❌ SERVER ERROR' };
+          results.summary.total += groupResult.tools.length;
+          results.tools.push(groupResult);
         }
+        
+        const allPass = results.summary.fail === 0;
+        results.summary.status = allPass ? '✅ ALL PASSING' : '⚠️ SOME FAILING';
+        results.summary.passRate = results.summary.total > 0 
+          ? Math.round((results.summary.pass / results.summary.total) * 100) + '%' 
+          : '0%';
         
         return JSON.stringify(results, null, 2);
       }
