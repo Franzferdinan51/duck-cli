@@ -60,6 +60,7 @@ interface WSToolDefinition {
 export class MCPServer {
   private agent: Agent;
   private tools: Map<string, WSToolDefinition> = new Map();
+  private agentInitialized = false;
   private port: number;
   private httpServer: http.Server | null = null;
   private wss: WebSocketServer | null = null;
@@ -74,7 +75,7 @@ export class MCPServer {
     this.port = port;
     this.agent = new Agent({ name: 'Duck Agent (MCP)' });
     this.registerCoreHandlers();
-    this.registerAgentTools();
+    // MCP tools are loaded dynamically from agent after initialization
   }
 
   private registerCoreHandlers(): void {
@@ -93,39 +94,52 @@ export class MCPServer {
       };
     });
 
-    // Tools
+    // Tools - dynamically load from agent registry
     this.requestHandlers.set('tools/list', async () => {
-      const tools = Array.from(this.tools.values()).map(t => ({
+      // Ensure agent is initialized
+      if (!this.agentInitialized) {
+        await this.agent.initialize();
+        this.agentInitialized = true;
+      }
+      
+      // Get all tools from agent's registry
+      const agentTools = this.agent.getTools();
+      const tools = agentTools.map(t => ({
         name: t.name,
         description: t.description,
-        inputSchema: t.inputSchema,
-        annotations: t.annotations,
+        inputSchema: t.schema,
+        annotations: { destructive: t.dangerous, idempotent: !t.dangerous },
       }));
       return { tools };
     });
 
     this.requestHandlers.set('tools/call', async (params) => {
+      // Ensure agent is initialized
+      if (!this.agentInitialized) {
+        await this.agent.initialize();
+        this.agentInitialized = true;
+      }
+      
       const { name, arguments: args = {} } = params;
       const id = this.nextId++;
       this.toolInvocations.set(id, { name, startTime: Date.now() });
       
       try {
-        const handler = this.tools.get(name);
-        if (!handler) {
-          return {
-            content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-            isError: true,
-          };
-        }
-
-        const result = await handler.handler(args, this.agent);
+        const result = await this.agent.executeTool(name, args);
         const inv = this.toolInvocations.get(id);
         this.broadcastToSSE({ type: 'tool_complete', tool: name, id, duration: Date.now() - (inv?.startTime ?? 0) });
         
-        return {
-          content: [{ type: 'text', text: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }],
-          isError: false,
-        };
+        if (result.success) {
+          return {
+            content: [{ type: 'text', text: typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2) }],
+            isError: false,
+          };
+        } else {
+          return {
+            content: [{ type: 'text', text: result.error || 'Tool execution failed' }],
+            isError: true,
+          };
+        }
       } catch (error: any) {
         return {
           content: [{ type: 'text', text: `Error: ${error.message}` }],
@@ -184,145 +198,6 @@ export class MCPServer {
     // Notifications
     this.requestHandlers.set('notifications/initialized', async () => {
       return null;
-    });
-  }
-
-  private registerAgentTools(): void {
-    // Execute task
-    this.tools.set('execute', {
-      name: 'execute',
-      description: 'Execute a task with Duck Agent',
-      inputSchema: { type: 'object', properties: { task: { type: 'string', description: 'Task description' } }, required: ['task'] },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (args: any, agent: Agent) => {
-        return await agent.execute(args.task);
-      }
-    });
-
-    // Think
-    this.tools.set('think', {
-      name: 'think',
-      description: 'Think about something with Duck Agent reasoning',
-      inputSchema: { type: 'object', properties: { prompt: { type: 'string' } }, required: ['prompt'] },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (args: any, agent: Agent) => {
-        return await agent.think(args.prompt);
-      }
-    });
-
-    // Remember
-    this.tools.set('remember', {
-      name: 'remember',
-      description: 'Store information in Duck Agent memory',
-      inputSchema: { type: 'object', properties: { content: { type: 'string' }, category: { type: 'string' } }, required: ['content'] },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (args: any, agent: Agent) => {
-        await agent.remember(args.content);
-        return { success: true, stored: args.content.length };
-      }
-    });
-
-    // Recall
-    this.tools.set('recall', {
-      name: 'recall',
-      description: 'Search Duck Agent memory',
-      inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number' } }, required: ['query'] },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (args: any, agent: Agent) => {
-        const results = await agent.recall(args.query);
-        return { results, count: results.length };
-      }
-    });
-
-    // Status
-    this.tools.set('get_status', {
-      name: 'get_status',
-      description: 'Get Duck Agent status and metrics',
-      inputSchema: { type: 'object', properties: {} },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (_args: any, agent: Agent) => {
-        return agent.getStatus();
-      }
-    });
-
-    // Desktop control - screenshot
-    this.tools.set('desktop_screenshot', {
-      name: 'desktop_screenshot',
-      description: 'Take a screenshot of the desktop',
-      inputSchema: { type: 'object', properties: {} },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (_args: any, agent: Agent) => {
-        return await agent.screenshot();
-      }
-    });
-
-    // Desktop control - open app
-    this.tools.set('desktop_open', {
-      name: 'desktop_open',
-      description: 'Open an application',
-      inputSchema: { type: 'object', properties: { app: { type: 'string' } }, required: ['app'] },
-      annotations: { destructive: false, idempotent: false },
-      handler: async (args: any, agent: Agent) => {
-        await agent.openApp(args.app);
-        return { success: true, opened: args.app };
-      }
-    });
-
-    // Desktop control - click
-    this.tools.set('desktop_click', {
-      name: 'desktop_click',
-      description: 'Click at coordinates',
-      inputSchema: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] },
-      annotations: { destructive: false, idempotent: false },
-      handler: async (args: any, agent: Agent) => {
-        await agent.click(args.x, args.y);
-        return { success: true, clicked: { x: args.x, y: args.y } };
-      }
-    });
-
-    // Desktop control - type
-    this.tools.set('desktop_type', {
-      name: 'desktop_type',
-      description: 'Type text',
-      inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
-      annotations: { destructive: false, idempotent: false },
-      handler: async (args: any, agent: Agent) => {
-        await agent.type(args.text);
-        return { success: true, typed: args.text.length };
-      }
-    });
-
-    // KAIROS status
-    this.tools.set('kairos_status', {
-      name: 'kairos_status',
-      description: 'Get KAIROS autonomous system status',
-      inputSchema: { type: 'object', properties: { mode: { type: 'string', enum: ['get', 'set', 'toggle'] }, value: { type: 'string' } } },
-      annotations: { destructive: false, idempotent: true },
-      handler: async (_args: any, _agent: Agent) => {
-        return { mode: 'balanced', enabled: true, heartbeat: true };
-      }
-    });
-
-    // List available tools
-    this.tools.set('list_tools', {
-      name: 'list_tools',
-      description: 'List all available Duck Agent tools',
-      inputSchema: { type: 'object', properties: {} },
-      annotations: { destructive: false, idempotent: true },
-      handler: async () => {
-        return { tools: Array.from(this.tools.keys()) };
-      }
-    });
-
-    // Ping
-    this.tools.set('ping', {
-      name: 'ping',
-      description: 'Ping the server',
-      inputSchema: { type: 'object', properties: {} },
-      annotations: { destructive: false, idempotent: true },
-      handler: async () => {
-        return { pong: true, timestamp: Date.now() };
-      }
     });
   }
 

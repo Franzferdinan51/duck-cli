@@ -897,9 +897,18 @@ ${capabilities.join('\n')}`;
           planning: { activePlans: activePlans.length, plans: activePlans.map(p => ({ id: p.id, goal: p.goal, status: p.status })) },
           guard: this.guard.stats()
         };
-      }
+    }
 
-      async shutdown(): Promise<void> {
+    // MCP tool access - expose tools for MCP server
+    getTools() {
+      return this.tools.list();
+    }
+
+    async executeTool(name: string, args: any) {
+      return await this.tools.execute(name, args);
+    }
+
+    async shutdown(): Promise<void> {
         console.log(`\n🦆 ${this.name} shutting down...`);
         try { this.memory.close(); } catch {}
         try { this.sessions.endSession(this.sessionId, 'success'); } catch {}
