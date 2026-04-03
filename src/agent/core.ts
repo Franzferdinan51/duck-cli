@@ -862,10 +862,16 @@ export class Agent extends EventEmitter {
           const groupResult: any = { name: group.name, tools: [], pass: 0, fail: 0 };
           for (const tool of group.tools) {
             try {
-              const success = await tool.fn();
-              groupResult.tools.push({ name: tool.name, status: success ? 'PASS' : 'FAIL' });
-              if (success) { groupResult.pass++; results.summary.pass++; }
-              else { groupResult.fail++; results.summary.fail++; allPass = false; }
+              const result: any = await tool.fn();
+              const success = result === true || (result && result.success === true);
+              if (success) {
+                groupResult.tools.push({ name: tool.name, status: 'PASS' });
+                groupResult.pass++; results.summary.pass++;
+              } else {
+                const errMsg = result?.error || result?.message || (typeof result === 'string' ? result.slice(0, 200) : 'Tool returned false');
+                groupResult.tools.push({ name: tool.name, status: 'FAIL', error: errMsg });
+                groupResult.fail++; results.summary.fail++; allPass = false;
+              }
             } catch (e: any) {
               groupResult.tools.push({ name: tool.name, status: 'ERROR', error: e.message });
               groupResult.fail++; results.summary.fail++; allPass = false;
