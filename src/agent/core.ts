@@ -214,8 +214,43 @@ export class Agent extends EventEmitter {
     this.registerTool({ name: 'desktop_type', description: 'Type text', schema: { text: { type: 'string' } }, dangerous: false,
       handler: async (args: any) => { await this.desktop.type(args.text); return `Typed: ${args.text}`; }
     });
-    this.registerTool({ name: 'desktop_screenshot', description: 'Take a screenshot', schema: {}, dangerous: false,
-      handler: async () => this.desktop.screenshot()
+    this.registerTool({ name: 'desktop_screenshot', description: '📸 Take screenshot and return as base64 image for vision analysis',
+      schema: { mode: { type: 'string', optional: true, description: 'Return mode: path (file path) or base64 (image data for vision)' } }, dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const result = await this.desktop.screenshot();
+          
+          if (args.mode === 'path') {
+            return result; // Return file path
+          }
+          
+          // Default: return base64 image data for vision
+          const fs = await import('fs');
+          const path = await import('path');
+          
+          // If result is a file path, read and encode it
+          if (typeof result === 'string' && (result.startsWith('/') || result.startsWith('~') || result.includes('screenshot'))) {
+            const filePath = result.startsWith('~') ? result.replace('~', process.env.HOME || '') : result;
+            if (fs.existsSync(filePath)) {
+              const imageBuffer = fs.readFileSync(filePath);
+              const base64 = imageBuffer.toString('base64');
+              const ext = path.extname(filePath).toLowerCase().slice(1) || 'png';
+              const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'image/png';
+              return `data:${mimeType};base64,${base64}`;
+            }
+          }
+          
+          // If result is already base64 or data URL, return as-is
+          if (typeof result === 'string' && (result.startsWith('data:') || result.length > 1000)) {
+            return result;
+          }
+          
+          // Otherwise return path and let user know
+          return result;
+        } catch (e: any) {
+          return { success: false, error: e.message };
+        }
+      }
     });
 
     // ─── Memory ────────────────────────────────────────────
