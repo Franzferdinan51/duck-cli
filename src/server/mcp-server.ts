@@ -106,21 +106,32 @@ export class MCPServer {
       const agentTools = this.agent.getTools();
       const tools = agentTools.map(t => {
         // Convert simplified schema to proper JSON Schema format
+        // Avoid using reserved JSON Schema keywords as property names
         const schema = t.schema || {};
         const properties: Record<string, any> = {};
         const required: string[] = [];
         
         for (const [key, spec] of Object.entries(schema)) {
           if (typeof spec === 'object' && spec !== null) {
-            // It's a property definition
-            const { type, description, optional, ...rest } = spec as any;
-            properties[key] = { type, description, ...rest };
-            if (!optional) {
+            // It's a property definition - extract properly
+            const propSpec = spec as any;
+            // Build property with explicit type
+            const prop: any = {};
+            if (propSpec.type) prop.type = propSpec.type;
+            if (propSpec.description) prop.description = propSpec.description;
+            // Add any other fields except reserved schema keywords
+            for (const [k, v] of Object.entries(propSpec)) {
+              if (k !== 'type' && k !== 'description' && k !== 'optional') {
+                prop[k] = v;
+              }
+            }
+            properties[key] = prop;
+            if (!propSpec.optional) {
               required.push(key);
             }
           } else {
             // It's just a type string
-            properties[key] = { type: spec };
+            properties[key] = { type: String(spec) };
           }
         }
         
