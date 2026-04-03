@@ -100,7 +100,7 @@ export class MCPServer {
           version: '0.4.0',
           description: 'Duck Agent - Super AI Agent with KAIROS, Claude Code Tools'
         },
-        instructions: 'Duck Agent MCP Server. Use tools/call to execute tasks.',
+        instructions: 'Duck Agent MCP Server. IMPORTANT: Tool names use UNDERSCORE not slashes. Examples: duck_run, duck_status, duck_doctor, think_parallel, agent_spawn. Do NOT use duck_/ with a slash. Use tools/call with exact tool names and JSON arguments.',
       };
     });
 
