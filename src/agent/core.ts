@@ -817,6 +817,7 @@ export class Agent extends EventEmitter {
         
         // Get all registered tools from the tool registry
         const registeredTools = this.tools.list();
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
         
         // Group tools by prefix
         const groups: any = {};
@@ -829,6 +830,7 @@ export class Agent extends EventEmitter {
           
           if (mode === 'registry') {
             // Fast check: verify tool exists (name is present)
+            await sleep(10); // Small delay between checks
             const valid = tool.name && tool.name.length > 0;
             groups[groupName].tools.push({ name: tool.name, status: valid ? 'REGISTERED' : 'BROKEN' });
             if (valid) { groups[groupName].pass++; results.summary.pass++; }
@@ -838,9 +840,8 @@ export class Agent extends EventEmitter {
         }
         
         if (mode === 'exec') {
-          // Execute only lightweight status tools
+          // Execute only lightweight status tools - SEQUENTIALLY with delays
           const safeTools = ['duck_status', 'duck_doctor', 'memory_stats', 'agent_list', 'cron_list', 'guard_stats', 'plan_list'];
-          const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
           
           for (const toolName of safeTools) {
             const tool = registeredTools.find((t: any) => t.name === toolName);
@@ -851,6 +852,7 @@ export class Agent extends EventEmitter {
             if (!groups[groupName]) groups[groupName] = { name: groupName, tools: [], pass: 0, fail: 0 };
             
             try {
+              // Execute and wait for completion before next tool
               const r: any = await this.executeTool(toolName, {});
               const success = r && r.success === true;
               groups[groupName].tools.push({ name: toolName, status: success ? 'PASS' : 'FAIL', error: success ? null : (r?.error || 'Failed') });
@@ -861,7 +863,9 @@ export class Agent extends EventEmitter {
               groups[groupName].tools.push({ name: toolName, status: 'ERROR', error: e.message });
               groups[groupName].fail++; results.summary.fail++; results.summary.total++;
             }
-            await sleep(200);
+            
+            // Wait for previous tool to fully clean up before next
+            await sleep(1000);
           }
         }
         
