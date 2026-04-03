@@ -638,120 +638,118 @@ export class MCPServer {
     // Suppress stdout during stdio mode to prevent polluting JSON-RPC stream
     // All console output goes to stderr instead
     const originalLog = console.log;
-    console.log = (...args: any[]) => console.error('[init]', ...args);
+    const originalWarn = console.warn;
+    console.log = (...args: any[]) => console.error('[out]', ...args);
+    console.warn = (...args: any[]) => console.error('[warn]', ...args);
     
-    await this.agent.initialize();
-    console.error('[MCP] Starting stdio server (tools: %d)...', this.agent.getTools().length);
-    
-    // Wait for client to send initialize, then respond
-    process.stdin.setEncoding('utf8');
-    let initialized = false;
-    let initializedResolve: () => void;
-    const initPromise = new Promise<void>((resolve) => { initializedResolve = resolve; });
-    
-    let buffer = '';
-    let clientInfo: { name?: string; version?: string } | null = null;
-    
-    process.stdin.on('data', async (chunk: string) => {
-      buffer += chunk;
+    try {
+      await this.agent.initialize();
+      console.error('[MCP] Starting stdio server (tools: %d)...', this.agent.getTools().length);
       
-      // Process complete JSON-RPC messages (newline-delimited)
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+      // Wait for client to send initialize, then respond
+      process.stdin.setEncoding('utf8');
+      let initialized = false;
+      let initializedResolve: () => void;
+      const initPromise = new Promise<void>((resolve) => { initializedResolve = resolve; });
       
-      for (const line of lines) {
-        if (!line.trim()) continue;
+      let buffer = '';
+      
+      process.stdin.on('data', async (chunk: string) => {
+        buffer += chunk;
         
-        try {
-          const request = JSON.parse(line) as MCPRequest;
+        // Process complete JSON-RPC messages (newline-delimited)
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
           
-          // Handle initialize specially - it's the first message
-          if (request.method === 'initialize' && !initialized) {
-            initialized = true;
+          try {
+            const request = JSON.parse(line) as MCPRequest;
             
-            // Extract client info for LM Studio detection
-            clientInfo = request.params?.clientInfo || null;
-            const isLMStudio = clientInfo?.name && (
-              clientInfo.name.toLowerCase().includes('lm-studio') ||
-              clientInfo.name.includes('LM Studio')
-            );
-            
-            if (isLMStudio) {
-              console.error('[MCP] LM Studio client detected:', clientInfo.name, clientInfo.version);
+            // Handle initialize specially - it's the first message
+            if (request.method === 'initialize' && !initialized) {
+              initialized = true;
+              
+              const clientInfo = request.params?.clientInfo;
+              const isLMStudio = clientInfo?.name && (
+                clientInfo.name.toLowerCase().includes('lm-studio') ||
+                clientInfo.name.includes('LM Studio')
+              );
+              const isClaude = clientInfo?.name && clientInfo.name.includes('Claude');
+              
+              if (isLMStudio) console.error('[MCP] LM Studio detected:', clientInfo.name, clientInfo.version);
+              else if (isClaude) console.error('[MCP] Claude Desktop detected:', clientInfo.name, clientInfo.version);
+              else console.error('[MCP] Client:', clientInfo?.name || 'Unknown');
+              
+              const response: MCPResponse = {
+                jsonrpc: '2.0',
+                id: request.id,
+                result: {
+                  protocolVersion: '2024-11-05',
+                  capabilities: this.getServerCapabilities(),
+                  serverInfo: {
+                    name: 'duck-agent',
+                    version: '0.4.0',
+                    description: 'Duck Agent MCP Server - Multi-provider AI'
+                  }
+                }
+              };
+              process.stdout.write(JSON.stringify(response) + '\n');
+              
+              // Send initialized notification
+              const notif = { jsonrpc: '2.0', method: 'notifications/initialized', params: {} };
+              process.stdout.write(JSON.stringify(notif) + '\n');
+              
+              initializedResolve?.();
+              continue;
             }
             
-            const response: MCPResponse = {
-              jsonrpc: '2.0',
-              id: request.id,
-              result: {
-                protocolVersion: '2024-11-05',
-                capabilities: this.getServerCapabilities(),
-                serverInfo: {
-                  name: 'duck-agent',
-                  version: '0.4.0',
-                  description: 'Duck Agent MCP Server'
-                }
-              }
-            };
-            process.stdout.write(JSON.stringify(response) + '\n');
+            if (!initialized) await initPromise;
             
-            // Send notifications/initialized
-            const notif: MCPResponse = {
+            const response = await this.processRequest(request);
+            if (request.id !== undefined && request.id !== null) {
+              process.stdout.write(JSON.stringify(response) + '\n');
+            }
+          } catch (error: any) {
+            console.error('[MCP stdio] Error:', error.message);
+            const errorResponse: MCPResponse = {
               jsonrpc: '2.0',
               id: null,
-              result: null
+              error: { code: -32700, message: `Parse error: ${error.message}` }
             };
-            process.stdout.write(JSON.stringify(notif) + '\n');
-            
-            initializedResolve?.();
-            continue;
+            process.stdout.write(JSON.stringify(errorResponse) + '\n');
           }
-          
-          // Wait for initialization before processing other requests
-          if (!initialized) {
-            await initPromise;
-          }
-          
-          // Process the request
-          const response = await this.processRequest(request);
-          
-          // Only send responses for requests with id
-          if (request.id !== undefined && request.id !== null) {
-            process.stdout.write(JSON.stringify(response) + '\n');
-          }
-        } catch (error: any) {
-          console.error('[MCP stdio] Error:', error.message);
-          const errorResponse: MCPResponse = {
-            jsonrpc: '2.0',
-            id: null,
-            error: {
-              code: -32603,
-              message: `Internal error: ${error.message}`,
-              data: { hint: 'Check request format is valid JSON-RPC 2.0' }
-            }
-          };
-          process.stdout.write(JSON.stringify(errorResponse) + '\n');
         }
-      }
-    });
+      });
+      
+      process.stdin.on('end', () => {
+        console.error('[MCP] Stdin closed, exiting...');
+        process.exit(0);
+      });
+      
+      process.stdin.on('error', (err) => {
+        console.error('[MCP] Stdin error:', err.message);
+        process.exit(1);
+      });
+      
+    } catch (error: any) {
+      console.error('[MCP] Fatal error:', error.message);
+      process.exit(1);
+    }
     
-    process.stdin.on('end', () => {
-      console.error('[MCP] Stdin closed');
-    });
-    
-    // Keep process alive
+    // Keep alive with graceful shutdown
     await new Promise<void>((resolve) => {
-      process.on('SIGINT', () => {
-        console.error('[MCP] Received SIGINT');
+      const shutdown = (sig: string) => {
+        console.error(`[MCP] ${sig}, shutting down...`);
         resolve();
-      });
-      process.on('SIGTERM', () => {
-        console.error('[MCP] Received SIGTERM');
-        resolve();
-      });
+      };
+      process.on('SIGINT', () => shutdown('SIGINT'));
+      process.on('SIGTERM', () => shutdown('SIGTERM'));
     });
     
     await this.stop();
+    console.error('[MCP] Stdio server stopped');
   }
 
   async stop(): Promise<void> {
