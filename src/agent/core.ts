@@ -217,36 +217,55 @@ export class Agent extends EventEmitter {
     this.registerTool({ name: 'desktop_screenshot', description: '📸 Take screenshot and return as base64 image for vision analysis',
       schema: { mode: { type: 'string', optional: true, description: 'Return mode: path (file path) or base64 (image data for vision)' } }, dangerous: false,
       handler: async (args: any) => {
+        const fs = await import('fs');
+        const path = await import('path');
+        
         try {
+          // Find most recent screenshot before taking new one
+          const desktopPath = path.join(process.env.HOME || '', 'Desktop');
+          const getRecentScreenshot = () => {
+            try {
+              const files = fs.readdirSync(desktopPath)
+                .filter(f => f.startsWith('Screenshot ') && (f.endsWith('.png') || f.endsWith('.jpg')))
+                .map(f => ({ name: f, path: path.join(desktopPath, f), mtime: fs.statSync(path.join(desktopPath, f)).mtime }))
+                .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+              return files[0]?.path || null;
+            } catch { return null; }
+          };
+          
+          const beforeShot = getRecentScreenshot();
+          
+          // Take screenshot via ClawdCursor
           const result = await this.desktop.screenshot();
           
+          // Wait for file to be written
+          await new Promise(r => setTimeout(r, 2000));
+          
+          // Find the new screenshot
+          const afterShot = getRecentScreenshot();
+          const screenshotPath = afterShot && afterShot !== beforeShot ? afterShot : afterShot;
+          
           if (args.mode === 'path') {
-            return result; // Return file path
+            return screenshotPath || 'Screenshot saved to Desktop';
           }
           
           // Default: return base64 image data for vision
-          const fs = await import('fs');
-          const path = await import('path');
-          
-          // If result is a file path, read and encode it
-          if (typeof result === 'string' && (result.startsWith('/') || result.startsWith('~') || result.includes('screenshot'))) {
-            const filePath = result.startsWith('~') ? result.replace('~', process.env.HOME || '') : result;
-            if (fs.existsSync(filePath)) {
-              const imageBuffer = fs.readFileSync(filePath);
-              const base64 = imageBuffer.toString('base64');
-              const ext = path.extname(filePath).toLowerCase().slice(1) || 'png';
-              const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'image/png';
-              return `data:${mimeType};base64,${base64}`;
-            }
+          if (screenshotPath && fs.existsSync(screenshotPath)) {
+            const imageBuffer = fs.readFileSync(screenshotPath);
+            const base64 = imageBuffer.toString('base64');
+            const ext = path.extname(screenshotPath).toLowerCase().slice(1) || 'png';
+            const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+            return `data:${mimeType};base64,${base64}`;
           }
           
-          // If result is already base64 or data URL, return as-is
-          if (typeof result === 'string' && (result.startsWith('data:') || result.length > 1000)) {
-            return result;
+          // Fallback: try to find any recent screenshot
+          if (afterShot) {
+            const imageBuffer = fs.readFileSync(afterShot);
+            const base64 = imageBuffer.toString('base64');
+            return `data:image/png;base64,${base64}`;
           }
           
-          // Otherwise return path and let user know
-          return result;
+          return { success: false, error: 'Screenshot file not found on Desktop' };
         } catch (e: any) {
           return { success: false, error: e.message };
         }
