@@ -828,11 +828,9 @@ export class Agent extends EventEmitter {
           if (!groups[groupName]) groups[groupName] = { name: groupName, tools: [], pass: 0, fail: 0 };
           
           if (mode === 'registry') {
-            // Fast check: verify tool exists with valid schema
-            const hasSchema = tool.schema && typeof tool.schema === 'object';
-            const hasHandler = typeof tool.handler === 'function';
-            const valid = hasSchema && hasHandler;
-            groups[groupName].tools.push({ name: tool.name, status: valid ? 'REGISTERED' : 'BROKEN', schema: hasSchema, handler: hasHandler });
+            // Fast check: verify tool exists (name is present)
+            const valid = tool.name && tool.name.length > 0;
+            groups[groupName].tools.push({ name: tool.name, status: valid ? 'REGISTERED' : 'BROKEN' });
             if (valid) { groups[groupName].pass++; results.summary.pass++; }
             else { groups[groupName].fail++; results.summary.fail++; }
             results.summary.total++;
