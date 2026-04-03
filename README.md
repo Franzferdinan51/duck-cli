@@ -917,3 +917,36 @@ MIT License — Ryan (Duckets) 2026
 Inspired by and integrating features from:
 
 [OpenClaw](https://github.com/openclaw/openclaw) · [Claude Code](https://github.com/anthropics/claude-code) · [Hermes-Agent](https://github.com/Franzferdinan51/hermes-agent) · [NemoClaw](https://github.com/NVIDIA/NemoClaw) · [Codex CLI](https://github.com/openai/codex) · [DroidClaw](https://github.com/unitedbyai/droidclaw) · [OpenCrabs](https://github.com/adolfousier/opencrabs) · [TrinityClaw](https://github.com/TrinityClaw/trinity-claw) · [FlowlyAI](https://github.com/Nocetic/flowlyai) · [ClawX](https://github.com/ValueCell-ai/ClawX) · [OpenClaw-RL](https://github.com/Franzferdinan51/OpenClaw-RL) · [agent-mesh-api](https://github.com/Franzferdinan51/agent-mesh-api) · [Pretext](https://github.com/chenglou/pretext) · [CopilotKit](https://github.com/CopilotKit/CopilotKit)
+
+---
+
+## 🦆 LM Studio MCP Integration
+
+Duck CLI can be used as an MCP server with LM Studio!
+
+### LM Studio Configuration
+
+Add this to your `~/.lmstudio/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "duck-cli": {
+      "command": "/path/to/duck",
+      "args": ["unified"],
+      "env": {
+        "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
+```
+
+**Important:** Use `duck unified` (not `duck mcp`) — `unified` keeps all protocols running, while `mcp` alone shuts down immediately.
+
+### Usage
+
+1. Start LM Studio
+2. Duck CLI will auto-connect as an MCP server
+3. Use duck-cli's full capabilities from within LM Studio
+
