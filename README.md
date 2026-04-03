@@ -950,3 +950,20 @@ Add this to your `~/.lmstudio/mcp.json`:
 2. Duck CLI will auto-connect as an MCP server
 3. Use duck-cli's full capabilities from within LM Studio
 
+
+---
+
+## ⚠️ LM Studio Compatibility Note
+
+**Status:** duck-cli's MCP implementation is HTTP-based (server mode), while LM Studio's MCP bridge expects stdio-based MCP. These are incompatible transport mechanisms.
+
+**Current workaround:** 
+- Use duck CLI directly via terminal: `duck unified`
+- Connect to duck's MCP via HTTP client pointing to `localhost:3850`
+- Or use OpenClaw's MCP bridge which supports both modes
+
+**If you need LM Studio integration**, consider:
+1. Using OpenClaw as the MCP hub (supports stdio + HTTP)
+2. Creating an MCP proxy that bridges stdio ↔ HTTP
+3. Running duck as a standalone service and connecting via HTTP URL
+
