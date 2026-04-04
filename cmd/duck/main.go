@@ -90,6 +90,7 @@ Features:
 		statusCmd(),
 		councilCmd(),
 		workflowCmd(),
+		androidCmd(),
 		flowCmd(),
 		unifiedCmd(),
 		gatewayCmd(),
@@ -519,13 +520,94 @@ func workflowCmd() *cobra.Command {
 
 // flowCmd - duck flow <json-file-or-definition> [start-node]
 // ACPX-style TypeScript flow graph runner
+// Also handles: duck flow list, duck flow replay <run-id>, duck flow cancel <flow-name>
 func flowCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "flow <json-file-or-definition> [start-node]",
-		Short: "Execute an ACPX-style TypeScript flow graph (ok|timed_out|failed|cancelled outcomes)",
-		Args:  cobra.MinimumNArgs(1),
+	var flowFlag bool
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all flow runs in ~/.duck/flows/runs/",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Read file if it exists, otherwise treat as inline JSON
+			return runNodeWithEnv("flow_list", cmd)
+		},
+	}
+	replayCmd := &cobra.Command{
+		Use:   "replay <run-id>",
+		Short: "Replay a flow run from its trace bundle",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"recordId":"%s"}`, args[0])
+			return runNodeWithEnv("flow_replay "+payload, cmd)
+		},
+	}
+	cancelCmd := &cobra.Command{
+		Use:   "cancel <flow-name>",
+		Short: "Cancel a running flow",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"flowName":"%s"}`, args[0])
+			return runNodeWithEnv("flow_cancel "+payload, cmd)
+		},
+	}
+	streamsCmd := &cobra.Command{
+		Use:   "streams",
+		Short: "List NDJSON session streams (~/.duck/sessions/)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("session_stream_list", cmd)
+		},
+	}
+
+	cmd := &cobra.Command{
+		Use:   "flow [file-or-subcommand] [args]",
+		Short: "Execute or manage ACPX-style flow graphs",
+		Long: `ACPX-style Flow Graph Runner
+
+Commands:
+  duck flow <file.json> [start-node]   Execute a JSON/TS flow file
+  duck flow list                        List all flow runs (~/.duck/flows/runs/)
+  duck flow replay <run-id>             Replay a flow run from trace bundle
+  duck flow cancel <flow-name>          Cancel a running flow
+  duck flow streams                      List session streams (~/.duck/sessions/)
+
+Flow Node Types: acp, action, compute, checkpoint
+Flow Outcomes: ok | timed_out | failed | cancelled
+
+Example flow JSON:
+{
+  "name": "my-flow",
+  "nodes": {
+    "start": { "kind": "action", "config": { "shell": "echo hi" } }
+  },
+  "edges": [
+    { "from": "start", "condition": { "type": "always", "to": "end" } }
+  ]
+}`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			sub := args[0]
+			switch sub {
+			case "list":
+				return runNodeWithEnv("flow_list", cmd)
+			case "streams":
+				return runNodeWithEnv("session_stream_list", cmd)
+			case "replay":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck flow replay <run-id>")
+				}
+				payload := fmt.Sprintf(`{"recordId":"%s"}`, args[1])
+				return runNodeWithEnv("flow_replay "+payload, cmd)
+			case "cancel":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck flow cancel <flow-name>")
+				}
+				payload := fmt.Sprintf(`{"flowName":"%s"}`, args[1])
+				return runNodeWithEnv("flow_cancel "+payload, cmd)
+			}
+			// Not a subcommand — treat as file path or inline JSON
 			definition := args[0]
 			if _, err := os.Stat(definition); err == nil {
 				data, err := os.ReadFile(definition)
@@ -538,14 +620,16 @@ func flowCmd() *cobra.Command {
 			if len(args) > 1 {
 				startNode = args[1]
 			}
-			// Encode as simple JSON string for the node CLI
 			payload := fmt.Sprintf(`{"definition":%s,"startNode":"%s"}`, definition, startNode)
 			return runNodeWithEnv("flow_ts "+payload, cmd)
 		},
 	}
+	cmd.Flags().BoolVar(&flowFlag, "flow", false, "Run as deterministic YAML flow (no LLM)")
+	cmd.AddCommand(listCmd, replayCmd, cancelCmd, streamsCmd)
 	return cmd
 }
 
+// runNode executes the TypeScript agent
 // runNode executes the TypeScript agent
 func runNode(args ...string) error {
 	exePath, _ := os.Executable()
@@ -735,4 +819,214 @@ func buildRunScript(prompt string, interactive bool) string {
 		return "--shell"
 	}
 	return "--run " + prompt
+}
+// androidCmd - duck android <command> [args]
+// DroidClaw-style Android ADB automation
+func androidCmd() *cobra.Command {
+	devicesCmd := &cobra.Command{
+		Use:   "devices",
+		Short: "List connected Android devices via ADB",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android_devices", cmd)
+		},
+	}
+	screenshotCmd := &cobra.Command{
+		Use:   "screenshot [filename]",
+		Short: "Capture Android device screen",
+		Args:  cobra.RangeArgs(0, 1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fname := ""
+			if len(args) > 0 {
+				fname = args[0]
+			}
+			payload := fmt.Sprintf(`{"filename":"%s"}`, fname)
+			return runNodeWithEnv("android_screenshot "+payload, cmd)
+		},
+	}
+	tapCmd := &cobra.Command{
+		Use:   "tap <x> <y>",
+		Short: "Tap at coordinates on Android screen",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"x":%s,"y":%s}`, args[0], args[1])
+			return runNodeWithEnv("android_tap "+payload, cmd)
+		},
+	}
+	typeCmd := &cobra.Command{
+		Use:   "type <text>",
+		Short: "Type text on Android device",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			text := strings.Join(args, " ")
+			payload := fmt.Sprintf(`{"text":"%s"}`, strings.ReplaceAll(text, `"`, `\"`))
+			return runNodeWithEnv("android_type "+payload, cmd)
+		},
+	}
+	shellCmdLocal := &cobra.Command{
+		Use:   "shell <command>",
+		Short: "Execute ADB shell command on Android device",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmdStr := strings.Join(args, " ")
+			payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(cmdStr, `"`, `\"`))
+			return runNodeWithEnv("android_shell "+payload, cmd)
+		},
+	}
+	dumpCmd := &cobra.Command{
+		Use:   "dump [query]",
+		Short: "Dump Android UI hierarchy (XML)",
+		Args:  cobra.RangeArgs(0, 1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := ""
+			if len(args) > 0 {
+				query = args[0]
+			}
+			payload := fmt.Sprintf(`{"query":"%s"}`, query)
+			return runNodeWithEnv("android_dump "+payload, cmd)
+		},
+	}
+	findCmd := &cobra.Command{
+		Use:   "find <text-or-id>",
+		Short: "Find UI element and tap it (DroidClaw-style)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"query":"%s"}`, args[0])
+			return runNodeWithEnv("android_find_and_tap "+payload, cmd)
+		},
+	}
+	swipeCmd := &cobra.Command{
+		Use:   "swipe <direction> [distance]",
+		Short: "Swipe on screen (up|down|left|right)",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dist := "500"
+			if len(args) > 1 {
+				dist = args[1]
+			}
+			payload := fmt.Sprintf(`{"direction":"%s","distance":%s}`, args[0], dist)
+			return runNodeWithEnv("android_swipe "+payload, cmd)
+		},
+	}
+	pressCmd := &cobra.Command{
+		Use:   "press <key>",
+		Short: "Press Android key (enter|back|home|recent)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"key":"%s"}`, args[0])
+			return runNodeWithEnv("android_press "+payload, cmd)
+		},
+	}
+	appCmd := &cobra.Command{
+		Use:   "app <action> <package>",
+		Short: "Launch/kill Android app (launch|kill|foreground)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"action":"%s","package":"%s"}`, args[0], args[1])
+			return runNodeWithEnv("android_app "+payload, cmd)
+		},
+	}
+	screenCmd := &cobra.Command{
+		Use:   "screen",
+		Short: "Read all visible text on Android screen (OCR-style)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android_screen", cmd)
+		},
+	}
+	batteryCmd := &cobra.Command{
+		Use:   "battery",
+		Short: "Get Android battery level",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android_battery", cmd)
+		},
+	}
+
+	cmd := &cobra.Command{
+		Use:     "android [command] [args]",
+		Short:   "DroidClaw-style Android ADB automation",
+		Long:    `DroidClaw Android automation via ADB.\n\nCommands:\n  duck android devices                List connected devices\n  duck android screenshot [fname]      Capture screen\n  duck android tap <x> <y>             Tap coordinates\n  duck android type <text>            Type text\n  duck android shell <cmd>            Run ADB shell command\n  duck android dump [query]           Dump UI hierarchy\n  duck android find <text>            Find element and tap\n  duck android swipe <dir> [dist]     Swipe (up|down|left|right)\n  duck android press <key>            Press key (enter|back|home|recent)\n  duck android app <act> <pkg>         App action (launch|kill|foreground)\n  duck android screen                  Read all visible text\n  duck android battery                 Battery level`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			sub := args[0]
+			switch sub {
+			case "devices":
+				return runNodeWithEnv("android_devices", cmd)
+			case "screenshot":
+				fname := ""
+				if len(args) > 1 {
+					fname = args[1]
+				}
+				payload := fmt.Sprintf(`{"filename":"%s"}`, fname)
+				return runNodeWithEnv("android_screenshot "+payload, cmd)
+			case "tap":
+				if len(args) < 3 {
+					return fmt.Errorf("Usage: duck android tap <x> <y>")
+				}
+				payload := fmt.Sprintf(`{"x":%s,"y":%s}`, args[1], args[2])
+				return runNodeWithEnv("android_tap "+payload, cmd)
+			case "type":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck android type <text>")
+				}
+				text := strings.Join(args[1:], " ")
+				payload := fmt.Sprintf(`{"text":"%s"}`, strings.ReplaceAll(text, `"`, `\"`))
+				return runNodeWithEnv("android_type "+payload, cmd)
+			case "shell":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck android shell <command>")
+				}
+				shellCmd := strings.Join(args[1:], " ")
+				payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(shellCmd, `"`, `\"`))
+				return runNodeWithEnv("android_shell "+payload, cmd)
+			case "dump":
+				query := ""
+				if len(args) > 1 {
+					query = args[1]
+				}
+				payload := fmt.Sprintf(`{"query":"%s"}`, query)
+				return runNodeWithEnv("android_dump "+payload, cmd)
+			case "find":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck android find <text-or-id>")
+				}
+				payload := fmt.Sprintf(`{"query":"%s"}`, args[1])
+				return runNodeWithEnv("android_find_and_tap "+payload, cmd)
+			case "swipe":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck android swipe <direction> [distance]")
+				}
+				dist := "500"
+				if len(args) > 2 {
+					dist = args[2]
+				}
+				payload := fmt.Sprintf(`{"direction":"%s","distance":%s}`, args[1], dist)
+				return runNodeWithEnv("android_swipe "+payload, cmd)
+			case "press":
+				if len(args) < 2 {
+					return fmt.Errorf("Usage: duck android press <key>")
+				}
+				payload := fmt.Sprintf(`{"key":"%s"}`, args[1])
+				return runNodeWithEnv("android_press "+payload, cmd)
+			case "app":
+				if len(args) < 3 {
+					return fmt.Errorf("Usage: duck android app <action> <package>")
+				}
+				payload := fmt.Sprintf(`{"action":"%s","package":"%s"}`, args[1], args[2])
+				return runNodeWithEnv("android_app "+payload, cmd)
+			case "screen":
+				return runNodeWithEnv("android_screen", cmd)
+			case "battery":
+				return runNodeWithEnv("android_battery", cmd)
+			default:
+				return fmt.Errorf("unknown android command: %s. Run 'duck android' for help.", sub)
+			}
+		},
+	}
+	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd)
+	return cmd
 }
