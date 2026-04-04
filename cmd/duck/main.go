@@ -106,6 +106,7 @@ Features:
 		acpServerCmd(),
 		acpSpawnCmd(),
 		updateCmd(),
+		syncCmd(),
 		voiceCmd(),
 		speakCmd(),
 		channelsCmd(),
@@ -391,6 +392,28 @@ func updateCmd() *cobra.Command {
 				return runNodeWithEnv("update check", cmd)
 			}
 			return runNodeWithEnv("update "+args[0], cmd)
+		},
+	}
+	return cmd
+}
+
+// syncCmd - duck sync [action] - File watching, upstream syncing, OpenClaw tandem
+func syncCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sync [action] [args]",
+		Short: "🦆 Sync & watch (watch|status|openclaw|github|tandem)",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("DEBUG: syncCmd called with args:", args)
+			if len(args) == 0 {
+				return runNodeWithEnv("sync status", cmd)
+			}
+			sub := args[0]
+			rest := ""
+			if len(args) > 1 {
+				rest = " " + strings.Join(args[1:], " ")
+			}
+			return runNodeWithEnv("sync "+sub+rest, cmd)
 		},
 	}
 	return cmd
