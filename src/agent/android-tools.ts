@@ -364,9 +364,26 @@ export class AndroidTools {
 
   // ─── Notifications ───────────────────────────────────────────────────────
 
-  async getNotifications(): Promise<string[]> {
-    const { stdout } = await this.shell("dumpsys notification --noredact | grep tickerText | head -20");
-    return stdout.trim().split("\n").filter(Boolean);
+  async getNotifications(): Promise<{app: string, text: string}[]> {
+    const { stdout } = await this.shell("dumpsys notification --noredact | grep -E 'tickerText|pkg=' | head -60");
+    const lines = stdout.trim().split("\n").filter(l => l.includes('tickerText=') || l.includes('pkg='));
+    const notifications: {app: string, text: string}[] = [];
+    let currentApp = 'unknown';
+    for (const line of lines) {
+      if (line.includes('pkg=')) {
+        const match = line.match(/pkg=(\S+)/);
+        if (match) {
+          const pkg = match[1];
+          currentApp = pkg.split('.').pop() || pkg;
+        }
+      } else if (line.includes('tickerText=')) {
+        const text = line.split('tickerText=')[1]?.trim();
+        if (text && text !== 'null') {
+          notifications.push({ app: currentApp, text });
+        }
+      }
+    }
+    return notifications.slice(0, 10);
   }
 
   // ─── File Operations ─────────────────────────────────────────────────────
