@@ -358,9 +358,51 @@ Every tool execution is logged. Track success rates:
 
 ---
 
+## Hybrid Orchestrator v2 (v0.6.0+)
+
+duck-cli v0.6.0+ uses a **Hybrid Orchestrator** for intelligent task routing:
+
+### Task Complexity Scoring
+
+Every task is scored 1-10 across 6 dimensions:
+
+| Dimension | Score | Triggers |
+|-----------|-------|---------|
+| multiStep | +3 | build, create, setup, deploy, implement |
+| hasTradeoffs | +3 | should, compare, versus, pros/cons |
+| ethicalDimension | +2 | ethical, bias, privacy, harm |
+| highStakes | +2 | money, security, password, production |
+| ambiguous | +2 | unclear, help, fix, issue, problem |
+| externalDeps | +1 | api, database, github, android |
+
+### Model Routing
+
+| Task Type | Model | Provider |
+|-----------|-------|----------|
+| Android (tap/swipe/adb) | `gemma-4-e4b-it` | LM Studio (local) |
+| Vision (screenshot/image) | `kimi-k2.5` | Kimi API |
+| Coding (code/bug/fix) | `glm-5` | MiniMax API |
+| Complex reasoning | `MiniMax-M2.7` | MiniMax API |
+| Fast/simple | `qwen3.5-plus` | MiniMax API |
+| Premium reasoning | `gpt-5.4` | ChatGPT OAuth |
+| Free tier | `qwen3.6-plus-preview:free` | OpenRouter |
+
+### AI Council Integration
+
+Tasks with complexity ≥ 7 automatically engage the AI Council for deliberation. The council returns a **verdict** (approve/reject/conditional) with **consensus** (0-1).
+
+```bash
+# Force council deliberation
+duck council "should I...?" --mode legislative
+```
+
+See [docs/MODEL-ROUTING.md](docs/MODEL-ROUTING.md) and [docs/COUNCIL-INTEGRATION.md](docs/COUNCIL-INTEGRATION.md).
+
+---
+
 ## Metadata
 
-- **Version:** 0.4.0
+- **Version:** 0.6.1
 - **License:** MIT
 - **Status:** Active development
-- **Last updated:** 2026-04-01
+- **Last updated:** 2026-04-04

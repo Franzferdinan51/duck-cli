@@ -1,13 +1,16 @@
 # 📱 Termux Setup Guide
 
-> Install and run duck-cli (or full OpenClaw) on Android via Termux.
+> Install and run duck-cli + OpenClaw on Android via Termux.
 
-## Two Options
+**v0.6.1 Note:** For a complete **Solo Agent** setup (both OpenClaw AND duck-cli together with background services), see [SUPER-AGENT-SETUP.md](SUPER-AGENT-SETUP.md). This guide covers individual installations.
+
+## Three Options
 
 | Option | What You Get | Complexity | Use Case |
 |--------|-------------|------------|----------|
-| **Option A: duck-cli on Termux** | duck-cli CLI + Android agent scripts | Easy | Control your phone programmatically |
+| **Option A: duck-cli on Termux** | duck-cli CLI + agent scripts | Easy | Control your phone programmatically |
 | **Option B: OpenClaw-Android** | Full OpenClaw agent with gateway | Medium | Turn phone into AI assistant |
+| **Option C: SOLO AGENT** | OpenClaw + duck-cli together | Medium | Full Hybrid Orchestrator on phone (see SUPER-AGENT-SETUP.md) |
 
 ---
 

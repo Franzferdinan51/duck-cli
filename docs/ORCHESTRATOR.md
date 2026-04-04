@@ -497,8 +497,91 @@ if (!result.success) {
 }
 ```
 
+## Complexity Scoring System (v2)
+
+The orchestrator scores every task 1-10 across **6 dimensions** to determine complexity and route decisions:
+
+### Scoring Dimensions
+
+| Dimension | Score | Keywords That Trigger |
+|-----------|-------|----------------------|
+| **multiStep** | +3 | build, create, setup, configure, install, deploy, implement, architect, orchestrate |
+| **hasTradeoffs** | +3 | should, compare, versus, tradeoff, recommend, pros, cons, choose, decide |
+| **ethicalDimension** | +2 | ethical, moral, bias, privacy, consent, harm, safe, responsible |
+| **highStakes** | +2 | money, cost, security, password, production, destroy, delete, financial |
+| **ambiguous** | +2 | maybe, unclear, unsure, help, fix, issue, problem, broken, not working |
+| **externalDeps** | +1 | api, http, database, github, npm, android, service, server |
+
+### Complexity Zones
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ COMPLEXITY SCORING                                          │
+│                                                             │
+│  1-3  │  ████░░░░░░░░░░░  │ Fast path — direct routing   │
+│       │                     │ qwen3.5-plus / gemma-4        │
+│  4-6  │  ████████░░░░░░░  │ Standard — best model        │
+│       │                     │ glm-5 / qwen3.5-plus          │
+│  7-8  │  ████████████░░░  │ Complex — AI Council          │
+│       │                     │ deliberation required         │
+│  9-10 │  ██████████████  │ Critical — premium model      │
+│       │                     │ gpt-5.4 + full council        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Complexity Analysis Output
+
+```typescript
+interface TaskAnalysis {
+  complexity: number;        // 1-10
+  needsCouncil: boolean;     // Auto-triggered at 7+
+  recommendedModel: string;  // Best model for task
+  reasoning: string;         // Why this score
+  dimensions: TaskDimensions;
+  urgency: 'low' | 'normal' | 'high' | 'critical';
+  estimatedTimeMs: number;   // Expected execution time
+  keywords: string[];         // Matched keywords
+}
+```
+
+### Example Scores
+
+| Task | Dimensions Detected | Score | Route | Council? |
+|------|---------------------|-------|-------|----------|
+| "What's 2+2?" | none | 1 | qwen3.5-plus | No |
+| "Open settings" | android | 2 | gemma-4-e4b-it | No |
+| "Fix this bug" | code + ambiguous | 5 | glm-5 | No |
+| "Build REST API" | multiStep + code | 6 | glm-5 | No |
+| "Should I invest $10K?" | highStakes + tradeoff | 7 | M2.7 + council | **Yes** |
+| "Plan startup exit" | multiStep + highStakes | 9 | gpt-5.4 + council | **Yes** |
+
+### Council Auto-Trigger Conditions
+
+The council **automatically** engages when:
+- Complexity ≥ 7
+- Any ethical dimension detected
+- HighStakes + complexity ≥ 5
+- 3+ recent failures (same task type)
+
+### Debug Complexity Scoring
+
+```bash
+# See full analysis
+DUCK_ORCHESTRATOR_DEBUG=1 duck run "your task here"
+
+# Output includes:
+# [Complexity] Task: "your task"
+# [Complexity] Keywords: [multiStep, android]
+# [Complexity] Score: 4/10
+# [Complexity] Council: No
+# [Complexity] Recommended: gemma-4-e4b-it
+```
+
 ## Related
 
 - [ANDROID-AGENT.md](ANDROID-AGENT.md) — Android tools using orchestrator
 - [OPENCLAW-BRIDGE.md](OPENCLAW-BRIDGE.md) — OpenClaw tools via MCP
 - [COMMANDS.md](COMMANDS.md) — CLI commands for orchestrator
+- [MODEL-ROUTING.md](MODEL-ROUTING.md) — Model selection guide
+- [COUNCIL-INTEGRATION.md](COUNCIL-INTEGRATION.md) — AI Council usage
+- [SUBAGENT-MANAGEMENT.md](SUBAGENT-MANAGEMENT.md) — Parallel subagents

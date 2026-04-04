@@ -2,7 +2,56 @@
 
 Comprehensive Android device control and automation through duck-cli.
 
-## Quick Start
+## Two Operating Modes
+
+duck-cli supports Android in two distinct modes:
+
+| Mode | Where duck-cli Runs | Control Method | Use Case |
+|------|--------------------|----------------|----------|
+| **Solo Agent** | On the phone (Termux) | Phone is autonomous | Phone runs 24/7 as AI agent |
+| **Remote Control** | On Mac/PC | ADB commands | Control phone from desktop |
+
+### Solo Agent Mode (Phone IS the Agent)
+
+The phone runs duck-cli natively in Termux with full Hybrid Orchestrator:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Android Phone (Termux) — SOLO AGENT                   │
+│                                                         │
+│  duck-cli shell --agent                                │
+│    ├── Hybrid Orchestrator (complexity scoring)        │
+│    ├── Model Router (Gemma 4 → Kimi → MiniMax)        │
+│    ├── AI Council Bridge                               │
+│    └── Tool Registry (ADB, termux-api, native)        │
+│                                                         │
+│  Connects to Mac's LM Studio via HTTP                  │
+│  Connects to Mac's OpenClaw Gateway via ACP            │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Setup:** See [SUPER-AGENT-SETUP.md](SUPER-AGENT-SETUP.md) for full installation.
+
+### Remote Control Mode (Mac Controls Phone)
+
+duck-cli runs on Mac and controls phone via ADB:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Mac (duck-cli)              Android Phone              │
+│                                                         │
+│  duck android <cmd>   ────►  ADB commands              │
+│  ├── screenshot       ────►  screencap                  │
+│  ├── tap 360 720      ────►  input tap 360 720         │
+│  └── launch app       ────►  am start                  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Use when:** You want Mac to be the brain, phone is passive.
+
+---
+
+## Quick Start (Remote Control Mode)
 
 ### Connect Device
 ```bash
@@ -17,7 +66,17 @@ adb connect <device-ip>:5555
 duck android devices
 ```
 
-### Basic Commands
+### Solo Agent Mode (Quick Start)
+```bash
+# On the phone (Termux):
+bash ~/start-duck.sh
+
+# Or as background service:
+sv up duck
+termux-wake-lock
+```
+
+### Basic Commands (Remote Control)
 ```bash
 # Device info
 duck android info              # Full info

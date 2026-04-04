@@ -306,6 +306,58 @@ guard_log       // Show approval decision log
 guard_stats     // Show guard statistics
 ```
 
+## Orchestrator Tools (v0.6.0+)
+
+### Complexity & Routing Tools
+```typescript
+complexity_score  // Score task 1-10 across 6 dimensions
+model_recommend   // Get recommended model for task
+route_task        // Full routing decision with confidence
+```
+
+### Council Tools
+```typescript
+council_submit    // Submit task for AI Council deliberation
+council_status   // Check council engagement status
+council_verdict  // Get latest verdict
+council_config   // Configure council settings
+```
+
+### Subagent Tools
+```typescript
+subagent_spawn    // Spawn parallel AI subagent
+subagent_list     // List active subagents
+subagent_status   // Check subagent progress
+subagent_kill     // Kill stuck subagent
+subagent_results  // Collect completed results
+```
+
+### Example: Full Orchestration Flow
+```typescript
+// 1. Score complexity
+const score = await tools.complexity_score("Build a REST API for user auth");
+// score = 6 (multiStep + coding)
+
+// 2. If complex, engage council
+if (score >= 7) {
+  const verdict = await tools.council_submit({
+    task: "Build a REST API for user auth",
+    mode: "legislative"
+  });
+  // verdict.verdict = "approve", verdict.consensus = 0.85
+}
+
+// 3. Route to best model
+const model = await tools.model_recommend("Build a REST API");
+// model = "minimax/glm-5"
+
+// 4. Spawn subagents for parallel work
+const agents = await Promise.all([
+  tools.subagent_spawn({ task: "Write auth endpoints", model }),
+  tools.subagent_spawn({ task: "Write user endpoints", model }),
+]);
+```
+
 ## Adding a New Tool
 
 1. **Edit `src/agent/core.ts`** — find `registerTools()` — find `registerTools()` method

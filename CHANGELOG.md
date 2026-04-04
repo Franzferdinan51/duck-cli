@@ -7,6 +7,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [v0.4.0] — 2026-04-01
 
 
+## [v0.6.1] — 2026-04-04
+
+### Added
+- **Hybrid Orchestrator v2** — Complete rewrite with complexity scoring (1-10) across 6 dimensions
+- **Model Router** — Priority-based routing with 15+ rules for android, vision, coding, reasoning, fast tasks
+- **AI Council Bridge** — Full integration with council deliberation for complexity 7+ tasks
+- **Subagent Manager** — Parallel subagent spawning with monitoring, collection, error handling
+- **Solo Agent Mode** — Phone runs duck-cli natively with full Hybrid Orchestrator
+- **SUPER-AGENT-SETUP.md** — Complete installation guide for Android Termux with one-command install
+- **MODEL-ROUTING.md** — Comprehensive model selection guide with decision trees
+- **COUNCIL-INTEGRATION.md** — AI Council usage guide with modes, verdicts, triggers
+- **SUBAGENT-MANAGEMENT.md** — Parallel subagent patterns and best practices
+
+### Changed
+- **Complexity scoring** now considers: multiStep (+3), hasTradeoffs (+3), ethicalDimension (+2), highStakes (+2), ambiguous (+2), externalDeps (+1)
+- **Model routing** now uses priority-based rules with confidence scores and alternatives
+- **ANDROID-INTEGRATION.md** updated with Solo Agent Mode documentation
+- **TERMUX-SETUP.md** updated with SOLO AGENT option pointing to SUPER-AGENT-SETUP.md
+- **ORCHESTRATOR.md** updated with complexity scoring details
+
+### Fixed
+- Map/Set swap bug in fallback-manager.ts (lines 38-39)
+- FallbackChain not properly exported from tool.ts
+- Git merge conflicts resolved in src/cli/main.ts and src/update/index.ts
+
+---
+
+## [v0.6.0] — 2026-04-04
+
+### Added
+- **Hybrid Orchestrator Core** — Smart task routing combining complexity analysis, model selection, and council integration
+- **Task Complexity Classifier** — 6-dimension scoring system (multiStep, hasTradeoffs, ethicalDimension, highStakes, ambiguous, externalDeps)
+- **Model Router** — Keyword-based routing with Gemma 4 for Android, Kimi for vision, GLM-5 for coding, Qwen for fast tasks
+- **Council Bridge** — Connects orchestrator to AI Council for deliberation on complex/ethical tasks
+- **Subconscious Enhancement** — Whispers with confidence ≥ 0.7 trigger council consideration
+- **android-agent-phone.py** — Run duck-cli agent ON the phone (not just controlling it)
+- **duck-cli-super-agent-setup.sh** — One-command installation script for Android Termux
+
+### Architecture Decisions
+- **Hybrid over Full Council** — Only complexity 7+ triggers council (saves ~2-3 seconds latency)
+- **Two Android Modes** — Solo Agent (phone IS the agent) vs Remote Control (Mac controls phone via ADB)
+- **HTTP for LM Studio** — Phone connects to Mac's LM Studio via HTTP for AI inference
+
+### Key Technical Details
+- Framework > Raw Model: Mobile-use achieves 100% on AndroidWorld via hierarchical agent design, not supermodel
+- AI Council deliberation adds ~2-3 seconds: Not acceptable for simple tasks, perfect for complex ethical decisions
+- Subconscious whispers with confidence ≥ 0.7 trigger council: Good threshold found through testing
+- Phone runs duck-cli via Termux: Agent executes ON phone, connects to Mac's LM Studio via HTTP
+
+---
+
 ## [v0.4.1] — 2026-04-02
 
 ### Added
