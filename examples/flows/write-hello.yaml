@@ -1,0 +1,5 @@
+name: Write Hello World
+---
+# Deterministic flow - no LLM needed
+- shell: echo "Hello from duck-cli flow!"
+- wait: 1

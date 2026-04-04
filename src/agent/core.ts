@@ -21,6 +21,7 @@ import { SpeculativeExecutor, SpeculativeResult, codeQualityScorer, analysisQual
 import { tracer } from '../tracing/execution-tracer.js';
 import { agentCardManager } from '../mesh/agent-card.js';
 import { LoopDetector } from './loop-detector.js';
+import { SessionLogger } from './session-logger.js';
 import { WorkflowRunner } from './workflow-runner.js';
 
 export { Planner, Plan, PlanStep };
@@ -103,6 +104,7 @@ export class Agent extends EventEmitter {
   private learning: LearningLoop;
   private speculative: SpeculativeExecutor;
   private loopDetector: LoopDetector;
+  private sessionLogger: SessionLogger;
   private initialized: boolean = false;
   
   // Conversation
@@ -169,6 +171,7 @@ export class Agent extends EventEmitter {
     this.learning = new LearningLoop(memDir);
     this.speculative = new SpeculativeExecutor(this.providers);
     this.loopDetector = new LoopDetector();
+    this.sessionLogger = new SessionLogger('/tmp/duck-sessions', this.name, 'duck-cli', 'multi-provider');
     
     this.guard.setQuietMode(this.config.quietMode!);
     
@@ -313,6 +316,90 @@ export class Agent extends EventEmitter {
           return { success: false, error: `Screenshot not found. Desktop: ${desktopPath}` };
         } catch (e: any) {
           return { success: false, error: e.message };
+        }
+      }
+    });
+
+    // ─── Screen Reading (DroidClaw-inspired vision) ────────
+    this.registerTool({
+      name: 'screen_read',
+      description: '📸 Take screenshot and analyze it with vision AI to identify UI elements, text, buttons, and layout. ' +
+        'Use this to "see" the desktop screen and understand what elements are visible.',
+      schema: {
+        query: { type: 'string', optional: true, description: 'What to look for: "buttons", "form fields", "errors", or general description' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const fs = await import('fs');
+        const path = await import('path');
+        const platform = osType();
+
+        // Take screenshot
+        const getDesktopPath = () => {
+          if (platform === 'windows') return path.join(homeDir(), 'Desktop');
+          else if (platform === 'darwin') return path.join(homeDir(), 'Desktop');
+          else return process.env.XDG_DESKTOP_DIR || path.join(homeDir(), 'Desktop');
+        };
+
+        const desktopPath = getDesktopPath();
+        const getScreenshotFilter = (filename: string) => {
+          if (platform === 'darwin') return filename.startsWith('Screenshot ') && (filename.endsWith('.png') || filename.endsWith('.jpg'));
+          const lower = filename.toLowerCase();
+          return (lower.includes('screen') || lower.includes('capture')) && (lower.endsWith('.png') || lower.endsWith('.jpg'));
+        };
+
+        const beforeShot = (() => {
+          try {
+            if (!fs.existsSync(desktopPath)) return null;
+            return fs.readdirSync(desktopPath).filter(getScreenshotFilter)
+              .map(f => ({ name: f, mtime: fs.statSync(path.join(desktopPath, f)).mtime }))
+              .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())[0]?.name || null;
+          } catch { return null; }
+        })();
+
+        await this.desktop.screenshot();
+        await new Promise(r => setTimeout(r, 2000));
+
+        const afterShot = (() => {
+          try {
+            if (!fs.existsSync(desktopPath)) return null;
+            return fs.readdirSync(desktopPath).filter(getScreenshotFilter)
+              .map(f => ({ name: f, mtime: fs.statSync(path.join(desktopPath, f)).mtime }))
+              .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())[0]?.name || null;
+          } catch { return null; }
+        })();
+
+        const newShot = afterShot && afterShot !== beforeShot ? afterShot : afterShot;
+        if (!newShot) return { success: false, error: 'Could not capture screenshot' };
+
+        const screenshotPath = path.join(desktopPath, newShot);
+        if (!fs.existsSync(screenshotPath)) return { success: false, error: 'Screenshot file not found' };
+
+        // Read image as base64
+        const imageBuffer = fs.readFileSync(screenshotPath);
+        const base64 = imageBuffer.toString('base64');
+        const ext = path.extname(screenshotPath).toLowerCase().slice(1) || 'png';
+        const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+
+        // Try to analyze with a vision-capable model via the provider
+        try {
+          const query = args.query || 'Describe what you see on screen, including all buttons, text fields, and interactive elements.';
+          const visionResult = await this.providers.analyzeImage(`data:${mimeType};base64,${base64}`, query);
+          return {
+            success: true,
+            screenshot: newShot,
+            path: screenshotPath,
+            analysis: visionResult
+          };
+        } catch (err: any) {
+          // Fallback: return screenshot path for external vision analysis
+          return {
+            success: true,
+            screenshot: newShot,
+            path: screenshotPath,
+            analysis: `Screenshot captured at ${screenshotPath}. Use Kimi k2.5 or GPT-4 Vision to analyze this image for: ${args.query || 'UI elements and layout'}`,
+            hint: 'To enable vision analysis, configure a vision-capable provider (Kimi k2.5, GPT-4o, or Claude 3.5 Sonnet)'
+          };
         }
       }
     });
@@ -535,6 +622,36 @@ export class Agent extends EventEmitter {
         return sessions.map(s => 
           `[${new Date(s.timestamp).toLocaleString()}] ${s.topic}: "${s.lastMessage.slice(0, 80)}..." (${s.messageCount} msgs)`
         ).join('\n');
+      }
+    });
+
+    // ─── Session Logs (DroidClaw-inspired) ────────────────
+    this.registerTool({
+      name: 'session_log',
+      description: '📋 View recent session logs (DroidClaw-style crash-safe logs)',
+      schema: {
+        limit: { type: 'number', optional: true, description: 'Number of recent sessions to show (default: 5)' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { getSessionLogs } = await import('./session-logger.js');
+        const logs = getSessionLogs('/tmp/duck-sessions');
+        if (logs.length === 0) return 'No session logs found';
+        const limit = args.limit || 5;
+        const recent = logs.slice(-limit);
+        const fs = await import('fs');
+        return recent.map(logPath => {
+          try {
+            const data = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+            const status = data.completed ? '✅' : '⏳';
+            return `${status} Session ${data.sessionId}\n` +
+              `  Goal: ${data.goal || 'N/A'}\n` +
+              `  Steps: ${data.totalSteps} (${data.successCount} ✅ / ${data.failCount} ❌)\n` +
+              `  Time: ${new Date(data.startTime).toLocaleString()} → ${new Date(data.endTime).toLocaleString()}\n` +
+              `  Model: ${data.model}\n` +
+              `  File: ${logPath}`;
+          } catch { return `Could not read: ${logPath}`; }
+        }).join('\n\n');
       }
     });
 
@@ -1311,11 +1428,13 @@ export class Agent extends EventEmitter {
           }
           this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
           this.loopDetector.record(call.name, call.args, success);
+          this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: true }, { success: true, message: 'Tool executed successfully', durationMs: tDuration });
           return '\n\n🔧 ' + call.name + ': ' + JSON.stringify(result);
         } catch (e: any) {
           const tDuration = Date.now() - tStart;
           this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
           this.loopDetector.record(call.name, call.args, false);
+          this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: false }, { success: false, message: e.message, durationMs: tDuration });
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
         }
       }));
@@ -1367,6 +1486,7 @@ export class Agent extends EventEmitter {
 
     // Emit session end
     this.streams.sessionEnd(this.sessionId, 'success', Date.now() - startTime, toolsUsed);
+    this.sessionLogger.finalize(true);
 
     return response;
   }
@@ -1443,7 +1563,7 @@ export class Agent extends EventEmitter {
   private buildSystemPrompt(): string {
     const tools = this.tools.list().map(t => `- ${t.name}: ${t.description}`).join('\n');
     const capabilities: string[] = ['Be helpful, practical, concise'];
-    
+
     if (this.config.planningEnabled) capabilities.push('Use plan_create for complex multi-step tasks');
     if (this.config.cronEnabled) capabilities.push('Use cron_create to schedule recurring tasks');
     if (this.config.subagentEnabled) capabilities.push('Use agent_spawn_team to run multiple agents in PARALLEL');
@@ -1451,13 +1571,83 @@ export class Agent extends EventEmitter {
     if (this.learningEnabled) capabilities.push('Use memory_remember to save important information');
     capabilities.push('Use learn_from_feedback after completing tasks');
 
+    // DroidClaw-inspired structured thinking + goal-oriented guidance
+    const thinkingGuide = `
+═══════════════════════════════════════════
+STRUCTURED THINKING (DroidClaw-style)
+═══════════════════════════════════════════
+
+For complex tasks, STRUCTURE your thinking:
+- THINK: Why? Current state and what needs to happen
+- PLAN: Clear 3-5 step plan to achieve the goal
+- DO: Execute tools — one purposeful action at a time
+- REVIEW: Did it work? What changed? What's next?
+
+When calling tools, include a brief thought:
+→ THOUGHT: "I need X because Y. Result will tell me Z."
+→ Then execute the tool.
+
+═══════════════════════════════════════════
+GOAL-ORIENTED THINKING (KEY)
+═══════════════════════════════════════════
+
+Focus on WHAT to accomplish, not rigid step-following.
+If a step fails, ask: "What was the PURPOSE of this step?"
+Then find ANOTHER way to achieve that purpose.
+
+❌ BAD: "I tried 3 times to read the file but it failed."
+✅ GOOD: "The file doesn't exist. Use shell to find it, or try a different path."
+
+═══════════════════════════════════════════
+RECOVERY STRATEGIES (when stuck)
+═══════════════════════════════════════════
+
+1. DIAGNOSE: What specifically failed? (network, auth, syntax, permissions?)
+2. ALTERNATIVE: Is there a DIFFERENT tool that achieves the same goal?
+3. SIMPLIFY: Can I break this into smaller steps?
+4. CHECK: Is the target file/app/resource actually available?
+5. ASK: Use duck_council or spawn a subagent for a second opinion
+6. MOVE ON: If truly stuck, try a completely different approach
+
+═══════════════════════════════════════════
+TOOL USE BEST PRACTICES
+═══════════════════════════════════════════
+
+- NEVER retry the same failing tool more than once — try DIFFERENT approach
+- Silent successes: shell/file_write often succeed without output
+- Multi-step: use plan_create for clarity
+- Parallel: agent_spawn_team for independent tasks (faster)
+- Desktop: desktop_open / desktop_click / desktop_type / screen_read
+- Web: web_search or browser automation
+- Unsure: speculate tool tries multiple approaches automatically
+- Workflows: workflow_run for multi-step goal sequences
+
+═══════════════════════════════════════════
+DESKTOP AUTOMATION PATTERN (DroidClaw-style)
+═══════════════════════════════════════════
+
+For GUI automation, use the observe-then-act pattern:
+1. screen_read → "Describe what you see, focus on [buttons/fields]"
+2. desktop_click → coordinates from the analysis
+3. desktop_type → enter text after focusing a field
+4. screen_read → verify the result
+
+═══════════════════════════════════════════
+PATIENCE WITH LOADING
+═══════════════════════════════════════════
+
+- Network calls: expect 5-15 seconds
+- File operations: usually instant
+- If stuck after 2+ attempts, try a different approach`
+
     return `You are ${this.name}, an advanced AI assistant with autonomous planning, subagent orchestration, and self-improvement.
 
 Capabilities:
 ${tools}
 
 Guidelines:
-${capabilities.join('\n')}`;
+${capabilities.join('\n')}
+${thinkingGuide}`;
   }
 
   private parseToolCalls(text: string): Array<{ name: string; args: any }> {

@@ -1,0 +1,12 @@
+{
+  "name": "Open Website and Research",
+  "description": "Open a website and research a topic",
+  "steps": [
+    {
+      "goal": "Open Chrome/Safari browser and navigate to github.com"
+    },
+    {
+      "goal": "Search for repositories related to AI agents"
+    }
+  ]
+}

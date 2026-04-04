@@ -184,6 +184,45 @@ export class ProviderManager {
   list(): string[] {
     return Array.from(this.providers.keys());
   }
+
+  /**
+   * Analyze an image using a vision-capable model (Kimi k2.5, GPT-4o, etc.)
+   */
+  async analyzeImage(imageData: string, query: string): Promise<string> {
+    // Try vision-capable providers in priority order
+    const visionTargets = [
+      { provider: 'kimi',      model: 'k2p5', label: 'Kimi K2.5 (vision)' },
+      { provider: 'openclaw',  model: 'kimi-k2.5', label: 'OpenClaw Kimi k2.5' },
+      { provider: 'lmstudio',  model: undefined, label: 'LM Studio (vision model)' },
+    ];
+
+    for (const target of visionTargets) {
+      const prov = this.providers.get(target.provider);
+      if (!prov) continue;
+
+      try {
+        // Build vision message in ContentPart format
+        const messages = [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: query },
+              { type: 'image_url', image_url: { url: imageData, detail: 'low' } }
+            ]
+          }
+        ];
+
+        const result = await prov.complete({ model: target.model, messages });
+        if (result.text) {
+          return result.text;
+        }
+      } catch (err) {
+        console.log(`[Vision] ${target.label} failed: ${(err as Error).message}`);
+      }
+    }
+
+    return '[Vision] No vision provider available. Configure Kimi k2.5 or another vision-capable model.';
+  }
 }
 
 class MiniMaxProvider implements Provider {

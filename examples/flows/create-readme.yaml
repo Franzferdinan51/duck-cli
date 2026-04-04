@@ -1,0 +1,6 @@
+name: Create Project README
+---
+# Deterministic flow - no LLM
+- shell: mkdir -p /tmp/duck-flow-demo
+- shell: echo "# Duck CLI Flow Demo\n\nThis file was created by a DroidClaw-style YAML flow." > /tmp/duck-flow-demo/README.md
+- shell: cat /tmp/duck-flow-demo/README.md
