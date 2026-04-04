@@ -1175,6 +1175,13 @@ export class Agent extends EventEmitter {
   // ─── Chat Loop ─────────────────────────────────────────
 
   async chat(message: string): Promise<string> {
+    // DEFENSIVE: Ensure message is always a string before any processing
+    const safeMessage = (() => {
+      if (typeof message === 'string') return message;
+      if (Array.isArray(message)) return JSON.stringify(message);
+      if (typeof message === 'object' && message !== null) return JSON.stringify(message);
+      return String(message);
+    })();
     await this.ensureInitialized();
     this.metrics.totalInteractions++;
     const startTime = Date.now();
@@ -1182,7 +1189,7 @@ export class Agent extends EventEmitter {
     this.sessions.addMessage({
       sessionId: this.sessionId,
       role: 'user',
-      content: message,
+      content: safeMessage,
       timestamp: startTime
     });
 
@@ -1190,7 +1197,7 @@ export class Agent extends EventEmitter {
       return "⚠️ Cost budget exceeded.";
     }
 
-    this.history.push({ role: 'user', content: message, timestamp: startTime });
+    this.history.push({ role: 'user', content: safeMessage, timestamp: startTime });
     
     // Build context with learning loop context
     const context = await this.buildContext();
@@ -1258,7 +1265,7 @@ export class Agent extends EventEmitter {
       const duration = Date.now() - startTime;
       this.learning.trackInteraction({
         sessionId: this.sessionId,
-        input: message,
+        input: safeMessage,
         output: response,
         outcome: this.metrics.failedInteractions === 0 ? 'success' : 'partial',
         toolsUsed,
@@ -1269,7 +1276,7 @@ export class Agent extends EventEmitter {
 
     // Learn from interaction
     if (this.learningEnabled) {
-      this.learnFromInteraction(message, response);
+      this.learnFromInteraction(safeMessage, response);
     }
 
     this.history.push({ role: 'assistant', content: response, timestamp: Date.now() });

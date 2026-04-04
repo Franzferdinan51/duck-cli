@@ -193,14 +193,21 @@ export class LearningLoop extends EventEmitter {
     const id = `int_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     this.interactionCount++;
 
+    // Serialize input/output - SQLite can only bind primitives
+    const inputRaw = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
+    const outputRaw = typeof interaction.output === 'string' ? interaction.output : JSON.stringify(interaction.output);
+    const inputStr = inputRaw.slice(0, 10000);
+    const outputStr = outputRaw.slice(0, 50000);
+    console.log('[DEBUG trackInteraction] typeof interaction.input:', typeof interaction.input, 'inputRaw:', String(inputRaw).substring(0, 50));
+
     this.db.prepare(`
       INSERT INTO interactions (id, session_id, input, output, outcome, tools_used, duration, feedback, timestamp)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       interaction.sessionId,
-      interaction.input.slice(0, 10000),
-      interaction.output.slice(0, 50000),
+      inputStr,
+      outputStr,
       interaction.outcome,
       JSON.stringify(interaction.toolsUsed),
       interaction.duration || null,
@@ -208,11 +215,20 @@ export class LearningLoop extends EventEmitter {
       interaction.timestamp
     );
 
+    // Create stringified version for downstream functions that expect strings
+    const stringifiedInteraction: Interaction = {
+      ...interaction,
+      id,
+      input: inputStr,
+      output: outputStr
+    };
+    console.log('[DEBUG stringify] typeof stringifiedInteraction.input:', typeof stringifiedInteraction.input, 'value:', String(stringifiedInteraction.input).substring(0, 30));
+
     // Run learning analysis on this interaction
-    this.analyzeInteraction({ ...interaction, id });
+    this.analyzeInteraction(stringifiedInteraction);
 
     // Maybe nudge
-    this.maybeNudge({ ...interaction, id });
+    this.maybeNudge(stringifiedInteraction);
 
     return id;
   }
@@ -235,9 +251,34 @@ export class LearningLoop extends EventEmitter {
   // ─── Learning Analysis ────────────────────────────────────
 
   private analyzeInteraction(interaction: Interaction): void {
-    // Extract key phrases and patterns
-    const inputLower = interaction.input.toLowerCase();
-    const outputLower = interaction.output.toLowerCase();
+    // DEFENSIVE: Force input to be a string at all costs
+    let inputStr: string;
+    try {
+      if (typeof interaction.input === 'string') {
+        inputStr = interaction.input;
+      } else if (Array.isArray(interaction.input)) {
+        inputStr = JSON.stringify(interaction.input);
+      } else if (typeof interaction.input === 'object' && interaction.input !== null) {
+        inputStr = JSON.stringify(interaction.input);
+      } else {
+        inputStr = String(interaction.input);
+      }
+    } catch {
+      inputStr = '[unstringifiable input]';
+    }
+    let outputStr: string;
+    try {
+      if (typeof interaction.output === 'string') {
+        outputStr = interaction.output;
+      } else {
+        outputStr = JSON.stringify(interaction.output);
+      }
+    } catch {
+      outputStr = '[unstringifiable output]';
+    }
+    console.log('[DEBUG analyzeInteraction] inputStr type:', typeof inputStr, 'value:', String(inputStr).substring(0, 30));
+    const inputLower = inputStr.toLowerCase();
+    const outputLower = outputStr.toLowerCase();
 
     // Detect complex tasks (multi-step)
     if (interaction.toolsUsed.length > 3 || interaction.duration > 60000) {
@@ -246,7 +287,7 @@ export class LearningLoop extends EventEmitter {
 
     // Detect repeated patterns
     if (interaction.outcome === 'success') {
-      this.updatePatternConfidence(inputLower, interaction.output);
+      this.updatePatternConfidence(inputLower, outputStr);
     }
 
     // Detect failures and learn from them
@@ -255,14 +296,16 @@ export class LearningLoop extends EventEmitter {
     }
 
     // Extract preferences from casual language
-    if (interaction.input.includes('I prefer') || interaction.input.includes('I like') || interaction.input.includes("don't like")) {
-      this.extractPreference(interaction.input);
+    if (inputStr.includes('I prefer') || inputStr.includes('I like') || inputStr.includes("don't like")) {
+      this.extractPreference(inputStr);
     }
   }
 
   private maybeCreateLearnedSkill(interaction: Interaction): void {
-    const inputLower = interaction.input.toLowerCase();
-    const outputLower = interaction.output.toLowerCase();
+    const inputStr = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
+    const outputStr = typeof interaction.output === 'string' ? interaction.output : JSON.stringify(interaction.output);
+    const inputLower = inputStr.toLowerCase();
+    const outputLower = outputStr.toLowerCase();
 
     // Check if we already have a similar skill
     const existing = this.db.prepare(`
@@ -290,7 +333,7 @@ export class LearningLoop extends EventEmitter {
     // Create a new learned skill if the task was complex and successful
     if (interaction.outcome === 'success' && interaction.toolsUsed.length >= 2) {
       const id = `lskill_${Date.now()}`;
-      const trigger = this.extractTriggerPhrase(interaction.input);
+      const trigger = this.extractTriggerPhrase(inputStr);
       const actions = interaction.toolsUsed.slice(0, 5);
 
       if (trigger && trigger.length > 10) {
@@ -334,16 +377,18 @@ export class LearningLoop extends EventEmitter {
   }
 
   private learnFromFailure(interaction: Interaction): void {
+    const inputStr = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
+    
     // Create a warning nudge if the same task failed before
     const recentFailures = this.db.prepare(`
       SELECT COUNT(*) as c FROM interactions
       WHERE input LIKE ? AND outcome = 'failed' AND timestamp > ?
-    `).get(`%${interaction.input.slice(0, 50)}%`, Date.now() - 86400000) as any;
+    `).get(`%${inputStr.slice(0, 50)}%`, Date.now() - 86400000) as any;
 
     if (recentFailures.c >= 2) {
       this.createNudge({
         type: 'warn',
-        content: `Task "${interaction.input.slice(0, 100)}" has failed multiple times. Consider a different approach.`,
+        content: `Task "${inputStr.slice(0, 100)}" has failed multiple times. Consider a different approach.`,
         reason: `Failed ${recentFailures.c + 1} times in recent history`,
         priority: 'high',
         triggeredBy: interaction.id
@@ -385,7 +430,8 @@ export class LearningLoop extends EventEmitter {
 
     for (const skill of skills) {
       const triggerWords = skill.trigger.toLowerCase().split(/\s+/);
-      const inputLower = interaction.input.toLowerCase();
+      const inputStr = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
+      const inputLower = inputStr.toLowerCase();
       const matches = triggerWords.filter((w: string) => inputLower.includes(w)).length;
 
       if (matches >= 2) {
@@ -490,7 +536,8 @@ export class LearningLoop extends EventEmitter {
   private maybeNudge(interaction: Interaction): void {
     if (Date.now() - this.lastNudge < this.nudgeCooldown) return;
 
-    const inputLower = interaction.input.toLowerCase();
+    const inputStr = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
+    const inputLower = inputStr.toLowerCase();
     const nudge = this.generateNudge(interaction);
 
     if (!nudge) return;
@@ -503,12 +550,14 @@ export class LearningLoop extends EventEmitter {
   }
 
   private generateNudge(interaction: Interaction): Omit<KnowledgeNudge, 'id' | 'createdAt' | 'applied' | 'ignored'> | null {
-    const inputLower = interaction.input.toLowerCase();
-    const outputLower = interaction.output.toLowerCase();
+    const inputStr = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
+    const outputStr = typeof interaction.output === 'string' ? interaction.output : JSON.stringify(interaction.output);
+    const inputLower = inputStr.toLowerCase();
+    const outputLower = outputStr.toLowerCase();
 
     // After complex task → suggest remembering
     if (interaction.toolsUsed.length >= 4 && interaction.outcome === 'success') {
-      const keyInfo = this.extractKeyOutcome(interaction.input, interaction.output);
+      const keyInfo = this.extractKeyOutcome(inputStr, outputStr);
       if (keyInfo) {
         return {
           type: 'remember',
@@ -522,7 +571,7 @@ export class LearningLoop extends EventEmitter {
 
     // After repeated successful pattern → learn
     if (interaction.outcome === 'success') {
-      const pattern = this.detectPattern(interaction.input, interaction.sessionId);
+      const pattern = this.detectPattern(inputStr, interaction.sessionId);
       if (pattern && pattern.count >= 3) {
         return {
           type: 'learn',
@@ -536,7 +585,7 @@ export class LearningLoop extends EventEmitter {
 
     // User mentions preference → remember it
     if (inputLower.includes('prefer') || inputLower.includes('like') || inputLower.includes('always')) {
-      const pref = this.extractPreferencePhrase(interaction.input);
+      const pref = this.extractPreferencePhrase(inputStr);
       if (pref) {
         return {
           type: 'prefer',

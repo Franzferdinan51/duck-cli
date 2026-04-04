@@ -212,7 +212,7 @@ class MiniMaxProvider implements Provider {
           { role: 'system', content: combinedSystem },
           ...nonSystem.map((m: any) => ({
             role: m.role,
-            content: typeof m.content === 'string' ? m.content.trimEnd() : m.content
+            content: typeof m.content === 'string' ? m.content.trimEnd() : (Array.isArray(m.content) ? JSON.stringify(m.content) : m.content)
           }))
         ];
         const model = opts.model || 'MiniMax-M2.7';
@@ -278,12 +278,10 @@ class LMStudioProvider implements Provider {
   async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
     const makeRequest = async (): Promise<{ text?: string; toolCalls?: any[]; error?: string }> => {
       try {
-        // Use native LM Studio v1 API for MCP support
-        // /v1/chat/completions = OpenAI compat = NO MCP
-        // /api/v1/chat = Native LM Studio = YES MCP
-        const endpoint = this.url.includes('/api/v1') ? this.url : this.url.replace('/v1', '/api/v1');
+        // Use OpenAI-compatible endpoint (/v1/chat/completions) - works perfectly
+        const endpoint = this.url.includes('/v1/chat/completions') ? this.url : `${this.url.replace('/api/v1', '').replace('/v1', '')}/v1/chat/completions`;
         
-        const res = await fetch(`${endpoint}/chat`, {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -292,7 +290,7 @@ class LMStudioProvider implements Provider {
           body: JSON.stringify({
             model: opts.model || 'local-model',
             messages: opts.messages,
-            tools: opts.tools,  // Pass through tools for MCP support
+            tools: opts.tools,
             stream: false
           })
         });
@@ -304,10 +302,10 @@ class LMStudioProvider implements Provider {
 
         const data: any = await res.json();
         
-        // Handle native LM Studio response format
+        // Handle OpenAI-compatible response format
         const message = data.message || data.choices?.[0]?.message || {};
         const content = message.content || '';
-        const toolCalls = message.toolCalls || [];
+        const toolCalls = message.tool_calls || message.toolCalls || [];
         
         return { 
           text: content, 

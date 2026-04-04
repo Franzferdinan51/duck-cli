@@ -105,6 +105,10 @@ export class SessionStore {
   addMessage(msg: Omit<SessionMessage, 'id'>): string {
     const id = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     
+    // Serialize content - SQLite can only bind primitives, not arrays/objects
+    const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+    console.log('[DEBUG] addMessage called, content type:', typeof msg.content, 'contentStr type:', typeof contentStr);
+    
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, session_id, role, content, tool_name, tool_result, timestamp, tokens, cost)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -113,7 +117,7 @@ export class SessionStore {
       id,
       msg.sessionId,
       msg.role,
-      msg.content,
+      contentStr,
       msg.toolName || null,
       msg.toolResult || null,
       msg.timestamp,
@@ -121,9 +125,11 @@ export class SessionStore {
       msg.cost || null
     );
 
-    // Update FTS
-    this.db.prepare(`INSERT INTO sessions_fts(rowid, session_id, role, content) VALUES (last_insert_rowid(), ?, ?, ?)`)
-      .run(msg.sessionId, msg.role, msg.content);
+    // Update FTS (only if content is string - FTS doesn't handle arrays)
+    if (typeof msg.content === 'string') {
+      this.db.prepare(`INSERT INTO sessions_fts(rowid, session_id, role, content) VALUES (last_insert_rowid(), ?, ?, ?)`)
+        .run(msg.sessionId, msg.role, msg.content);
+    }
 
     // Update or create summary
     this.upsertSummary(msg.sessionId);

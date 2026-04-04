@@ -165,7 +165,11 @@ export class Gateway extends EventEmitter {
           
           const { messages } = JSON.parse(body);
           const lastMessage = messages[messages.length - 1];
-          const response = await this.agent.think(lastMessage.content);
+          // Handle vision content (array format) - serialize to string for agent
+          const messageContent = typeof lastMessage.content === 'string' 
+            ? lastMessage.content 
+            : JSON.stringify(lastMessage.content);
+          const response = await this.agent.think(messageContent);
           
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
