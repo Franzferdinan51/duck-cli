@@ -11,8 +11,9 @@ import {
   RetryConfig,
   ExecutionContext,
   AllToolsFailedError,
+  FallbackChain,
 } from './tool.js';
-import { FallbackManager, FallbackChain } from './fallback-manager.js';
+import { FallbackManager } from './fallback-manager.js';
 
 export interface ExecutionOptions {
   timeout?: number;

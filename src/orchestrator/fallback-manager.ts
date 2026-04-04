@@ -36,7 +36,7 @@ export type FallbackEventHandler = (event: FallbackEvent) => void;
 
 export class FallbackManager {
   private strategies: Map<string, FallbackStrategy> = new Map();
-  private eventHandlers: Set<FallbackEventHandler> = new Map();
+  private eventHandlers: Set<FallbackEventHandler> = new Set();
   private defaultStrategy: string = 'priority';
 
   constructor() {

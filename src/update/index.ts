@@ -1,146 +1,316 @@
 /**
- * 🦆 Learning Update System - Main Index
- * 
- * Complete learning update system that:
- * - Tracks update history and outcomes
- * - Classifies updates by type and risk
- * - Predicts success probability based on learned patterns
- * - Adapts update strategy based on historical data
- * - Gathers feedback and continuously improves
- * - Sends smart notifications based on update characteristics
+ * 🦆 Duck CLI - Integration Sync System
+ * Orchestrates all sync modules and provides unified sync commands
  */
 
-export * from './update-memory.js';
-export * from './update-classifier.js';
-export * from './success-predictor.js';
-export * from './adaptive-strategy.js';
-export * from './feedback-loop.js';
-export * from './smart-notifications.js';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import {
+  SyncModule,
+  SyncResult,
+  SyncStatus,
+  Change,
+  SyncState,
+  SyncOptions,
+} from './types.js';
 
-import { updateMemory, type LearningStats } from './update-memory.js';
-import { updateClassifier, type ClassifiedUpdate } from './update-classifier.js';
-import { successPredictor, type SuccessPrediction } from './success-predictor.js';
-import { adaptiveStrategy } from './adaptive-strategy.js';
-import { feedbackLoop } from './feedback-loop.js';
-import { smartNotifications } from './smart-notifications.js';
+// Import all sync modules
+import { OpenClawSync, openclawSync } from './openclaw-sync.js';
+import { HermesSync, hermesSync } from './hermes-sync.js';
+import { NeMoClawSync, nemoclawSync } from './nemoclaw-sync.js';
+import { DroidClawSync, droidclawSync } from './droidclaw-sync.js';
+import { ClaudeCodeSync, claudeCodeSync } from './claude-code-sync.js';
+import { AgentMeshSync, agentMeshSync } from './agent-mesh-sync.js';
+import { PretextSync, pretextSync } from './pretext-sync.js';
+import { CopilotKitSync, copilotkitSync } from './copilotkit-sync.js';
+import { AICouncilSync, aiCouncilSync } from './ai-council-sync.js';
 
-export async function analyzeUpdate(
-  source: string,
-  currentVersion: string,
-  newVersion: string,
-  changelog: string,
-  dependencies: string[] = []
-): Promise<{
-  classification: ClassifiedUpdate;
-  prediction: SuccessPrediction;
-  strategy: ReturnType<typeof adaptiveStrategy.generateStrategy>;
-}> {
-  const classification = updateClassifier.classify(changelog, currentVersion, newVersion, source);
-  const prediction = successPredictor.predict(source, currentVersion, newVersion, classification, dependencies);
-  const strategy = adaptiveStrategy.generateStrategy(classification, prediction);
-  const notification = smartNotifications.createNotification(source, newVersion, classification, prediction, strategy);
-  if (notification) smartNotifications.queue(notification);
-  return { classification, prediction, strategy };
-}
-
-export async function recordUpdateOutcome(
-  source: string,
-  version: string,
-  success: boolean,
-  issues: string[] = [],
-  duration?: number,
-  error?: string
-): Promise<void> {
-  await feedbackLoop.gatherFeedback({
-    source,
-    version,
-    success,
-    timestamp: new Date(),
-    duration: duration || 0,
-    issues,
-    lessons: [],
-    error
-  });
-}
-
-export function getLearningStats(): LearningStats & {
-  strategyConfig: ReturnType<typeof adaptiveStrategy.getConfig>;
-  notificationPrefs: ReturnType<typeof smartNotifications.getPrefs>;
-} {
-  return {
-    ...updateMemory.getStats(),
-    strategyConfig: adaptiveStrategy.getConfig(),
-    notificationPrefs: smartNotifications.getPrefs()
-  };
-}
-
-export const formatters = {
-  formatStats(stats: LearningStats): string {
-    const lines: string[] = [];
-    lines.push('\n🦆 Learning Update Stats');
-    lines.push('═'.repeat(50));
-    lines.push(`Total Updates: ${stats.totalUpdates}`);
-    lines.push(`Success Rate: ${(stats.successRate * 100).toFixed(1)}%`);
-    lines.push(`  ✓ Successful: ${stats.successfulUpdates}`);
-    lines.push(`  ✗ Failed: ${stats.failedUpdates}`);
-    lines.push(`  ↩️ Rollbacks: ${stats.rollbackCount}`);
-    lines.push(`  📚 Lessons Learned: ${stats.learningCount}`);
-    if (stats.lastUpdate) lines.push(`Last Update: ${stats.lastUpdate.toLocaleString()}`);
-    if (stats.mostCommonIssues.length > 0) {
-      lines.push('\nMost Common Issues:');
-      stats.mostCommonIssues.forEach((issue, i) => lines.push(`  ${i + 1}. ${issue}`));
-    }
-    if (stats.patternInsights.length > 0) {
-      lines.push('\nPattern Insights:');
-      stats.patternInsights.forEach(insight => {
-        lines.push(`  • ${insight.pattern}`);
-        lines.push(`    Success: ${(insight.successRate * 100).toFixed(0)}%`);
-        lines.push(`    → ${insight.recommendation}`);
-      });
-    }
-    lines.push('═'.repeat(50) + '\n');
-    return lines.join('\n');
-  },
-
-  formatHistory(memories: ReturnType<typeof updateMemory.getAll>): string {
-    if (memories.length === 0) return 'No update history yet.\n';
-    const lines: string[] = [];
-    lines.push('\n🦆 Update History');
-    lines.push('═'.repeat(50));
-    const sorted = [...memories].sort((a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    for (const memory of sorted.slice(0, 20)) {
-      const status = memory.success ? '✓' : '✗';
-      const rollback = memory.rollbackPerformed ? ' ↩️' : '';
-      lines.push(`\n${status} ${memory.source}@${memory.version} (${new Date(memory.timestamp).toLocaleDateString()})${rollback}`);
-      if (memory.issues.length > 0) lines.push(`  Issues: ${memory.issues.slice(0, 2).join(', ')}`);
-      if (memory.lessons.length > 0) lines.push(`  Learned: ${memory.lessons[0].substring(0, 60)}...`);
-    }
-    if (sorted.length > 20) lines.push(`\n... and ${sorted.length - 20} more`);
-    lines.push('\n' + '═'.repeat(50) + '\n');
-    return lines.join('\n');
-  },
-
-  formatStrategy(strategy: ReturnType<typeof adaptiveStrategy.generateStrategy>): string {
-    const lines: string[] = [];
-    lines.push('\n🦆 Update Strategy');
-    lines.push('═'.repeat(50));
-    lines.push(`Should Update: ${strategy.shouldUpdate ? '✓' : '✗'} (${strategy.approach})`);
-    lines.push(`Estimated Risk: ${(strategy.estimatedRisk * 100).toFixed(0)}%`);
-    lines.push(`Estimated Time: ${strategy.estimatedTime} minutes`);
-    if (strategy.warnings.length > 0) {
-      lines.push('\nWarnings:');
-      strategy.warnings.forEach(w => lines.push(`  ${w}`));
-    }
-    lines.push('\nSteps:');
-    strategy.steps.forEach(step => lines.push(`  ${step}`));
-    lines.push(`\nRollback: ${strategy.rollbackPlan}`);
-    if (strategy.monitoringPlan.length > 0) {
-      lines.push('\nMonitoring:');
-      strategy.monitoringPlan.forEach(m => lines.push(`  • ${m}`));
-    }
-    lines.push('\n' + '═'.repeat(50) + '\n');
-    return lines.join('\n');
-  }
+// Registry of all sync modules
+export const syncModules: Record<string, SyncModule> = {
+  openclaw: openclawSync,
+  hermes: hermesSync,
+  nemoclaw: nemoclawSync,
+  droidclaw: droidclawSync,
+  'claude-code': claudeCodeSync,
+  'agent-mesh': agentMeshSync,
+  pretext: pretextSync,
+  copilotkit: copilotkitSync,
+  'ai-council': aiCouncilSync,
 };
+
+// Sync module metadata
+export const syncModuleInfo: Record<string, { name: string; source: string; repo: string; description: string }> = {
+  openclaw: {
+    name: 'OpenClaw',
+    source: 'OpenClaw',
+    repo: 'https://github.com/openclaw/openclaw',
+    description: 'ACP/MCP protocols, Gateway API, Skills system, Security hardening',
+  },
+  hermes: {
+    name: 'Hermes-Agent',
+    source: 'Hermes-Agent',
+    repo: 'https://github.com/NousResearch/hermes-agent',
+    description: 'Learning loops, FTS5 memory, Subagent RPC, Cron scheduling',
+  },
+  nemoclaw: {
+    name: 'NeMoClaw',
+    source: 'NeMoClaw',
+    repo: 'https://github.com/NVIDIA/NeMoClaw',
+    description: 'Security sandboxing, Blueprint management, DGX Spark support',
+  },
+  droidclaw: {
+    name: 'DroidClaw',
+    source: 'DroidClaw',
+    repo: 'https://github.com/unitedbyai/droidclaw',
+    description: 'Android automation, ADB commands, Device management',
+  },
+  'claude-code': {
+    name: 'Claude Code',
+    source: 'Claude Code',
+    repo: 'https://github.com/anthropics/claude-code',
+    description: 'Tool implementations (read, write, edit, bash, grep, LSP)',
+  },
+  'agent-mesh': {
+    name: 'Agent Mesh API',
+    source: 'Agent Mesh API',
+    repo: 'https://github.com/Franzferdinan51/agent-mesh-api',
+    description: 'Multi-agent communication, Mesh networking',
+  },
+  pretext: {
+    name: 'Pretext',
+    source: 'Pretext',
+    repo: 'https://github.com/chenglou/pretext',
+    description: 'Text measurement for Canvas rendering',
+  },
+  copilotkit: {
+    name: 'CopilotKit',
+    source: 'CopilotKit',
+    repo: 'https://github.com/CopilotKit/CopilotKit',
+    description: 'UI components and Copilot integration',
+  },
+  'ai-council': {
+    name: 'AI Council',
+    source: 'AI-Bot-Council-Concensus',
+    repo: 'https://github.com/Franzferdinan51/AI-Bot-Council-Concensus',
+    description: 'Multi-agent deliberation, Consensus building',
+  },
+};
+
+/**
+ * 🦆 Sync Orchestrator
+ * Manages all sync operations across all sources
+ */
+export class SyncOrchestrator {
+  private homeDir: string;
+  private statePath: string;
+
+  constructor(homeDir?: string) {
+    this.homeDir = homeDir || process.cwd();
+    this.statePath = join(this.homeDir, '.duck', 'sync-state.json');
+  }
+
+  /**
+   * Get list of all sync modules with their status
+   */
+  listSources(): Array<{ name: string; info: typeof syncModuleInfo[string]; status: SyncStatus }> {
+    return Object.entries(syncModules).map(([name, module]) => ({
+      name,
+      info: syncModuleInfo[name],
+      status: module.getStatus(),
+    }));
+  }
+
+  /**
+   * Get sync status for all sources
+   */
+  getAllStatus(): Record<string, SyncStatus> {
+    const statuses: Record<string, SyncStatus> = {};
+
+    for (const [name, module] of Object.entries(syncModules)) {
+      statuses[name] = module.getStatus();
+    }
+
+    return statuses;
+  }
+
+  /**
+   * Get global sync state
+   */
+  getGlobalState(): SyncState['global'] {
+    try {
+      if (existsSync(this.statePath)) {
+        const state: SyncState = JSON.parse(readFileSync(this.statePath, 'utf-8'));
+        return state.global;
+      }
+    } catch {}
+
+    return {
+      lastGlobalSync: null,
+      totalSyncs: 0,
+      successfulSyncs: 0,
+      failedSyncs: 0,
+    };
+  }
+
+  /**
+   * Sync from a specific source
+   */
+  async syncSource(name: string, options: SyncOptions = {}): Promise<SyncResult> {
+    const module = syncModules[name];
+
+    if (!module) {
+      return {
+        success: false,
+        source: name,
+        changesFound: 0,
+        changesApplied: 0,
+        conflicts: [],
+        errors: [`Unknown sync source: ${name}`],
+        duration: 0,
+        timestamp: new Date(),
+      };
+    }
+
+    if (options.verbose) {
+      console.log(`\n🔄 Syncing ${module.name}...`);
+    }
+
+    return await module.sync();
+  }
+
+  /**
+   * Sync from all sources
+   */
+  async syncAll(options: SyncOptions = {}): Promise<SyncResult[]> {
+    const results: SyncResult[] = [];
+
+    if (options.verbose) {
+      console.log('\n🌀 Starting global sync...\n');
+    }
+
+    for (const [name, module] of Object.entries(syncModules)) {
+      if (options.target && options.target !== name) continue;
+
+      try {
+        const result = await this.syncSource(name, options);
+        results.push(result);
+
+        if (options.verbose) {
+          const icon = result.success ? '✅' : '❌';
+          console.log(`  ${icon} ${module.name}: ${result.changesApplied}/${result.changesFound} changes`);
+        }
+      } catch (e) {
+        results.push({
+          success: false,
+          source: name,
+          changesFound: 0,
+          changesApplied: 0,
+          conflicts: [],
+          errors: [e instanceof Error ? e.message : 'Unknown error'],
+          duration: 0,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    if (options.verbose) {
+      console.log('\n🌀 Global sync complete!\n');
+    }
+
+    return results;
+  }
+
+  /**
+   * Get changes from a specific source without applying
+   */
+  async getChanges(name: string): Promise<Change[]> {
+    const module = syncModules[name];
+    if (!module) return [];
+    return await module.getChanges();
+  }
+
+  /**
+   * Get changes from all sources
+   */
+  async getAllChanges(): Promise<Change[]> {
+    const allChanges: Change[] = [];
+
+    for (const [, module] of Object.entries(syncModules)) {
+      const changes = await module.getChanges();
+      allChanges.push(...changes);
+    }
+
+    return allChanges;
+  }
+
+  /**
+   * Format sync results as a readable string
+   */
+  formatResults(results: SyncResult[]): string {
+    let output = '\n📊 Sync Results\n';
+    output += '─'.repeat(50) + '\n';
+
+    let totalChanges = 0;
+    let totalApplied = 0;
+    let successCount = 0;
+
+    for (const result of results) {
+      const icon = result.success ? '✅' : '❌';
+      output += `${icon} ${syncModuleInfo[result.source]?.name || result.source}\n`;
+      output += `   Changes: ${result.changesApplied}/${result.changesFound}\n`;
+      output += `   Duration: ${result.duration}ms\n`;
+
+      if (result.errors.length > 0) {
+        output += `   Errors: ${result.errors.join(', ')}\n`;
+      }
+
+      if (result.conflicts.length > 0) {
+        output += `   Conflicts: ${result.conflicts.length}\n`;
+      }
+
+      totalChanges += result.changesFound;
+      totalApplied += result.changesApplied;
+      if (result.success) successCount++;
+    }
+
+    output += '─'.repeat(50) + '\n';
+    output += `Total: ${successCount}/${results.length} succeeded\n`;
+    output += `Changes: ${totalApplied}/${totalChanges} applied\n`;
+
+    return output;
+  }
+
+  /**
+   * Format status as a readable table
+   */
+  formatStatus(): string {
+    const sources = this.listSources();
+    const global = this.getGlobalState();
+
+    let output = '\n🔄 Integration Sync Status\n';
+    output += '─'.repeat(60) + '\n';
+    output += `Last Global Sync: ${global.lastGlobalSync ? new Date(global.lastGlobalSync).toLocaleString() : 'Never'}\n`;
+    output += `Total Syncs: ${global.totalSyncs} | ✅ ${global.successfulSyncs} | ❌ ${global.failedSyncs}\n`;
+    output += '─'.repeat(60) + '\n';
+    output += 'Source              | Status    | Last Sync            | Behind\n';
+    output += '─'.repeat(60) + '\n';
+
+    for (const { name, info, status } of sources) {
+      const statusStr = status.available ? (status.lastSync ? 'Synced' : 'Pending') : 'N/A';
+      const lastSyncStr = status.lastSync ? new Date(status.lastSync).toLocaleDateString() : 'Never';
+      const behindStr = status.commitsBehind > 0 ? `${status.commitsBehind}` : '-';
+
+      output += `${info.name.padEnd(19)} | ${statusStr.padEnd(9)} | ${lastSyncStr.padEnd(20)} | ${behindStr}\n`;
+    }
+
+    output += '─'.repeat(60) + '\n';
+
+    return output;
+  }
+}
+
+// Export singleton instance
+export const syncOrchestrator = new SyncOrchestrator();
+
+// Export types
+export { SyncModule, SyncResult, SyncStatus, Change, Conflict, SyncState, SyncOptions } from './types.js';

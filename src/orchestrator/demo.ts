@@ -10,7 +10,7 @@ import {
   Task,
   ToolResult,
   getOrchestrator,
-} from './orchestrator/index.js';
+} from './index.js';
 
 async function main() {
   console.log('🦆 duck-cli v2 Orchestrator Demo\n');

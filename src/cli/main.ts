@@ -162,7 +162,6 @@ async function main() {
     case 'sync': {
       const { createSyncCommand } = await import('../commands/sync-cli.js');
       const sync = createSyncCommand();
-      // Don't include 'sync' in parse args - Commander uses the Command name automatically
       sync.parse(['node', 'duck', ...args]);
       break;
     }

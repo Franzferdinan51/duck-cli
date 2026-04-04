@@ -1,6 +1,6 @@
 /**
  * Duck Agent Subconscious - Type Definitions
- * Claude Subconscious-style but WITHOUT Letta
+ * Claude Subconscious-style but WITHOUT Letta - WITH AI Council integration
  */
 
 // Pattern detected in session history
@@ -12,12 +12,28 @@ export interface Pattern {
   confidence: number;
 }
 
+// AI Council decision
+export interface CouncilDecision {
+  topic: string;
+  verdict: string;
+  confidence: number;
+  reasoning: string;
+  councilors: string[];
+  duration: number;
+  timestamp: Date;
+}
+
 // Whisper generated before action
 export interface Whisper {
-  type: 'keyword' | 'pattern' | 'time' | 'frustration' | 'kairos';
+  type: 'keyword' | 'pattern' | 'time' | 'frustration' | 'kairos' | 'council';
   message: string;
   confidence: number;
   timestamp: Date;
+  metadata?: {
+    reasoning?: string;
+    councilors?: string[];
+    duration?: number;
+  };
 }
 
 // Memory stored in native system
@@ -35,6 +51,8 @@ export interface SubconsciousConfig {
   whisperInterval: number;
   maxMemories: number;
   patternThreshold: number;
+  councilEnabled?: boolean;
+  councilThreshold?: number;
 }
 
 // Session context for whisper generation
