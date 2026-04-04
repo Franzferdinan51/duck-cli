@@ -1,6 +1,6 @@
 # 🦆 duck-cli
 
-> **Unified Super Agent** — Local AI + Android Control via ADB + OpenClaw Bridge + Hybrid Orchestrator v2
+> **Unified Super Agent** — Local AI Agent with Android Integration via ADB + OpenClaw Bridge + Hybrid Orchestrator v2
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,8 +11,8 @@
 
 ## 🎯 What is duck-cli?
 
-**duck-cli** is a unified AI agent CLI that:
-1. **Runs natively on Mac/Linux/Windows AND Android (Termux)** - the agent executes ON your device
+**duck-cli** is a unified AI agent CLI (and it happens to be really good for Android automation):
+1. **General-purpose AI agent** - runs on Mac/Linux/Windows, with native Android support
 2. **Controls Android devices via ADB** when needed from desktop
 3. **Connects to OpenClaw gateway** for ACP/MCP/Agent Mesh
 4. **Uses Hybrid Orchestrator Core** with smart routing + AI Council deliberation
