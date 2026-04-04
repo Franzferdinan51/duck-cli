@@ -627,6 +627,11 @@ export class Agent extends EventEmitter {
           // Wait for all agents with error isolation (Promise.allSettled)
           const settled = await Promise.allSettled(agentIds.map(id => this.subagents.waitFor(id, 300000)));
           
+          // Clean up completed agents to prevent memory leak
+          for (const id of agentIds) {
+            this.subagents.removeAgent(id);
+          }
+          
           const results = settled.map((result, i) => {
             if (result.status === 'fulfilled') {
               return result.value;
@@ -676,9 +681,12 @@ export class Agent extends EventEmitter {
         handler: async (args: any) => {
           try {
             const agent = await this.subagents.waitFor(args.agentId, args.timeout || 300000);
-            return `[${agent.status.toUpperCase()}] ${agent.id}\n` +
+            const result = `[${agent.status.toUpperCase()}] ${agent.id}\n` +
               (agent.result ? `Result:\n${agent.result.slice(0, 500)}` : '') +
               (agent.error ? `Error: ${agent.error}` : '');
+            // Clean up agent to prevent memory leak
+            this.subagents.removeAgent(args.agentId);
+            return result;
           } catch (e: any) {
             return `Wait failed: ${e.message}`;
           }
@@ -1226,6 +1234,10 @@ export class Agent extends EventEmitter {
               this.streams.thinking(this.sessionId, 'Waiting for ' + agentIds.length + ' parallel agents...');
               // Wait for agents with error isolation
               const settled = await Promise.allSettled(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+              // Clean up completed agents to prevent memory leak
+              for (const id of agentIds) {
+                this.subagents.removeAgent(id);
+              }
               const agentResults = settled.map((r, i) => r.status === 'fulfilled' ? r.value : { error: r.reason?.message || 'Agent failed', id: agentIds[i] });
               result = { agents: agentIds, results: agentResults };
             }
