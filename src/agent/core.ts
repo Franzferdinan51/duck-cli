@@ -28,6 +28,10 @@ import { WorkflowRunner } from './workflow-runner.js';
 import { FlowRunner, defineFlow, acp, action, compute, checkpoint, shell as flowShell } from './flow-graph.js';
 import { FlowTrace } from './flow-trace.js';
 import { AndroidTools, getAndroidTools } from './android-tools.js';
+import { scanForSecrets, redactFromResult, warnOnSecrets } from './secret-scanner.js';
+import { captureDiffSnapshot, generateDiff, formatInlineDiff } from './inline-diff.js';
+import { CredentialPoolManager } from './credential-pool.js';
+import { MemoryManager } from './memory-provider.js';
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
@@ -112,6 +116,10 @@ export class Agent extends EventEmitter {
   private sessionLogger: SessionLogger;
   private sessionStream: SessionStream;
   private androidTools: AndroidTools;
+  // Hermes v2026.4.3 features
+  private secretScanner: any = null;  // SecretScanner instance
+  private credPoolManager: any = null;  // CredentialPoolManager instance
+  private memoryManager: any = null;  // MemoryManager instance
   private initialized: boolean = false;
   
   // Conversation
@@ -181,7 +189,6 @@ export class Agent extends EventEmitter {
     this.sessionLogger = new SessionLogger('/tmp/duck-sessions', this.name, 'duck-cli', 'multi-provider');
     this.sessionStream = new SessionStream(join(homeDir(), '.duck', 'sessions'), this.name);
     this.androidTools = getAndroidTools();
-    
     this.guard.setQuietMode(this.config.quietMode!);
     
     // Subscribe to learning nudges
@@ -199,6 +206,20 @@ export class Agent extends EventEmitter {
     await this.providers.load();
     await this.memory.initialize();
     await this.skills.load();
+
+    // Hermes v2026.4.3: Initialize pluggable memory provider system
+    const { MemoryManager } = await import('./memory-provider.js');
+    this.memoryManager = new MemoryManager();
+    await this.memoryManager.initializeAll(this.sessionId);
+
+    // Hermes v2026.4.3: Initialize credential pool manager (auto-configures from env)
+    const { CredentialPoolManager } = await import('./credential-pool.js');
+    this.credPoolManager = new CredentialPoolManager();
+    this.credPoolManager.autoConfigure();
+
+    // Hermes v2026.4.3: Initialize secret scanner
+    const { SecretScanner } = await import('./secret-scanner.js');
+    this.secretScanner = new SecretScanner();
     this.registerTools();
     
     const stats = this.memory.stats();
@@ -206,6 +227,17 @@ export class Agent extends EventEmitter {
     console.log(`   + Sessions: ${this.sessions.stats().totalSessions} stored`);
     console.log(`   + Learned skills: ${this.learning.stats().learnedSkills}`);
     console.log(`   + Cron jobs: ${this.cron.stats().totalJobs}`);
+    if (this.credPoolManager) {
+      const stats = this.credPoolManager.allStats();
+      const poolCount = Object.keys(stats).filter(k => stats[k].total > 0).length;
+      console.log(`   + Credential pools: ${poolCount} providers with multi-key`);
+    }
+    if (this.memoryManager) {
+      console.log(`   + Memory providers: ${this.memoryManager.listProviders().join(', ')}`);
+    }
+    if (this.secretScanner) {
+      console.log(`   + Secret scanner: API key exfiltration blocker`);
+    }
     
     console.log(`✅ ${this.name} ready!`);
     console.log(`   Providers: ${this.providers.list().length}`);
@@ -1734,7 +1766,15 @@ export class Agent extends EventEmitter {
               result = { agents: agentIds, results: agentResults };
             }
           }
-          this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
+          // Hermes v2026.4.3: Secret scanner - redact API keys from tool results before logging
+          const scanResult = this.secretScanner?.scan(JSON.stringify(result).slice(0, 200));
+          const displayResult = scanResult && !scanResult.clean
+            ? scanResult.redacted
+            : JSON.stringify(result).slice(0, 200);
+          if (scanResult && !scanResult.clean) {
+            this.secretScanner!.warn(scanResult.findings, `tool ${call.name}`);
+          }
+          this.streams.toolEnd(this.sessionId, call.name, true, displayResult, undefined, tDuration);
           this.loopDetector.record(call.name, call.args, true, 'ok');
           this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: true }, { success: true, message: 'Tool executed successfully', durationMs: tDuration });
           // ACPX-style NDJSON session stream
