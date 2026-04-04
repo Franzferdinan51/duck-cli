@@ -17,6 +17,9 @@ import { StreamManager, streamManager } from './stream-manager.js';
 import { CronScheduler } from './cron-scheduler.js';
 import { SubagentManager } from './subagent-manager.js';
 import { LearningLoop } from './learning-loop.js';
+import { SpeculativeExecutor, SpeculativeResult, codeQualityScorer, analysisQualityScorer } from './speculative.js';
+import { tracer } from '../tracing/execution-tracer.js';
+import { agentCardManager } from '../mesh/agent-card.js';
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
@@ -25,6 +28,8 @@ export { StreamManager, streamManager };
 export { CronScheduler };
 export { SubagentManager };
 export { LearningLoop };
+export { SpeculativeExecutor, SpeculativeResult };
+export { codeQualityScorer, analysisQualityScorer };
 
 export interface AgentConfig {
   name?: string;
@@ -94,6 +99,7 @@ export class Agent extends EventEmitter {
   private cron: CronScheduler;
   private subagents: SubagentManager;
   private learning: LearningLoop;
+  private speculative: SpeculativeExecutor;
   private initialized: boolean = false;
   
   // Conversation
@@ -158,6 +164,7 @@ export class Agent extends EventEmitter {
     this.cron = new CronScheduler();
     this.subagents = new SubagentManager();
     this.learning = new LearningLoop(memDir);
+    this.speculative = new SpeculativeExecutor(this.providers);
     
     this.guard.setQuietMode(this.config.quietMode!);
     
@@ -998,6 +1005,124 @@ export class Agent extends EventEmitter {
         results.note = mode === 'registry' ? 'Fast registry check - run with mode:"exec" for full execution test' : 'Execution test of safe tools only';
         
         return JSON.stringify(results, null, 2);
+      }
+    });
+
+    // ─── Speculative Execution ──────────────────────────────
+    this.registerTool({
+      name: 'speculate',
+      description: '🔮 Run multiple approaches in parallel, use the best result',
+      schema: {
+        task: { type: 'string', description: 'The task to solve' },
+        branches: { type: 'number', optional: true, description: 'Number of approaches (default 3, max 6)' },
+        mode: { type: 'string', optional: true, description: '"code", "analysis", or "auto" (default)' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const branches = Math.min(args.branches || 3, 6);
+        const mode = args.mode || 'auto';
+        const scorer = mode === 'code' ? codeQualityScorer : mode === 'analysis' ? analysisQualityScorer : undefined;
+        
+        const results = await this.speculative.speculateAll(args.task, { branches, scorer });
+        const best = results[0];
+        
+        return {
+          best: {
+            approach: best.approach,
+            result: best.result,
+            score: best.score,
+            latencyMs: best.latencyMs
+          },
+          all_results: results.map(r => ({
+            approach: r.approach,
+            score: r.score,
+            latencyMs: r.latencyMs,
+            error: r.error
+          })),
+          comparison: `🏆 Winner: ${best.approach} (score: ${best.score}/100)
+
+` +
+            results.map(r => {
+              const status = r.error ? '❌' : '✅';
+              return `${status} ${r.approach}: score=${r.score}, ${r.latencyMs}ms`;
+            }).join('\n')
+        };
+      }
+    });
+
+    // ─── Execution Tracing ──────────────────────────────────
+    this.registerTool({
+      name: 'trace_enable',
+      description: '📊 Enable execution tracing for current session',
+      schema: { sessionId: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const traceId = tracer.startTrace(args.sessionId || this.sessionId);
+        return { enabled: true, traceId };
+      }
+    });
+    this.registerTool({
+      name: 'trace_disable',
+      description: '📊 Disable tracing and get final trace',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const trace = tracer.endTrace();
+        return trace || { message: 'No active trace' };
+      }
+    });
+    this.registerTool({
+      name: 'trace_view',
+      description: '📊 View a trace by ID',
+      schema: { traceId: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const trace = tracer.getTrace(args.traceId);
+        return trace || { error: 'Trace not found' };
+      }
+    });
+    this.registerTool({
+      name: 'trace_list',
+      description: '📊 List recent traces',
+      schema: { limit: { type: 'number', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const traces = tracer.getTraces(this.sessionId);
+        return {
+          count: traces.length,
+          traces: traces.slice(0, args.limit || 10).map(t => ({
+            id: t.id,
+            durationMs: t.stats.totalMs,
+            tokens: t.stats.totalTokens,
+            createdAt: t.createdAt
+          }))
+        };
+      }
+    });
+
+    // ─── Agent Card (A2A/Mesh Discovery) ────────────────────
+    this.registerTool({
+      name: 'agent_card',
+      description: '🎴 Get this agent\'s Agent Card for mesh discovery',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        return agentCardManager.getCard();
+      }
+    });
+    this.registerTool({
+      name: 'agent_card_update',
+      description: '🎴 Update this agent\'s Agent Card',
+      schema: {
+        description: { type: 'string', optional: true },
+        skills: { type: 'array', optional: true }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const updates: any = {};
+        if (args.description) updates.description = args.description;
+        if (args.skills) updates.skills = args.skills;
+        return agentCardManager.updateCard(updates);
       }
     });
   }

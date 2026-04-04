@@ -194,6 +194,14 @@ async function main() {
       await kairosCommand(args);
       break;
 
+    case 'trace':
+      await traceCommand(args);
+      break;
+
+    case 'a2a':
+      await a2aCommand(args);
+      break;
+
     case 'buddy':
       await buddyCommand(args);
       break;
@@ -1949,6 +1957,78 @@ ${c.bold}News/Weather/Home:${c.reset}`);
     default:
       console.log(`${c.red}Unknown cron action: ${action}${c.reset}`);
       console.log(`Run ${c.bold}duck cron${c.reset} without args for usage.`);
+  }
+}
+
+// ============ TRACING ============
+
+async function traceCommand(args: string[]) {
+  const action = args[0] || 'stats';
+  const { tracer } = await import('../tracing/execution-tracer.js');
+
+  switch (action) {
+    case 'enable': {
+      const sessionId = args[1];
+      const traceId = tracer.startTrace(sessionId || 'default');
+      console.log(`${c.green}✓${c.reset} Tracing enabled`);
+      console.log(`  Trace ID: ${c.cyan}${traceId}${c.reset}`);
+      break;
+    }
+    case 'disable': {
+      const trace = tracer.endTrace();
+      if (!trace) {
+        console.log(`${c.yellow}No active trace${c.reset}`);
+        return;
+      }
+      console.log(`${c.green}✓${c.reset} Trace completed`);
+      console.log(`  ID:       ${trace.id}`);
+      console.log(`  Duration: ${trace.stats.totalMs}ms`);
+      console.log(`  Tokens:   ${trace.stats.totalTokens || 0}`);
+      break;
+    }
+    case 'view': {
+      const traceId = args[1];
+      if (!traceId) {
+        console.log(`${c.yellow}Usage: duck trace view <trace-id>${c.reset}`);
+        return;
+      }
+      const trace = tracer.getTrace(traceId);
+      if (!trace) {
+        console.log(`${c.red}Trace not found${c.reset}`);
+        return;
+      }
+      console.log(`Duration: ${trace.stats.totalMs}ms | Tokens: ${trace.stats.totalTokens || 0}`);
+      break;
+    }
+    case 'stats': {
+      const stats = tracer.getStats();
+      console.log(`Total Traces: ${stats.totalTraces} | Avg Latency: ${stats.avgLatencyMs}ms`);
+      break;
+    }
+    default:
+      console.log(`${c.cyan}Trace commands:${c.reset} enable, disable, view, stats`);
+  }
+}
+
+// ============ A2A ============
+
+async function a2aCommand(args: string[]) {
+  const action = args[0] || 'card';
+  const { agentCardManager } = await import('../mesh/agent-card.js');
+
+  switch (action) {
+    case 'card': {
+      const card = agentCardManager.getCard();
+      console.log(`${c.cyan}Agent Card: ${card.name} v${card.version}${c.reset}`);
+      console.log(`${card.description}`);
+      console.log(`Skills: ${card.skills.length}`);
+      break;
+    }
+    case 'serve':
+      console.log(`A2A Server: port 4001, /a2a endpoint`);
+      break;
+    default:
+      console.log(`${c.cyan}A2A commands:${c.reset} card, serve`);
   }
 }
 
