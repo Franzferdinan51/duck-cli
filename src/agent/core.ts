@@ -20,6 +20,7 @@ import { SubagentManager } from './subagent-manager.js';
 import { LearningLoop } from './learning-loop.js';
 import { SpeculativeExecutor, SpeculativeResult, codeQualityScorer, analysisQualityScorer } from './speculative.js';
 import { tracer } from '../tracing/execution-tracer.js';
+import { ExecutionTrace, maybeStartTrace, maybeEndTrace } from './execution-trace.js';
 import { agentCardManager } from '../mesh/agent-card.js';
 import { LoopDetector } from './loop-detector.js';
 import { SessionLogger } from './session-logger.js';
@@ -28,6 +29,16 @@ import { WorkflowRunner } from './workflow-runner.js';
 import { FlowRunner, defineFlow, acp, action, compute, checkpoint, shell as flowShell } from './flow-graph.js';
 import { FlowTrace } from './flow-trace.js';
 import { AndroidTools, getAndroidTools } from './android-tools.js';
+import {
+  TOOL_RETRY_REGISTRY,
+  getToolRetryConfig,
+  classifyError,
+  shouldRetryOnError,
+  shouldFallbackOnError,
+  logEvent,
+  ToolErrorType,
+  ToolRegistryEntry
+} from './tool-registry.js';
 import { scanForSecrets, redactFromResult, warnOnSecrets } from './secret-scanner.js';
 import { captureDiffSnapshot, generateDiff, formatInlineDiff } from './inline-diff.js';
 import { CredentialPoolManager } from './credential-pool.js';
@@ -116,6 +127,7 @@ export class Agent extends EventEmitter {
   private sessionLogger: SessionLogger;
   private sessionStream: SessionStream;
   private androidTools: AndroidTools;
+  private executionTrace: ExecutionTrace;
   // Hermes v2026.4.3 features
   private secretScanner: any = null;  // SecretScanner instance
   private credPoolManager: any = null;  // CredentialPoolManager instance
@@ -189,6 +201,7 @@ export class Agent extends EventEmitter {
     this.sessionLogger = new SessionLogger('/tmp/duck-sessions', this.name, 'duck-cli', 'multi-provider');
     this.sessionStream = new SessionStream(join(homeDir(), '.duck', 'sessions'), this.name);
     this.androidTools = getAndroidTools();
+    this.executionTrace = new ExecutionTrace(this.sessionId);
     this.guard.setQuietMode(this.config.quietMode!);
     
     // Subscribe to learning nudges
@@ -1812,6 +1825,10 @@ export class Agent extends EventEmitter {
     this.metrics.totalInteractions++;
     const startTime = Date.now();
 
+    // Start execution trace if DUCK_TRACE=1
+    const traceId = maybeStartTrace(this.sessionId);
+    this.executionTrace.logThought(safeMessage.substring(0, 100));
+
     this.sessions.addMessage({
       sessionId: this.sessionId,
       role: 'user',
@@ -1847,6 +1864,9 @@ export class Agent extends EventEmitter {
       this.metrics.failedInteractions++;
       const errMsg = `❌ All router targets failed`;
       this.sessions.addMessage({ sessionId: this.sessionId, role: 'assistant', content: errMsg, timestamp: Date.now() });
+      this.executionTrace.logError('All router targets failed');
+      this.executionTrace.generateErrorReport('All router targets failed', ['Attempted route through providers'], 'Check provider configuration');
+      await maybeEndTrace();
       return errMsg;
     }
 
@@ -1857,11 +1877,12 @@ export class Agent extends EventEmitter {
       const results = await Promise.all(toolCalls.map(async (call) => {
         const tStart = Date.now();
         this.streams.toolStart(this.sessionId, call.name, call.args);
+        this.executionTrace.logToolCall(call.name, call.args);
         toolsUsed.push(call.name);
         let success = false;
         let result: any;
         try {
-          result = await this.tools.execute(call.name, call.args);
+          result = await this.executeToolWithRetry(call.name, call.args);
           success = true;
           const tDuration = Date.now() - tStart;
           if (call.name === 'agent_spawn_team' && result && typeof result === 'object') {
@@ -1889,6 +1910,7 @@ export class Agent extends EventEmitter {
           this.streams.toolEnd(this.sessionId, call.name, true, displayResult, undefined, tDuration);
           this.loopDetector.record(call.name, call.args, true, 'ok');
           this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: true }, { success: true, message: 'Tool executed successfully', durationMs: tDuration });
+          this.executionTrace.logToolResult(displayResult, tDuration);
           // ACPX-style NDJSON session stream
           this.sessionStream.notify('tool/execute', { tool: call.name, args: call.args }, { role: 'assistant', toolName: call.name, outcome: 'ok', durationMs: tDuration });
           return '\n\n🔧 ' + call.name + ': ' + JSON.stringify(result);
@@ -1897,6 +1919,7 @@ export class Agent extends EventEmitter {
           this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
           this.loopDetector.record(call.name, call.args, false, 'failed');
           this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: false }, { success: false, message: e.message, durationMs: tDuration });
+          this.executionTrace.logToolError(e.message, tDuration);
           // ACPX-style NDJSON session stream
           this.sessionStream.notify('tool/execute', { tool: call.name, args: call.args }, { role: 'assistant', toolName: call.name, outcome: 'failed', durationMs: tDuration, toolResult: e.message });
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
@@ -1952,6 +1975,9 @@ export class Agent extends EventEmitter {
     this.streams.sessionEnd(this.sessionId, 'success', Date.now() - startTime, toolsUsed);
     this.sessionLogger.finalize(true);
     this.sessionStream.close('ok');
+
+    // End execution trace
+    maybeEndTrace();
 
     return response;
   }
@@ -2216,6 +2242,147 @@ ${thinkingGuide}`;
 
     async executeTool(name: string, args: any) {
       return await this.tools.execute(name, args);
+    }
+
+    // ─── Tool Execution with Retry & Fallback ─────────────────────────────────
+
+    /**
+     * Execute a tool with retry logic, exponential backoff, and fallback alternatives.
+     * Reads retry/fallback config from src/agent/tool-registry.ts per tool.
+     * Uses structured log format:
+     *   [TOOL_CALL] tool=... attempt=1/3
+     *   [TOOL_SUCCESS] tool=... duration=123ms
+     *   [TOOL_RETRY] tool=... error="..." attempt=2/3 wait=1000ms
+     *   [TOOL_FALLBACK] tool=... trying=android_exec_out
+     *   [TOOL_FAIL] tool=... error="..." attempts=3/3
+     */
+    async executeToolWithRetry(toolName: string, args: any): Promise<any> {
+      const entry: ToolRegistryEntry | null = getToolRetryConfig(toolName);
+
+      // No retry config found - execute once without retry machinery
+      if (!entry) {
+        return await this.tools.execute(toolName, args);
+      }
+
+      const maxAttempts = entry.maxRetries + 1; // total attempts = maxRetries + 1 (first try)
+      let currentArgs = args;
+      let lastError: any = null;
+      let lastResult: any = null;
+
+      // ─── Primary tool attempts with retry ────────────────────────────────────
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Structured log: TOOL_CALL
+        const ts = new Date().toISOString();
+        console.log(`[TOOL_CALL] timestamp=${ts} tool=${toolName} attempt=${attempt}/${maxAttempts}`);
+
+        const startTime = Date.now();
+        try {
+          const result = await this.tools.execute(toolName, currentArgs);
+          const durationMs = Date.now() - startTime;
+
+          if (result.success) {
+            // Structured log: TOOL_SUCCESS
+            console.log(`[TOOL_SUCCESS] timestamp=${new Date().toISOString()} tool=${toolName} duration=${durationMs}ms`);
+            return result;
+          }
+
+          // Tool returned an error - classify it
+          lastError = result.error || 'Unknown tool error';
+          lastResult = result;
+
+          // Structured log: TOOL_RETRY (if more attempts left)
+          const errorType = classifyError(lastError, toolName);
+          if (attempt < maxAttempts) {
+            if (shouldRetryOnError(entry, errorType)) {
+              const backoffMs = Math.floor(entry.retryConfig.backoffMs * Math.pow(entry.retryConfig.backoffMultiplier, attempt - 1));
+              console.log(`[TOOL_RETRY] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError}" attempt=${attempt + 1}/${maxAttempts} wait=${backoffMs}ms`);
+              await new Promise(r => setTimeout(r, backoffMs));
+              continue;
+            } else if (shouldFallbackOnError(entry, errorType) && entry.fallbacks.length > 0) {
+              // Don't retry, fall through to fallback below
+              break;
+            } else {
+              // fail-fast: error type doesn't allow retry
+              break;
+            }
+          } else {
+            // Last attempt failed, check if fallback is available
+            if (shouldFallbackOnError(entry, errorType) && entry.fallbacks.length > 0) {
+              break; // Will try fallbacks below
+            }
+            // Structured log: TOOL_FAIL
+            console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError}" attempts=${maxAttempts}/${maxAttempts}`);
+            return { success: false, error: lastError };
+          }
+        } catch (e: any) {
+          const durationMs = Date.now() - startTime;
+          lastError = e;
+          const errorType = classifyError(e, toolName);
+
+          if (attempt < maxAttempts && shouldRetryOnError(entry, errorType)) {
+            const backoffMs = Math.floor(entry.retryConfig.backoffMs * Math.pow(entry.retryConfig.backoffMultiplier, attempt - 1));
+            console.log(`[TOOL_RETRY] timestamp=${new Date().toISOString()} tool=${toolName} error="${e.message}" attempt=${attempt + 1}/${maxAttempts} wait=${backoffMs}ms`);
+            await new Promise(r => setTimeout(r, backoffMs));
+            continue;
+          }
+
+          // Check if fallback is available
+          if (shouldFallbackOnError(entry, errorType) && entry.fallbacks.length > 0) {
+            break; // Will try fallbacks below
+          }
+
+          // Structured log: TOOL_FAIL
+          console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${e.message}" attempts=${attempt}/${maxAttempts}`);
+          return { success: false, error: e.message };
+        }
+      }
+
+      // ─── Fallback chain ─────────────────────────────────────────────────────
+      if (entry.fallbacks.length > 0) {
+        for (const fallback of entry.fallbacks) {
+          // Check if fallback tool is actually registered
+          if (!this.tools.has(fallback.tool)) {
+            console.log(`[TOOL_FALLBACK] timestamp=${new Date().toISOString()} tool=${toolName} skipped fallback=${fallback.tool} (not registered)`);
+            continue;
+          }
+
+          // Structured log: TOOL_FALLBACK
+          console.log(`[TOOL_FALLBACK] timestamp=${new Date().toISOString()} tool=${toolName} trying=${fallback.tool}`);
+
+          // Transform args if transformer is provided
+          const fallbackArgs = fallback.argsTransform ? fallback.argsTransform(currentArgs, lastResult, lastError) : currentArgs;
+
+          try {
+            const fbResult = await this.tools.execute(fallback.tool, fallbackArgs);
+            if (fbResult.success) {
+              // Structured log: TOOL_SUCCESS (via fallback)
+              console.log(`[TOOL_SUCCESS] timestamp=${new Date().toISOString()} tool=${fallback.tool} duration=0ms fallback=true`);
+              return { ...fbResult, _fallbackUsed: fallback.tool, _fallbackNote: fallback.description };
+            }
+            // Fallback also failed, try next fallback
+            lastError = fbResult.error;
+            lastResult = fbResult;
+            continue;
+          } catch (e: any) {
+            lastError = e;
+            // Fallback threw, try next fallback
+            continue;
+          }
+        }
+      }
+
+      // ─── All retries and fallbacks exhausted ────────────────────────────────
+      // Structured log: TOOL_FAIL
+      const totalAttempts = maxAttempts + entry.fallbacks.length;
+      console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError?.message || lastError}" attempts=${totalAttempts}/${totalAttempts}`);
+
+      // Build a helpful summary error
+      const fallbackNames = entry.fallbacks.map(f => f.tool).join(' → ');
+      const summaryError = fallbackNames
+        ? `[${toolName} failed after ${maxAttempts} attempts + ${entry.fallbacks.length} fallbacks (${fallbackNames})] ${lastError?.message || lastError}`
+        : `[${toolName} failed after ${maxAttempts} attempts] ${lastError?.message || lastError}`;
+
+      return { success: false, error: summaryError };
     }
 
     async shutdown(): Promise<void> {

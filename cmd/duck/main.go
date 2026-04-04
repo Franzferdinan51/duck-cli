@@ -115,6 +115,11 @@ Features:
 		memoryCmd(),
 		thinkCmd(),
 		doctorCmd(),
+		healthCmd(),
+		statsCmd(),
+		configCmd(),
+		traceCmd(),
+		toolsCmd(),
 	)
 
 	// No args → start interactive shell (standalone mode for humans)
@@ -630,6 +635,80 @@ Example flow JSON:
 }
 
 // runNode executes the TypeScript agent
+// healthCmd - duck health
+func healthCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "health",
+		Short: "Check system health (Gateway, MiniMax, Android, LM Studio)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("health", cmd)
+		},
+	}
+}
+
+// statsCmd - duck stats
+func statsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "stats [reset|json|export]",
+		Short: "Show usage statistics (runs, success rate, token usage)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("stats", cmd)
+			}
+			return runNodeWithEnv("stats "+args[0], cmd)
+		},
+	}
+}
+
+// configCmd - duck config [get|set|list|reset]
+func configCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config [get|set|list|reset] [key] [value]",
+		Short: "Manage Duck CLI configuration",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("config list", cmd)
+			}
+			return runNodeWithEnv("config "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
+// traceCmd - duck trace [list|show|delete|clear]
+func traceCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "trace [list|show|delete|clear] [id]",
+		Short: "View execution traces (enable with DUCK_TRACE=1)",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("trace list", cmd)
+			}
+			return runNodeWithEnv("trace "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
+// toolsCmd - duck tools [list|schema|search|categories|mcp]
+func toolsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "tools [list|schema|search|categories|mcp] [args...]",
+		Short: "List and search tool registry with JSON schemas",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("tools", cmd)
+			}
+			return runNodeWithEnv("tools "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
 // runNode executes the TypeScript agent
 func runNode(args ...string) error {
 	exePath, _ := os.Executable()

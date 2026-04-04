@@ -33,6 +33,10 @@ import * as readline from 'readline';
 import { meshCommand, meshServerCommand } from './mesh-cmd.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
+import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
+import { runHealthCheck, runBootDiagnostics, printHealthReport } from '../agent/health-check.js';
+import { getConfigManager, ConfigManager } from '../agent/config-manager.js';
+import { getSelfMonitor, SelfMonitor } from '../agent/self-monitor.js';
 
 // Colors
 const c = {
@@ -135,7 +139,7 @@ async function main() {
       break;
 
     case 'tools':
-      await listTools();
+      await toolsCommand(args);
       break;
 
     case 'history':
@@ -199,9 +203,30 @@ async function main() {
       await kairosCommand(args);
       break;
 
-    case 'trace':
-      await traceCommand(args);
+    case 'trace': {
+      const { traceListCommand, traceShowCommand, traceDeleteCommand, traceClearCommand } = await import('./trace-commands.js');
+      const subCmd = args[0] || 'list';
+      switch (subCmd) {
+        case 'list':
+        case 'ls':
+          await traceListCommand(args.slice(1));
+          break;
+        case 'show':
+        case 'view':
+          await traceShowCommand(args.slice(1));
+          break;
+        case 'delete':
+        case 'rm':
+          await traceDeleteCommand(args.slice(1));
+          break;
+        case 'clear':
+          await traceClearCommand();
+          break;
+        default:
+          console.log('Usage: duck trace <list|show|delete|clear> [id]');
+      }
       break;
+    }
 
     case 'a2a':
       await a2aCommand(args);
@@ -356,6 +381,112 @@ async function main() {
         }
         
         console.log(`\n${c.bold}Result:${c.reset} ${issues === 0 ? c.green+'✅ All systems operational' : c.yellow+'⚠️ '+issues+' issue(s) found'}${c.reset}\n`);
+      }
+      break;
+
+    case 'health':
+    case 'health-check':
+      {
+        const { runHealthCheck, printHealthReport } = await import('../agent/health-check.js');
+        const report = await runHealthCheck(true);
+        printHealthReport(report);
+        process.exit(report.exitCode);
+      }
+      break;
+
+    case 'boot':
+    case 'boot-diagnostics':
+    case 'diagnose':
+      {
+        const { runBootDiagnostics } = await import('../agent/health-check.js');
+        await runBootDiagnostics();
+      }
+      break;
+
+    case 'stats':
+    case 'statistics':
+      {
+        const { getSelfMonitor } = await import('../agent/self-monitor.js');
+        const monitor = getSelfMonitor();
+        const [action, ...actionArgs] = args;
+
+        if (action === 'reset') {
+          monitor.reset();
+        } else if (action === 'json') {
+          console.log(monitor.toJSON());
+        } else if (action === 'export') {
+          const fs = await import('fs');
+          fs.writeFileSync('/tmp/duck-stats.json', monitor.toJSON());
+          console.log(`Exported to /tmp/duck-stats.json`);
+        } else {
+          monitor.printStats();
+        }
+      }
+      break;
+
+    case 'config':
+      {
+        const { getConfigManager } = await import('../agent/config-manager.js');
+        const config = getConfigManager();
+        const [action, ...actionArgs] = args;
+
+        if (!action || action === 'list' || action === 'get') {
+          if (!action || action === 'list') {
+            console.log(`\n${c.bold}🦆 Duck Config${c.reset}`);
+            console.log(`Config file: ${config.getConfigPath()}\n`);
+            console.log(config.toJSON());
+            console.log();
+          } else {
+            // Get specific key
+            const key = actionArgs[0];
+            if (!key) {
+              console.log(`${c.red}Usage: duck config get <key>${c.reset}`);
+              console.log(`Example: duck config get defaults.model`);
+            } else {
+              const value = config.getValue(key);
+              if (value !== undefined) {
+                console.log(`${key} = ${JSON.stringify(value)}`);
+              } else {
+                console.log(`${c.red}Key not found: ${key}${c.reset}`);
+              }
+            }
+          }
+        } else if (action === 'set') {
+          const key = actionArgs[0];
+          const value = actionArgs.slice(1).join(' ');
+          if (!key || !value) {
+            console.log(`${c.red}Usage: duck config set <key> <value>${c.reset}`);
+            console.log(`Example: duck config set defaults.model MiniMax-M2.7`);
+          } else {
+            // Try to parse value
+            let parsedValue: any = value;
+            if (value === 'true') parsedValue = true;
+            else if (value === 'false') parsedValue = false;
+            else if (!isNaN(Number(value))) parsedValue = Number(value);
+            
+            config.setValue(key, parsedValue);
+            console.log(`${c.green}✅ Set ${key} = ${JSON.stringify(parsedValue)}${c.reset}`);
+          }
+        } else if (action === 'reset') {
+          config.reset();
+          console.log(`${c.green}✅ Config reset to defaults${c.reset}`);
+        } else if (action === 'path') {
+          console.log(config.getConfigPath());
+        } else {
+          console.log(`${c.yellow}Usage:${c.reset}`);
+          console.log(`  ${c.green}duck config${c.reset}              List all config`);
+          console.log(`  ${c.green}duck config get <key>${c.reset}    Get a config value`);
+          console.log(`  ${c.green}duck config set <key> <val>${c.reset} Set a config value`);
+          console.log(`  ${c.green}duck config reset${c.reset}       Reset to defaults`);
+          console.log(`  ${c.green}duck config path${c.reset}        Show config file path`);
+          console.log();
+          console.log(`${c.dim}Keys use dot notation, e.g.:${c.reset}`);
+          console.log(`  defaults.model`);
+          console.log(`  defaults.maxRetries`);
+          console.log(`  providers.minimax.enabled`);
+          console.log(`  gracefulDegradation.fallbackModels`);
+          console.log();
+        }
       }
       break;
 
@@ -763,20 +894,175 @@ async function showStatus() {
 
 // ============ TOOLS LIST ============
 
-async function listTools() {
-  const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
-  await agent.initialize();
-  
-  console.log(`\n${c.bold}Available Tools:${c.reset}\n`);
-  
-  const tools = agent.getStatus().toolList as any[];
-  for (const tool of tools) {
-    const dangerous = tool.dangerous ? ` ${c.red}[DANGEROUS]${c.reset}` : '';
-    console.log(`  ${c.cyan}${tool.name}${c.reset} - ${tool.description}${dangerous}`);
+// ============ TOOLS COMMAND ============
+
+async function toolsCommand(args: string[]) {
+  // Lazy-load to avoid circular deps and keep CLI fast
+  const { schemaRegistry } = await import('../agent/schema-registry.js');
+
+  const [subCmd, ...subArgs] = args;
+
+  if (!subCmd || subCmd === 'list') {
+    // Parse --category flag
+    const catIdx = subArgs.indexOf('--category');
+    const category = catIdx >= 0 ? subArgs[catIdx + 1] as any : null;
+
+    if (category) {
+      const tools = schemaRegistry.listByCategory(category);
+      if (tools.length === 0) {
+        console.log(`${c.yellow}No tools found for category: ${category}${c.reset}`);
+        console.log(`${c.dim}Available: ${schemaRegistry.countByCategory().toString()}${c.reset}`);
+        return;
+      }
+      console.log(`\n${c.bold}${category} Tools (${tools.length}):${c.reset}\n`);
+      for (const tool of tools) {
+        const d = tool.dangerous ? ` ${c.red}[DANGEROUS]${c.reset}` : '';
+        const retry = tool.retryable ? ` ${c.green}↺${c.reset}` : '';
+        console.log(`  ${c.cyan}${tool.name}${c.reset}${d}${retry} - ${tool.description}`);
+      }
+      console.log();
+    } else {
+      // List all tools grouped by category
+      const counts = schemaRegistry.countByCategory();
+      const total = schemaRegistry.count();
+      console.log(`\n${c.bold}Available Tools (${total} total):${c.reset}\n`);
+      for (const [cat, count] of Object.entries(counts)) {
+        const icon = cat === 'android' ? '📱' :
+                     cat === 'desktop' ? '🖥️' :
+                     cat === 'system' ? '⚙️' :
+                     cat === 'file' ? '📄' :
+                     cat === 'network' ? '🌐' :
+                     cat === 'ai' ? '🤖' :
+                     cat === 'memory' ? '🧠' :
+                     cat === 'browser' ? '🌐' :
+                     cat === 'coding' ? '💻' :
+                     cat === 'planning' ? '📋' :
+                     cat === 'cron' ? '⏰' : '📦';
+        console.log(`  ${c.cyan}${icon} ${cat}${c.reset} - ${count} tools`);
+      }
+      console.log();
+      console.log(`${c.dim}Use: duck tools list --category <name>${c.reset}`);
+      console.log(`${c.dim}     duck tools schema <tool-name>${c.reset}`);
+      console.log(`${c.dim}     duck tools search <query>${c.reset}`);
+      console.log();
+    }
+    return;
   }
-  
+
+  if (subCmd === 'schema') {
+    const name = subArgs[0];
+    if (!name) {
+      console.log(`${c.red}Usage: duck tools schema <tool-name>${c.reset}`);
+      console.log(`${c.dim}Example: duck tools schema android_shell${c.reset}`);
+      return;
+    }
+    const schema = schemaRegistry.get(name);
+    if (!schema) {
+      console.log(`${c.red}Tool not found: ${name}${c.reset}`);
+      // Fuzzy search suggestions
+      const suggestions = schemaRegistry.search(name);
+      if (suggestions.length > 0) {
+        console.log(`${c.dim}Did you mean:${c.reset}`);
+        for (const s of suggestions.slice(0, 5)) {
+          console.log(`  ${c.cyan}  ${s.name}${c.reset} - ${s.description}`);
+        }
+      }
+      return;
+    }
+
+    const d = schema.dangerous ? `${c.red}[DANGEROUS]${c.reset}` : '';
+    const retry = schema.retryable ? `${c.green}↺ retryable${c.reset}` : `${c.yellow}⚠ non-retryable${c.reset}`;
+    console.log(`\n${c.bold}Tool Schema: ${c.cyan}${schema.name}${c.reset} ${d}${c.reset}`);
+    console.log(`${c.dim}${'─'.repeat(60)}${c.reset}`);
+    console.log(`${c.bold}Description:${c.reset} ${schema.description}`);
+    console.log(`${c.bold}Category:${c.reset}   ${schema.category}`);
+    console.log(`${c.bold}Retryable:${c.reset} ${retry}`);
+    if (schema.fallbackTool) {
+      console.log(`${c.bold}Fallback:${c.reset} ${schema.fallbackTool}`);
+    }
+
+    console.log(`\n${c.bold}Arguments:${c.reset}`);
+    if (schema.args.length === 0) {
+      console.log(`  ${c.dim}(none)${c.reset}`);
+    } else {
+      for (const arg of schema.args) {
+        const req = arg.required ? `${c.red}*${c.reset}` : `${c.dim}[optional]${c.reset}`;
+        const def = arg.default !== undefined ? ` ${c.dim}default: ${arg.default}${c.reset}` : '';
+        console.log(`  ${c.cyan}${arg.name}${c.reset} ${req} ${c.dim}(${arg.type})${c.reset} - ${arg.description}${def}`);
+      }
+    }
+
+    console.log(`\n${c.bold}Returns:${c.reset} ${schema.returns.type}`);
+    console.log(`  ${schema.returns.description}`);
+
+    console.log(`\n${c.bold}Errors:${c.reset}`);
+    for (const err of schema.errors) {
+      console.log(`  ${c.red}✗${c.reset} ${err}`);
+    }
+
+    if (schema.examples && schema.examples.length > 0) {
+      console.log(`\n${c.bold}Examples:${c.reset}`);
+      for (const ex of schema.examples) {
+        console.log(`  ${c.green}>${c.reset} ${c.dim}${ex}${c.reset}`);
+      }
+    }
+    console.log();
+    return;
+  }
+
+  if (subCmd === 'search') {
+    const query = subArgs.join(' ');
+    if (!query) {
+      console.log(`${c.red}Usage: duck tools search <query>${c.reset}`);
+      console.log(`${c.dim}Example: duck tools search android screenshot${c.reset}`);
+      return;
+    }
+    const results = schemaRegistry.search(query);
+    if (results.length === 0) {
+      console.log(`${c.yellow}No tools found matching: ${query}${c.reset}`);
+      return;
+    }
+    console.log(`\n${c.bold}Search Results for "${query}" (${results.length}):${c.reset}\n`);
+    for (const tool of results) {
+      const d = tool.dangerous ? ` ${c.red}[DANGEROUS]${c.reset}` : '';
+      const match = tool.name.toLowerCase().includes(query.toLowerCase()) ? ` ${c.green}(name match)${c.reset}` : '';
+      console.log(`  ${c.cyan}${tool.name}${c.reset}${d}${match}`);
+      console.log(`  ${c.dim}  ${tool.category}: ${tool.description}${c.reset}`);
+      console.log();
+    }
+    return;
+  }
+
+  if (subCmd === 'categories') {
+    const counts = schemaRegistry.countByCategory();
+    console.log(`\n${c.bold}Tool Categories:${c.reset}\n`);
+    for (const [cat, count] of Object.entries(counts)) {
+      console.log(`  ${c.cyan}${cat}${c.reset} - ${count} tools`);
+    }
+    console.log();
+    return;
+  }
+
+  if (subCmd === 'mcp') {
+    // Output MCP-style JSON for auto-discovery
+    const mcpTools = schemaRegistry.getMCPTools();
+    console.log(JSON.stringify(mcpTools, null, 2));
+    return;
+  }
+
+  // Unknown sub-command
+  console.log(`${c.red}Unknown tools command: ${subCmd}${c.reset}`);
+  console.log(`\n${c.bold}Usage:${c.reset}`);
+  console.log(`  ${c.green}duck tools${c.reset}                  List all tools by category`);
+  console.log(`  ${c.green}duck tools list${c.reset}              List all tools`);
+  console.log(`  ${c.green}duck tools list --category android${c.reset}  Filter by category`);
+  console.log(`  ${c.green}duck tools schema <name>${c.reset}      Show full schema`);
+  console.log(`  ${c.green}duck tools search <query>${c.reset}    Fuzzy search tools`);
+  console.log(`  ${c.green}duck tools categories${c.reset}         List categories`);
+  console.log(`  ${c.green}duck tools mcp${c.reset}                Output MCP JSON for auto-discovery`);
   console.log();
-  await agent.shutdown();
+  console.log(`${c.dim}Categories: ${Object.keys(schemaRegistry.countByCategory()).join(', ')}${c.reset}`);
+  console.log();
 }
 
 // ============ HISTORY ============
@@ -979,7 +1265,7 @@ async function desktopCommand(args: string[]) {
 
   const [action, ...actionArgs] = args;
 
-  switch (actionArgs[0]) {
+  switch (action) {
     case 'open':
       await agent.openApp(actionArgs.join(' '));
       console.log(`${c.green}✓${c.reset} Opened: ${actionArgs.join(' ')}`);
@@ -1293,7 +1579,7 @@ async function memoryCommand(args: string[]) {
 
   const [action, ...actionArgs] = args;
 
-  switch (actionArgs[0]) {
+  switch (action) {
     case 'add':
     case 'remember':
       await agent.remember(actionArgs.join(' '));
@@ -1855,7 +2141,7 @@ async function buddyCommand(args: string[]) {
   
   console.log(`${c.cyan}Buddy Companion System${c.reset}`);
   
-  switch (actionArgs[0]) {
+  switch (action) {
       case 'hatch':
         console.log(`${c.green}🦴 Hatching a new buddy...${c.reset}`);
         console.log(`${c.yellow}(Buddy system requires full initialization)${c.reset}`);
@@ -1939,7 +2225,7 @@ async function teamCommand(args: string[]) {
 
   console.log(`\n${c2.cyan}${c2.bold}   Duck Agent Team System${c2.reset}\n`);
 
-  switch (actionArgs[0]) {
+  switch (action) {
     case 'templates': {
       console.log(`${c2.bold}Available Team Templates:${c2.reset}\n`);
       for (const t of TEAM_TEMPLATES) {
@@ -2196,7 +2482,7 @@ async function cronCommand(args: string[]) {
     return;
   }
   
-  switch (actionArgs[0]) {
+  switch (action) {
     case 'list': {
       console.log(`${c.cyan}Available Cron Jobs${c.reset}
 `);
@@ -2291,63 +2577,13 @@ ${c.bold}News/Weather/Home:${c.reset}`);
   }
 }
 
-// ============ TRACING ============
-
-async function traceCommand(args: string[]) {
-  const action = args[0] || 'stats';
-  const { tracer } = await import('../tracing/execution-tracer.js');
-
-  switch (actionArgs[0]) {
-    case 'enable': {
-      const sessionId = args[1];
-      const traceId = tracer.startTrace(sessionId || 'default');
-      console.log(`${c.green}✓${c.reset} Tracing enabled`);
-      console.log(`  Trace ID: ${c.cyan}${traceId}${c.reset}`);
-      break;
-    }
-    case 'disable': {
-      const trace = tracer.endTrace();
-      if (!trace) {
-        console.log(`${c.yellow}No active trace${c.reset}`);
-        return;
-      }
-      console.log(`${c.green}✓${c.reset} Trace completed`);
-      console.log(`  ID:       ${trace.id}`);
-      console.log(`  Duration: ${trace.stats.totalMs}ms`);
-      console.log(`  Tokens:   ${trace.stats.totalTokens || 0}`);
-      break;
-    }
-    case 'view': {
-      const traceId = args[1];
-      if (!traceId) {
-        console.log(`${c.yellow}Usage: duck trace view <trace-id>${c.reset}`);
-        return;
-      }
-      const trace = tracer.getTrace(traceId);
-      if (!trace) {
-        console.log(`${c.red}Trace not found${c.reset}`);
-        return;
-      }
-      console.log(`Duration: ${trace.stats.totalMs}ms | Tokens: ${trace.stats.totalTokens || 0}`);
-      break;
-    }
-    case 'stats': {
-      const stats = tracer.getStats();
-      console.log(`Total Traces: ${stats.totalTraces} | Avg Latency: ${stats.avgLatencyMs}ms`);
-      break;
-    }
-    default:
-      console.log(`${c.cyan}Trace commands:${c.reset} enable, disable, view, stats`);
-  }
-}
-
 // ============ A2A ============
 
 async function a2aCommand(args: string[]) {
   const action = args[0] || 'card';
   const { agentCardManager } = await import('../mesh/agent-card.js');
 
-  switch (actionArgs[0]) {
+  switch (action) {
     case 'card': {
       const card = agentCardManager.getCard();
       console.log(`${c.cyan}Agent Card: ${card.name} v${card.version}${c.reset}`);
@@ -2370,7 +2606,7 @@ async function buddyCommand(args: string[]) {
   
   console.log(`${c.cyan}Buddy Companion System${c.reset}`);
   
-  switch (actionArgs[0]) {
+  switch (action) {
       case 'hatch':
         console.log(`${c.green}🦴 Hatching a new buddy...${c.reset}`);
         console.log(`${c.yellow}(Buddy system requires full initialization)${c.reset}`);
@@ -2454,7 +2690,7 @@ async function teamCommand(args: string[]) {
 
   console.log(`\n${c2.cyan}${c2.bold}   Duck Agent Team System${c2.reset}\n`);
 
-  switch (actionArgs[0]) {
+  switch (action) {
     case 'templates': {
       console.log(`${c2.bold}Available Team Templates:${c2.reset}\n`);
       for (const t of TEAM_TEMPLATES) {
