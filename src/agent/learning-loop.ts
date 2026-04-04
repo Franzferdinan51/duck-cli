@@ -198,7 +198,7 @@ export class LearningLoop extends EventEmitter {
     const outputRaw = typeof interaction.output === 'string' ? interaction.output : JSON.stringify(interaction.output);
     const inputStr = inputRaw.slice(0, 10000);
     const outputStr = outputRaw.slice(0, 50000);
-    console.log('[DEBUG trackInteraction] typeof interaction.input:', typeof interaction.input, 'inputRaw:', String(inputRaw).substring(0, 50));
+
 
     this.db.prepare(`
       INSERT INTO interactions (id, session_id, input, output, outcome, tools_used, duration, feedback, timestamp)
@@ -222,7 +222,7 @@ export class LearningLoop extends EventEmitter {
       input: inputStr,
       output: outputStr
     };
-    console.log('[DEBUG stringify] typeof stringifiedInteraction.input:', typeof stringifiedInteraction.input, 'value:', String(stringifiedInteraction.input).substring(0, 30));
+
 
     // Run learning analysis on this interaction
     this.analyzeInteraction(stringifiedInteraction);
@@ -276,7 +276,7 @@ export class LearningLoop extends EventEmitter {
     } catch {
       outputStr = '[unstringifiable output]';
     }
-    console.log('[DEBUG analyzeInteraction] inputStr type:', typeof inputStr, 'value:', String(inputStr).substring(0, 30));
+
     const inputLower = inputStr.toLowerCase();
     const outputLower = outputStr.toLowerCase();
 

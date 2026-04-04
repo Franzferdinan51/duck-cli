@@ -20,6 +20,8 @@ import { LearningLoop } from './learning-loop.js';
 import { SpeculativeExecutor, SpeculativeResult, codeQualityScorer, analysisQualityScorer } from './speculative.js';
 import { tracer } from '../tracing/execution-tracer.js';
 import { agentCardManager } from '../mesh/agent-card.js';
+import { LoopDetector } from './loop-detector.js';
+import { WorkflowRunner } from './workflow-runner.js';
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
@@ -100,6 +102,7 @@ export class Agent extends EventEmitter {
   private subagents: SubagentManager;
   private learning: LearningLoop;
   private speculative: SpeculativeExecutor;
+  private loopDetector: LoopDetector;
   private initialized: boolean = false;
   
   // Conversation
@@ -165,6 +168,7 @@ export class Agent extends EventEmitter {
     this.subagents = new SubagentManager();
     this.learning = new LearningLoop(memDir);
     this.speculative = new SpeculativeExecutor(this.providers);
+    this.loopDetector = new LoopDetector();
     
     this.guard.setQuietMode(this.config.quietMode!);
     
@@ -1140,6 +1144,59 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── Workflow Runner (DroidClaw-inspired) ──────────────
+    this.registerTool({
+      name: 'workflow_run',
+      description: '📋 Execute a JSON workflow file with multi-step goals (DroidClaw-style). ' +
+        'Workflows contain steps the agent figures out. Supports form data injection {var} syntax.',
+      schema: {
+        file: { type: 'string', description: 'Path to workflow JSON file' },
+        step: { type: 'number', optional: true, description: 'Start from step N (0-indexed)' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const runner = new WorkflowRunner(this);
+          const result = await runner.runFromFile(args.file);
+          return {
+            name: result.name,
+            success: result.success,
+            completedSteps: result.steps.filter(s => s.success).length,
+            totalSteps: result.steps.length,
+            steps: result.steps.map(s => ({
+              goal: s.goal,
+              flow: s.flow,
+              success: s.success,
+              stepsUsed: s.stepsUsed,
+              output: s.output?.slice(0, 200),
+              error: s.error
+            }))
+          };
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'flow_run',
+      description: '⚡ Execute a deterministic YAML flow file (no LLM) — DroidClaw Maestro-style. ' +
+        'Supports: shell, type, open, click, wait, back, enter, clear, tab, done. ' +
+        'YAML format: { appId: com.example } / name: My Flow / --- / - shell: echo hi / - type: hello / - wait: 2',
+      schema: {
+        file: { type: 'string', description: 'Path to YAML flow file' }
+      },
+      dangerous: true,
+      handler: async (args: any) => {
+        try {
+          const runner = new WorkflowRunner(this);
+          const result = await runner.runFlowFromFile(args.file);
+          return result;
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      }
+    });
+
     // ─── Agent Card (A2A/Mesh Discovery) ────────────────────
     this.registerTool({
       name: 'agent_card',
@@ -1232,8 +1289,11 @@ export class Agent extends EventEmitter {
         const tStart = Date.now();
         this.streams.toolStart(this.sessionId, call.name, call.args);
         toolsUsed.push(call.name);
+        let success = false;
+        let result: any;
         try {
-          let result: any = await this.tools.execute(call.name, call.args);
+          result = await this.tools.execute(call.name, call.args);
+          success = true;
           const tDuration = Date.now() - tStart;
           if (call.name === 'agent_spawn_team' && result && typeof result === 'object') {
             const agentIds: string[] = result.agentIds || [];
@@ -1250,14 +1310,24 @@ export class Agent extends EventEmitter {
             }
           }
           this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
+          this.loopDetector.record(call.name, call.args, success);
           return '\n\n🔧 ' + call.name + ': ' + JSON.stringify(result);
         } catch (e: any) {
           const tDuration = Date.now() - tStart;
           this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
+          this.loopDetector.record(call.name, call.args, false);
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
         }
       }));
       response += results.join('');
+
+      // DroidClaw-style: Check for stuck loops and inject recovery hints
+      const hints = this.loopDetector.check();
+      if (hints.length > 0) {
+        const hintText = hints.map(h => `⚠️ LOOP_DETECTED [${h.priority}]: ${h.message}`).join('\n');
+        console.log('[LoopDetector] Stuck pattern detected, injecting recovery hint');
+        response += '\n\n' + hintText;
+      }
     }
 
     // Track interaction for learning
@@ -1347,6 +1417,13 @@ export class Agent extends EventEmitter {
     // Memory SOUL
     const soul = this.memory.getSoul();
     if (soul) messages.push({ role: 'system', content: soul });
+
+    // DroidClaw-style: Inject recovery hints if agent is stuck
+    const hints = this.loopDetector.check();
+    if (hints.length > 0) {
+      const hintText = hints.map(h => `[${h.priority.toUpperCase()}] ${h.message}`).join('\n');
+      messages.push({ role: 'system', content: `RECOVERY_HINTS:\n${hintText}` });
+    }
 
     // Learned patterns
     if (this.learnedPatterns.size > 0) {

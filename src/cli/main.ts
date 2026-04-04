@@ -219,6 +219,29 @@ async function main() {
       await councilCommand(args);
       break;
 
+    case 'workflow':
+    case 'flow': {
+      const { WorkflowRunner } = await import('../agent/workflow-runner.js');
+      const { Agent } = await import('../agent/core.js');
+      const file = args[0];
+      if (!file) {
+        console.log(`${c.red}Usage: duck workflow <file.json>${c.reset}`);
+        console.log(`${c.red}Usage: duck flow <file.yaml>${c.reset}`);
+        process.exit(1);
+      }
+      const agent = new Agent({ quietMode: true });
+      await agent.initialize();
+      const runner = new WorkflowRunner(agent as any);
+      let result: any;
+      if (file.endsWith('.yaml') || file.endsWith('.yml')) {
+        result = await runner.runFlowFromFile(file);
+      } else {
+        result = await runner.runFromFile(file);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(result.success ? 0 : 1);
+    }
+
     case 'team':
     case 'multiagent':
       await teamCommand(args);

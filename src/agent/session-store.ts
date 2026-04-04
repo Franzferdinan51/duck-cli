@@ -107,7 +107,7 @@ export class SessionStore {
     
     // Serialize content - SQLite can only bind primitives, not arrays/objects
     const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-    console.log('[DEBUG] addMessage called, content type:', typeof msg.content, 'contentStr type:', typeof contentStr);
+
     
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, session_id, role, content, tool_name, tool_result, timestamp, tokens, cost)

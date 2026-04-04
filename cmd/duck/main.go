@@ -89,6 +89,7 @@ Features:
 		securityCmd(),
 		statusCmd(),
 		councilCmd(),
+		workflowCmd(),
 		unifiedCmd(),
 		gatewayCmd(),
 		webCmd(),
@@ -493,6 +494,25 @@ func councilCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&mode, "mode", "decision", "Mode: decision|research|prediction|swarm")
+	return cmd
+}
+
+// workflowCmd - duck workflow <file> [--flow]
+func workflowCmd() *cobra.Command {
+	var flowFlag bool
+	cmd := &cobra.Command{
+		Use:   "workflow <file> [--flow]",
+		Short: "Execute a JSON workflow or YAML flow (DroidClaw-style)",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			wfType := "workflow"
+			if flowFlag {
+				wfType = "flow"
+			}
+			return runNodeWithEnv(wfType + " " + args[0], cmd)
+		},
+	}
+	cmd.Flags().BoolVar(&flowFlag, "flow", false, "Run as deterministic YAML flow (no LLM)")
 	return cmd
 }
 
