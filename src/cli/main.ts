@@ -1388,10 +1388,10 @@ async function startUnified() {
   await agent.initialize();
 
   const server = new UnifiedServer(agent, {
-    mcpPort: 3850,
-    acpPort: 18794,
-    wsPort: 18796,
-    gatewayPort: 18792,
+    mcpPort: parseInt(process.env.DUCK_MCP_PORT || '3850'),
+    acpPort: parseInt(process.env.DUCK_ACP_PORT || '18794'),
+    wsPort: parseInt(process.env.DUCK_WS_PORT || '18796'),
+    gatewayPort: parseInt(process.env.DUCK_GATEWAY_PORT || '18792'),
     enableMCP: true,
     enableACP: true,
     enableWebSocket: true,
@@ -1802,8 +1802,9 @@ async function kairosCommand(args: string[]) {
 // ============ GATEWAY API ============
 
 async function startGateway() {
+  const gatewayPort = parseInt(process.env.DUCK_GATEWAY_PORT || '18792');
   console.log(logo);
-  console.log(`${c.cyan}Starting Duck Agent Gateway API on port 18792...${c.reset}
+  console.log(`${c.cyan}Starting Duck Agent Gateway API on port ${gatewayPort}...${c.reset}
 `);
   
   const { UnifiedServer } = await import('../server/unified-server.js');
@@ -1811,10 +1812,10 @@ async function startGateway() {
   await agent.initialize();
 
   const server = new UnifiedServer(agent, {
-    mcpPort: 3850,
-    acpPort: 18794,
-    wsPort: 18796,
-    gatewayPort: 18792,
+    mcpPort: parseInt(process.env.DUCK_MCP_PORT || '3850'),
+    acpPort: parseInt(process.env.DUCK_ACP_PORT || '18794'),
+    wsPort: parseInt(process.env.DUCK_WS_PORT || '18796'),
+    gatewayPort,
     enableMCP: false,
     enableACP: false,
     enableWebSocket: false,
