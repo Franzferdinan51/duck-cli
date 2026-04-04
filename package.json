@@ -1,81 +1,32 @@
 {
-  "name": "duck-agent",
-  "version": "0.4.0",
-  "description": "🦆 Duck Agent v0.4.0 - Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS, Agent Mesh, 45-Agent Council",
-  "main": "dist/agent/core.js",
-  "bin": {
-    "duck": "./dist/cli/main.js",
-    "duck-agent": "./dist/cli/main.js"
+  "name": "@duckets/duck-cli-orchestrator",
+  "version": "2.0.0",
+  "description": "duck-cli v2 Orchestrator Core with Tool Registry and Fallback System",
+  "main": "dist/orchestrator/index.js",
+  "module": "dist/orchestrator/index.js",
+  "types": "dist/orchestrator/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/orchestrator/index.js",
+      "types": "./dist/orchestrator/index.d.ts"
+    }
   },
   "scripts": {
-    "build": "tsc && cp -r skills dist/",
-    "build:watch": "tsc --watch",
-    "dev": "tsx src/cli/main.ts",
-    "dev:agent": "tsx src/agent/core.ts",
-    "dev:web": "tsx src/web-server.ts",
-    "test": "vitest",
-    "lint": "eslint src/",
-    "start": "node dist/cli/main.js gateway",
-    "shell": "node dist/cli/main.js shell",
-    "web": "node dist/cli/main.js web",
-    "mcp": "node dist/cli/main.js mcp",
-    "docker:build": "docker build -t duck-agent .",
-    "docker:run": "docker-compose up -d",
-    "docker:logs": "docker logs -f duck-agent"
-  },
-  "dependencies": {
-    "@chenglou/pretext": "^0.0.3",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/diff": "^7.0.2",
-    "better-sqlite3": "^12.8.0",
-    "chalk": "^5.3.0",
-    "commander": "^12.1.0",
-    "cors": "^2.8.6",
-    "diff": "^8.0.4",
-    "express": "^5.2.1",
-    "glob": "^13.0.6",
-    "uuid": "^13.0.0",
-    "ws": "^8.16.0",
-    "yaml": "^2.8.3",
-    "zod": "^3.22.4"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^20.19.37",
-    "@types/uuid": "^10.0.0",
-    "@types/ws": "^8.18.1",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "vitest": "^1.2.0"
-  },
-  "engines": {
-    "node": ">=20.0.0"
+    "build": "tsc",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "demo": "node --loader ts-node/esm demo.ts"
   },
   "keywords": [
-    "ai-agent",
-    "claude-code",
-    "duck-agent",
-    "kairos",
-    "tts",
-    "voice",
-    "desktop-control",
-    "mcp",
-    "openclaw",
-    "hermes",
-    "browseros",
-    "copilotkit",
-    "pretext",
-    "generative-ui"
+    "orchestrator",
+    "tool-registry",
+    "fallback-system",
+    "duck-cli"
   ],
-  "author": "Ryan (Duckets)",
+  "author": "Duckets",
   "license": "MIT",
-  "homepage": "https://github.com/Franzferdinan51/duck-cli",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Franzferdinan51/duck-cli.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Franzferdinan51/duck-cli/issues"
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
   }
 }
