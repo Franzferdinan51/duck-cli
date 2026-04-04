@@ -45,6 +45,12 @@ export class SmartRouter {
       const model = target.model || (prov as any).defaultModel || 'default';
       const label = target.label || `${target.provider}/${model}`;
 
+      // Guard: ensure provider has complete method
+      if (typeof prov.complete !== 'function') {
+        if (verbose) console.log(`[Router] ${target.provider} has no complete method, skipping`);
+        continue;
+      }
+
       if (verbose) console.log(`[Router] Trying ${label}...`);
 
       try {
@@ -53,7 +59,8 @@ export class SmartRouter {
           timeout
         );
 
-        if (result.text && !result.error) {
+        // Handle empty string as valid response (check !== undefined, not falsy)
+        if (result.text !== undefined && !result.error) {
           if (verbose) console.log(`[Router] ✅ ${label} succeeded`);
           return { text: result.text, provider: target.provider, model };
         }
