@@ -10,6 +10,7 @@ import { ToolRegistry, ToolDefinition } from '../tools/registry.js';
 import { SkillRunner } from '../skills/runner.js';
 import { DesktopControl } from '../integrations/desktop.js';
 import { osType, homeDir } from '../utils/platform.js';
+import { join } from 'path';
 import { DangerousToolGuard, ToolRisk, ApprovalCallback } from '../tools/approval.js';
 import { Planner, Plan, PlanStep } from './planner.js';
 import { SessionStore } from './session-store.js';
@@ -22,7 +23,11 @@ import { tracer } from '../tracing/execution-tracer.js';
 import { agentCardManager } from '../mesh/agent-card.js';
 import { LoopDetector } from './loop-detector.js';
 import { SessionLogger } from './session-logger.js';
+import { SessionStream } from './session-stream.js';
 import { WorkflowRunner } from './workflow-runner.js';
+import { FlowRunner, defineFlow, acp, action, compute, checkpoint, shell as flowShell } from './flow-graph.js';
+import { FlowTrace } from './flow-trace.js';
+import { AndroidTools, getAndroidTools } from './android-tools.js';
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
@@ -105,6 +110,8 @@ export class Agent extends EventEmitter {
   private speculative: SpeculativeExecutor;
   private loopDetector: LoopDetector;
   private sessionLogger: SessionLogger;
+  private sessionStream: SessionStream;
+  private androidTools: AndroidTools;
   private initialized: boolean = false;
   
   // Conversation
@@ -172,6 +179,8 @@ export class Agent extends EventEmitter {
     this.speculative = new SpeculativeExecutor(this.providers);
     this.loopDetector = new LoopDetector();
     this.sessionLogger = new SessionLogger('/tmp/duck-sessions', this.name, 'duck-cli', 'multi-provider');
+    this.sessionStream = new SessionStream(join(homeDir(), '.duck', 'sessions'), this.name);
+    this.androidTools = getAndroidTools();
     
     this.guard.setQuietMode(this.config.quietMode!);
     
@@ -1314,6 +1323,305 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── ACPX-Style Flow Graph (TypeScript) ───────────────────
+    this.registerTool({
+      name: 'flow_run_ts',
+      description: '⚡⚡ Execute an ACPX-style TypeScript flow graph (~/.duck/flows/run/<id>/). ' +
+        'Supports: acp (model reasoning), action (shell/runtime), compute (local transforms), checkpoint (pause). ' +
+        'Outcomes: ok | timed_out | failed | cancelled. ' +
+        'Example flow def: { name: "build", nodes: { start: { kind: "acp", config: { prompt: "..." } } }, edges: [{ from: "start", condition: { type: "always", to: "..." } }] }',
+      schema: {
+        definition: { type: 'string', description: 'JSON flow definition (stringified)' },
+        startNode: { type: 'string', optional: true, description: 'Node ID to start from' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const def = typeof args.definition === 'string' ? JSON.parse(args.definition) : args.definition;
+          FlowRunner.validate(def);
+          const runner = new FlowRunner(def, 'memory', this.providers);
+          const result = await runner.run(args.startNode);
+          return {
+            flowName: def.name,
+            outcome: result.outcome,
+            totalSteps: result.results.length,
+            trace: runner.getTrace().getBundle(),
+            steps: result.results.map(r => ({
+              nodeId: r.nodeId,
+              kind: r.kind,
+              outcome: r.outcome,
+              durationMs: r.durationMs,
+              error: r.error
+            }))
+          };
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'flow_list',
+      description: '📋 List all ACPX flow runs (~/.duck/flows/runs/)',
+      schema: { limit: { type: 'number', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const runs = FlowTrace.listRuns();
+        if (runs.length === 0) return 'No flow runs found in ~/.duck/flows/runs/';
+        const limit = args.limit || 10;
+        return runs.slice(0, limit).map(r => {
+          const icon = r.status === 'completed' ? '✅' : r.status === 'running' ? '⏳' : r.outcome === 'cancelled' ? '⚠️' : '❌';
+          return `${icon} ${r.flowName} (${r.runId})\n  Status: ${r.status} | Outcome: ${r.outcome || 'running'} | Steps: ${r.completedSteps}/${r.totalSteps}\n  Created: ${new Date(r.createdAt).toLocaleString()}`;
+        }).join('\n\n');
+      }
+    });
+    this.registerTool({
+      name: 'flow_replay',
+      description: '🔁 Replay a flow run from its trace bundle',
+      schema: { runId: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { join } = await import('path');
+        const runDir = join(process.env.HOME || '/tmp', '.duck', 'flows', 'runs', args.runId);
+        try {
+          const { bundle, events, snapshot } = FlowTrace.replay(runDir);
+          return {
+            bundle,
+            eventCount: events.length,
+            snapshot
+          };
+        } catch (err: any) {
+          return { error: `Replay failed: ${err.message}` };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'flow_cancel',
+      description: '⏹️ Cancel a running flow',
+      schema: { flowName: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const latest = FlowTrace.latestRun(args.flowName);
+        if (!latest) return { error: `No running flow found for: ${args.flowName}` };
+        if (latest.status !== 'running') return { error: `Flow is not running (status: ${latest.status})` };
+        return { cancelled: true, runId: latest.runId };
+      }
+    });
+
+    // ─── Session Stream (ACPX-style NDJSON) ───────────────────
+    this.registerTool({
+      name: 'session_stream_list',
+      description: '📋 List all NDJSON session streams (~/.duck/sessions/)',
+      schema: { limit: { type: 'number', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const sessions = SessionStream.listSessions();
+        if (sessions.length === 0) return 'No sessions found in ~/.duck/sessions/';
+        const limit = args.limit || 10;
+        return sessions.slice(0, limit).map(s => {
+          const icon = s.checkpoint.outcome === 'ok' ? '✅' : s.checkpoint.outcome === 'failed' ? '❌' : '⏳';
+          return `${icon} Session ${s.recordId}\n  Last used: ${new Date(s.checkpoint.last_used_at).toLocaleString()}\n  Messages: ${s.checkpoint.last_seq} | Mode: ${s.checkpoint.current_mode_id}\n  Outcome: ${s.checkpoint.outcome || 'ongoing'}`;
+        }).join('\n\n');
+      }
+    });
+    this.registerTool({
+      name: 'session_stream_info',
+      description: 'ℹ️ Get info about a specific session stream',
+      schema: { recordId: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { join } = await import('path');
+        const { existsSync, readFileSync } = await import('fs');
+        const cpPath = join(process.env.HOME || '/tmp', '.duck', 'sessions', `${args.recordId}.json`);
+        if (!existsSync(cpPath)) return { error: 'Session not found' };
+        try {
+          const cp = JSON.parse(readFileSync(cpPath, 'utf8'));
+          return {
+            recordId: cp.acpx_record_id,
+            createdAt: cp.created_at,
+            lastUsedAt: cp.last_used_at,
+            lastSeq: cp.last_seq,
+            segments: cp.event_log.segment_count,
+            outcome: cp.outcome,
+            messageCount: cp.messages?.length || 0,
+            mode: cp.current_mode_id
+          };
+        } catch (err: any) {
+          return { error: err.message };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'session_stream_replay',
+      description: '🔁 Replay and repair a session stream (ACPX-style, ignores partial final line)',
+      schema: { recordId: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { join } = await import('path');
+        const stream = new (require('./session-stream.js').SessionStream)(
+          join(process.env.HOME || '/tmp', '.duck', 'sessions'),
+          'default',
+          args.recordId
+        );
+        const { messages, errors } = stream.replay();
+        return { recordId: args.recordId, totalMessages: messages.length, errors, lastSeq: stream['lastSeq'] };
+      }
+    });
+
+    // ─── Android Tools (DroidClaw-style ADB) ───────────────────
+    this.registerTool({
+      name: 'android_devices',
+      description: '📱 List connected Android devices via ADB',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const android = this.androidTools;
+        const devices = await android.refreshDevices();
+        if (devices.length === 0) return 'No Android devices found. Ensure USB debugging is enabled and `adb devices` shows your device.';
+        return devices.map(d => {
+          const icon = d.state === 'device' ? '📱' : d.state === 'offline' ? '⚠️' : '❌';
+          return `${icon} ${d.serial}\n  State: ${d.state}\n  Model: ${d.model || 'Unknown'}\n  Product: ${d.product || 'Unknown'}`;
+        }).join('\n\n');
+      }
+    });
+    this.registerTool({
+      name: 'android_screenshot',
+      description: '📸 Capture Android device screen and return path',
+      schema: { filename: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const cap = await this.androidTools.captureScreen(args.filename);
+          return { path: cap.path, timestamp: cap.timestamp };
+        } catch (err: any) {
+          return { error: `Screenshot failed: ${err.message}. Make sure a device is selected with android_devices.` };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'android_tap',
+      description: '👆 Tap at coordinates on Android screen',
+      schema: { x: { type: 'number' }, y: { type: 'number' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const ok = await this.androidTools.tap(args.x, args.y);
+        return ok ? `Tapped at (${args.x}, ${args.y})` : { error: 'Tap failed' };
+      }
+    });
+    this.registerTool({
+      name: 'android_type',
+      description: '⌨️ Type text on Android device',
+      schema: { text: { type: 'string' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const ok = await this.androidTools.typeText(args.text);
+        return ok ? `Typed: "${args.text}"` : { error: 'Type failed' };
+      }
+    });
+    this.registerTool({
+      name: 'android_shell',
+      description: '💻 Execute ADB shell command on Android device',
+      schema: { command: { type: 'string' }, timeout: { type: 'number', optional: true } },
+      dangerous: true,
+      handler: async (args: any) => {
+        const result = await this.androidTools.shell(args.command, args.timeout || 30000);
+        return result.exitCode === 0 ? result.stdout : { error: result.stderr || `Exit code: ${result.exitCode}`, stdout: result.stdout };
+      }
+    });
+    this.registerTool({
+      name: 'android_dump',
+      description: '📋 Dump Android UI hierarchy (XML) and return elements',
+      schema: { query: { type: 'string', optional: true, description: 'Text to search for in UI elements' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const xml = await this.androidTools.dumpUiXml();
+        const elements = this.androidTools.parseUiXml(xml);
+        if (args.query) {
+          const found = this.androidTools.findElement(elements, args.query);
+          if (!found) return `Element "${args.query}" not found. ${elements.length} elements on screen.`;
+          return `Found: ${JSON.stringify(found, null, 2)}`;
+        }
+        return { elementCount: elements.length, elements: elements.slice(0, 20) };
+      }
+    });
+    this.registerTool({
+      name: 'android_find_and_tap',
+      description: '🔍 Find UI element by text/content-desc/resource-id and tap it (DroidClaw-style)',
+      schema: { query: { type: 'string', description: 'Text, content description, or resource ID to find' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const ok = await this.androidTools.findAndTap(args.query);
+        return ok ? `Found and tapped: "${args.query}"` : { error: `Element "${args.query}" not found or not tappable` };
+      }
+    });
+    this.registerTool({
+      name: 'android_swipe',
+      description: '👆 Swipe on Android screen',
+      schema: { direction: { type: 'string', description: 'up | down | left | right' }, distance: { type: 'number', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const ok = await this.androidTools.scroll(args.direction as any, args.distance || 500);
+        return ok ? `Swiped ${args.direction}` : { error: 'Swipe failed' };
+      }
+    });
+    this.registerTool({
+      name: 'android_press',
+      description: '🔘 Press Android key (enter | back | home | recent)',
+      schema: { key: { type: 'string', description: 'enter | back | home | recent' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        switch (args.key) {
+          case 'enter': return { result: await this.androidTools.pressEnter() };
+          case 'back': return { result: await this.androidTools.pressBack() };
+          case 'home': return { result: await this.androidTools.pressHome() };
+          case 'recent': return { result: await this.androidTools.pressRecent() };
+          default: return { error: `Unknown key: ${args.key}` };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'android_app',
+      description: '🚀 Launch or kill Android app',
+      schema: { package: { type: 'string', description: 'Package name (e.g. com.instagram.android)' }, action: { type: 'string', description: 'launch | kill | foreground' } },
+      dangerous: false,
+      handler: async (args: any) => {
+        switch (args.action) {
+          case 'launch': {
+            const ok = await this.androidTools.launchApp(args.package);
+            return ok ? `Launched: ${args.package}` : { error: 'Launch failed' };
+          }
+          case 'kill': {
+            const ok = await this.androidTools.killApp(args.package);
+            return ok ? `Killed: ${args.package}` : { error: 'Kill failed' };
+          }
+          case 'foreground': {
+            const pkg = await this.androidTools.getForegroundApp();
+            return { foreground: pkg };
+          }
+          default: return { error: `Unknown action: ${args.action}` };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'android_screen',
+      description: '📖 Read all visible text on Android screen (DroidClaw-style screen OCR)',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const text = await this.androidTools.readScreen();
+        return text || 'No text found on screen';
+      }
+    });
+    this.registerTool({
+      name: 'android_battery',
+      description: '🔋 Get Android battery level',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const level = await this.androidTools.getBatteryLevel();
+        return level >= 0 ? `${level}%` : { error: 'Could not read battery level' };
+      }
+    });
+
     // ─── Agent Card (A2A/Mesh Discovery) ────────────────────
     this.registerTool({
       name: 'agent_card',
@@ -1427,14 +1735,18 @@ export class Agent extends EventEmitter {
             }
           }
           this.streams.toolEnd(this.sessionId, call.name, true, JSON.stringify(result).slice(0, 200), undefined, tDuration);
-          this.loopDetector.record(call.name, call.args, success);
+          this.loopDetector.record(call.name, call.args, true, 'ok');
           this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: true }, { success: true, message: 'Tool executed successfully', durationMs: tDuration });
+          // ACPX-style NDJSON session stream
+          this.sessionStream.notify('tool/execute', { tool: call.name, args: call.args }, { role: 'assistant', toolName: call.name, outcome: 'ok', durationMs: tDuration });
           return '\n\n🔧 ' + call.name + ': ' + JSON.stringify(result);
         } catch (e: any) {
           const tDuration = Date.now() - tStart;
           this.streams.toolEnd(this.sessionId, call.name, false, undefined, e.message, tDuration);
-          this.loopDetector.record(call.name, call.args, false);
+          this.loopDetector.record(call.name, call.args, false, 'failed');
           this.sessionLogger.logStep(toolCalls.indexOf(call) + 1, { tool: call.name, args: call.args, success: false }, { success: false, message: e.message, durationMs: tDuration });
+          // ACPX-style NDJSON session stream
+          this.sessionStream.notify('tool/execute', { tool: call.name, args: call.args }, { role: 'assistant', toolName: call.name, outcome: 'failed', durationMs: tDuration, toolResult: e.message });
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
         }
       }));
@@ -1487,6 +1799,7 @@ export class Agent extends EventEmitter {
     // Emit session end
     this.streams.sessionEnd(this.sessionId, 'success', Date.now() - startTime, toolsUsed);
     this.sessionLogger.finalize(true);
+    this.sessionStream.close('ok');
 
     return response;
   }

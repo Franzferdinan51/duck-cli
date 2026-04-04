@@ -1,19 +1,22 @@
 /**
  * Loop Detector - DroidClaw-inspired failure recovery
- * 
+ *
  * Detects when the agent is stuck in a loop:
  * - Same tool failing repeatedly
  * - Same action pattern repeated
  * - Agent drifting (too many meta-actions without progress)
- * 
- * Injects recovery hints to break the loop.
+ *
+ * ACPX-style outcomes: ok | timed_out | failed | cancelled
  */
+
+export type Outcome = 'ok' | 'timed_out' | 'failed' | 'cancelled';
 
 export interface ActionRecord {
   tool: string;
   args: string;  // JSON stringified args for comparison
   success: boolean;
   timestamp: number;
+  outcome: Outcome;
 }
 
 export interface RecoveryHint {
@@ -35,12 +38,13 @@ export class LoopDetector {
     'cron_list', 'memory_list', 'memory_recall'
   ]);
 
-  record(tool: string, args: any, success: boolean): void {
+  record(tool: string, args: any, success: boolean, outcome?: Outcome): void {
     this.history.push({
       tool,
       args: JSON.stringify(args || {}),
       success,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      outcome: outcome || (success ? 'ok' : 'failed')
     });
     if (this.history.length > this.maxHistory) {
       this.history.shift();

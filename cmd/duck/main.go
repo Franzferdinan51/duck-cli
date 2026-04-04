@@ -90,6 +90,7 @@ Features:
 		statusCmd(),
 		councilCmd(),
 		workflowCmd(),
+		flowCmd(),
 		unifiedCmd(),
 		gatewayCmd(),
 		webCmd(),
@@ -513,6 +514,35 @@ func workflowCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&flowFlag, "flow", false, "Run as deterministic YAML flow (no LLM)")
+	return cmd
+}
+
+// flowCmd - duck flow <json-file-or-definition> [start-node]
+// ACPX-style TypeScript flow graph runner
+func flowCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "flow <json-file-or-definition> [start-node]",
+		Short: "Execute an ACPX-style TypeScript flow graph (ok|timed_out|failed|cancelled outcomes)",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Read file if it exists, otherwise treat as inline JSON
+			definition := args[0]
+			if _, err := os.Stat(definition); err == nil {
+				data, err := os.ReadFile(definition)
+				if err != nil {
+					return fmt.Errorf("cannot read flow file: %v", err)
+				}
+				definition = string(data)
+			}
+			startNode := ""
+			if len(args) > 1 {
+				startNode = args[1]
+			}
+			// Encode as simple JSON string for the node CLI
+			payload := fmt.Sprintf(`{"definition":%s,"startNode":"%s"}`, definition, startNode)
+			return runNodeWithEnv("flow_ts "+payload, cmd)
+		},
+	}
 	return cmd
 }
 

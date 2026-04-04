@@ -242,6 +242,26 @@ async function main() {
       process.exit(result.success ? 0 : 1);
     }
 
+    case 'flow_ts': {
+      // ACPX-style TypeScript flow graph runner
+      const { FlowRunner } = await import('../agent/flow-graph.js');
+      const input = JSON.parse(args.join(' '));
+      const def = typeof input.definition === 'string' ? JSON.parse(input.definition) : input.definition;
+      const runner = new FlowRunner(def, 'cli');
+      const result = await runner.run(input.startNode);
+      console.log(JSON.stringify({
+        flowName: def.name,
+        outcome: result.outcome,
+        totalSteps: result.results.length,
+        trace: runner.getTrace().getBundle(),
+        steps: result.results.map((r: any) => ({
+          nodeId: r.nodeId, kind: r.kind, outcome: r.outcome,
+          durationMs: r.durationMs, error: r.error
+        }))
+      }, null, 2));
+      process.exit(result.outcome === 'ok' ? 0 : 1);
+    }
+
     case 'team':
     case 'multiagent':
       await teamCommand(args);
