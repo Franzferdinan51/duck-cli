@@ -1,6 +1,6 @@
 # 🦆 duck-cli
 
-> **Unified Super Agent** — Runs ON Mac/Linux/Windows/Android (Termux) + Controls Android via ADB + OpenClaw Bridge + Hybrid Orchestrator v2
+> **Unified Super Agent** — Local AI + Android Control via ADB + OpenClaw Bridge + Hybrid Orchestrator v2
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
