@@ -25,6 +25,7 @@ function getAgentConfig() {
 
 import { Agent } from '../agent/core.js';
 import { SessionStore } from '../agent/session-store.js';
+import { AndroidTools, getAndroidTools } from '../agent/android-tools.js';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join, dirname } from 'path';
@@ -172,6 +173,10 @@ async function main() {
 
     case 'desktop':
       await desktopCommand(args);
+      break;
+
+    case 'android':
+      await androidCommand(args);
       break;
 
     case 'memory':
@@ -974,7 +979,7 @@ async function desktopCommand(args: string[]) {
 
   const [action, ...actionArgs] = args;
 
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'open':
       await agent.openApp(actionArgs.join(' '));
       console.log(`${c.green}✓${c.reset} Opened: ${actionArgs.join(' ')}`);
@@ -998,6 +1003,288 @@ async function desktopCommand(args: string[]) {
   await agent.shutdown();
 }
 
+// ============ ANDROID ============
+async function androidCommand(args: string[]) {
+  const android = getAndroidTools();
+  const [action, ...actionArgs] = args;
+  
+  // Parse JSON payload if present (set by Go layer)
+  // Go passes: "shell {...}" as one string OR ["shell", "{...}"] as separate args
+  let payload: Record<string, any> = {};
+  let subCmd = action;
+  
+  // If action is like "shell {...}" with JSON attached, split it
+  const spaceIdx = action.indexOf(' ');
+  if (spaceIdx > 0) {
+    const possibleJson = action.substring(spaceIdx + 1);
+    if (possibleJson.startsWith('{')) {
+      try {
+        payload = JSON.parse(possibleJson);
+        subCmd = action.substring(0, spaceIdx);
+      } catch (e) {
+        // Not JSON, keep action as-is
+      }
+    }
+  }
+  
+  // Also check actionArgs for JSON if payload still empty
+  if (Object.keys(payload).length === 0) {
+    try {
+      if (actionArgs[1]?.startsWith('{')) { payload = JSON.parse(actionArgs[1]); }
+      else if (actionArgs[0]?.startsWith('{')) { payload = JSON.parse(actionArgs[0]); }
+    } catch (e) {
+      // No JSON
+    }
+  }
+
+  const c2 = { green: '\x1b[32m', red: '\x1b[31m', yellow: '\x1b[33m', cyan: '\x1b[36m', reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m' };
+
+  switch (subCmd) {
+    case 'devices': {
+      const devices = await android.refreshDevices();
+      if (devices.length === 0) {
+        console.log(`${c2.yellow}No Android devices connected. Enable USB debugging and connect your device.${c2.reset}`);
+        return;
+      }
+      const current = android.getCurrentDevice();
+      console.log(`${c2.bold}Android Devices (${devices.length}):${c2.reset}`);
+      for (const dev of devices) {
+        const state = current?.serial === dev.serial ? `${c2.green}[ACTIVE]${c2.reset}` : '';
+        console.log(`  ${c2.cyan}${dev.serial}${c2.reset} ${state}`);
+        console.log(`    Model: ${dev.model || 'unknown'}`);
+      }
+      break;
+    }
+    case 'info': {
+      await android.refreshDevices();
+      const serial = (payload.serial && payload.serial.trim()) || android.getCurrentDevice()?.serial || actionArgs[0];
+      if (!serial) { console.log(`${c2.red}No device selected. Run 'duck android devices' first.${c2.reset}`); return; }
+      const info = await android.getDeviceInfo(serial);
+      console.log(JSON.stringify(info, null, 2));
+      break;
+    }
+    case 'shell': {
+      const cmd = payload.command ?? actionArgs.join(' ');
+      if (!cmd) { console.log(`${c2.red}Usage: duck android shell <command>${c2.reset}`); return; }
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const result = await android.shell(cmd);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
+    }
+    case 'screenshot': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const cap = await android.captureScreen();
+      console.log(`${c2.green}✓${c2.reset} Screenshot: ${cap.path} (${cap.width}x${cap.height})`);
+      break;
+    }
+    case 'tap': {
+      const x = payload.x ?? actionArgs[0];
+      const y = payload.y ?? actionArgs[1];
+      if (!x || !y) { console.log(`${c2.red}Usage: duck android tap <x> <y>${c2.reset}`); return; }
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const ok = await android.tap(parseInt(x), parseInt(y));
+      console.log(ok ? `${c2.green}✓ Tapped${c2.reset}` : `${c2.red}✗ Tap failed${c2.reset}`);
+      break;
+    }
+    case 'type': {
+      const text = payload.text ?? actionArgs.join(' ');
+      if (!text) { console.log(`${c2.red}Usage: duck android type <text>${c2.reset}`); return; }
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const ok = await android.typeText(text);
+      console.log(ok ? `${c2.green}✓ Typed${c2.reset}` : `${c2.red}✗ Type failed${c2.reset}`);
+      break;
+    }
+    case 'key': {
+      const key = payload.key ?? actionArgs[0];
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      if (!key) { console.log(`${c2.red}Usage: duck android key <home|back|enter|recent|power|volup|voldown>${c2.reset}`); return; }
+      const keyMap: Record<string, string> = { home: '3', back: '4', enter: '66', recents: '187', recent: '187', power: '26', volup: '24', voldown: '25' };
+      const code = keyMap[key.toLowerCase()];
+      if (!code) { console.log(`${c2.red}Unknown key: ${key}${c2.reset}`); return; }
+      const ok = await android.pressKey(code);
+      console.log(ok ? `${c2.green}✓ Key pressed${c2.reset}` : `${c2.red}✗ Key failed${c2.reset}`);
+      break;
+    }
+    case 'dump': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const xml = await android.dumpUiXml();
+      console.log(xml);
+      break;
+    }
+    case 'fg':
+    case 'foreground': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const fg = await android.getForegroundApp();
+      console.log(fg || '(none)');
+      break;
+    }
+    case 'battery': {
+      const serial = payload.serial;
+      await android.refreshDevices();
+      if (serial) android.setDevice(serial);
+      const bat = await android.getBatteryLevel();
+      console.log(`${bat}%`);
+      break;
+    }
+    case 'packages': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const apps = await android.listApps();
+      apps.slice(0, 50).forEach(p => console.log(p));
+      if (apps.length > 50) console.log(`... and ${apps.length - 50} more`);
+      break;
+    }
+    case 'launch': {
+      const pkg = actionArgs[0];
+      if (!pkg) { console.log(`${c2.red}Usage: duck android launch <package>${c2.reset}`); return; }
+      const ok = await android.launchApp(pkg);
+      console.log(ok ? `${c2.green}✓ Launched${c2.reset}` : `${c2.red}✗ Launch failed${c2.reset}`);
+      break;
+    }
+    case 'kill': {
+      const pkg = actionArgs[0];
+      if (!pkg) { console.log(`${c2.red}Usage: duck android kill <package>${c2.reset}`); return; }
+      const ok = await android.killApp(pkg);
+      console.log(ok ? `${c2.green}✓ Killed${c2.reset}` : `${c2.red}✗ Kill failed${c2.reset}`);
+      break;
+    }
+    case 'install': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const apk = payload.apk ?? actionArgs[0];
+      if (!apk) { console.log(`${c2.red}Usage: duck android install <apk-path>${c2.reset}`); return; }
+      const result = await android.installApk(apk);
+      console.log(result);
+      break;
+    }
+    case 'termux': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const cmd = payload.command ?? actionArgs.join(' ');
+      const result = await android.termuxCommand(cmd);
+      console.log(result);
+      break;
+    }
+    case 'analyze': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const data = await android.screenshotAnalyze();
+      console.log(JSON.stringify(data, null, 2));
+      break;
+    }
+    case 'find': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const query = payload.query ?? actionArgs[0];
+      if (!query) { console.log(`${c2.red}Usage: duck android find <text-or-id>${c2.reset}`); return; }
+      // DroidClaw-style: find element and tap
+      await android.dumpUiXml();
+      const xml = await android.dumpUiXml();
+      const textId = query.toLowerCase();
+      // Simple text search in XML - tap first match
+      if (xml.includes(textId)) {
+        console.log(`${c2.green}Found:${c2.reset} "${query}" in UI`);
+      } else {
+        console.log(`${c2.yellow}Not found:${c2.reset} "${query}"`);
+        return;
+      }
+      break;
+    }
+    case 'press': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const key = payload.key ?? actionArgs[0];
+      if (!key) { console.log(`${c2.red}Usage: duck android press <home|back|enter|recent|power|volup|voldown>${c2.reset}`); return; }
+      const keyMap: Record<string, string> = { home: '3', back: '4', enter: '66', recents: '187', recent: '187', power: '26', volup: '24', voldown: '25' };
+      const code = keyMap[key.toLowerCase()];
+      if (!code) { console.log(`${c2.red}Unknown key: ${key}${c2.reset}`); return; }
+      const ok = await android.pressKey(code);
+      console.log(ok ? `${c2.green}✓ Key pressed${c2.reset}` : `${c2.red}✗ Key press failed${c2.reset}`);
+      break;
+    }
+    case 'clipboard': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const act = payload.action ?? actionArgs[0];
+      if (act === 'get') {
+        const txt = await android.getClipboard();
+        console.log(txt || '(empty)');
+      } else if (act === 'set') {
+        const txt = payload.text ?? actionArgs[1];
+        if (!txt) { console.log(`${c2.red}Usage: duck android clipboard set <text>${c2.reset}`); return; }
+        const ok = await android.setClipboard(txt);
+        console.log(ok ? `${c2.green}✓ Clipboard set${c2.reset}` : `${c2.red}✗ Clipboard failed${c2.reset}`);
+      } else {
+        console.log(`${c2.red}Usage: duck android clipboard <get|set> [text]${c2.reset}`);
+      }
+      break;
+    }
+    case 'notifications': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const notifs = await android.getNotifications();
+      if (notifs.length === 0) {
+        console.log(`${c2.yellow}No notifications${c2.reset}`);
+      } else {
+        notifs.forEach((n: any) => console.log(`${c2.cyan}${n.app}:${c2.reset} ${n.text || n.title || '(no text)'}`));
+      }
+      break;
+    }
+    case 'push': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const local = payload.local ?? actionArgs[0];
+      const remote = payload.remote ?? actionArgs[1];
+      if (!local || !remote) { console.log(`${c2.red}Usage: duck android push <local-path> <remote-path>${c2.reset}`); return; }
+      const ok = await android.pushFile(local, remote);
+      console.log(ok ? `${c2.green}✓ Pushed${c2.reset}` : `${c2.red}✗ Push failed${c2.reset}`);
+      break;
+    }
+    case 'pull': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const remote = payload.remote ?? actionArgs[0];
+      const local = payload.local ?? actionArgs[1];
+      if (!remote || !local) { console.log(`${c2.red}Usage: duck android pull <remote-path> <local-path>${c2.reset}`); return; }
+      const ok = await android.pullFile(remote, local);
+      console.log(ok ? `${c2.green}✓ Pulled${c2.reset}` : `${c2.red}✗ Pull failed${c2.reset}`);
+      break;
+    }
+    case 'refresh': {
+      const devices = await android.refreshDevices();
+      console.log(`${c2.green}✓${c2.reset} ${devices.length} device(s) found`);
+      break;
+    }
+    default: {
+      console.log(`${c2.bold}Android CLI - DroidClaw-style commands:${c2.reset}`);
+      console.log(`  ${c2.cyan}duck android devices${c2.reset}         List connected devices`);
+      console.log(`  ${c2.cyan}duck android info [serial]${c2.reset}      Device info`);
+      console.log(`  ${c2.cyan}duck android shell <cmd>${c2.reset}       Run ADB shell command`);
+      console.log(`  ${c2.cyan}duck android screenshot${c2.reset}         Capture screen`);
+      console.log(`  ${c2.cyan}duck android tap <x> <y>${c2.reset}        Tap at coordinates`);
+      console.log(`  ${c2.cyan}duck android type <text>${c2.reset}        Type text`);
+      console.log(`  ${c2.cyan}duck android key <key>${c2.reset}          Press key (home/back/enter/recents/power/volup/voldown)`);
+      console.log(`  ${c2.cyan}duck android dump${c2.reset}                Dump UI hierarchy`);
+      console.log(`  ${c2.cyan}duck android foreground${c2.reset}          Current app`);
+      console.log(`  ${c2.cyan}duck android battery${c2.reset}            Battery level`);
+      console.log(`  ${c2.cyan}duck android packages${c2.reset}           List packages`);
+      console.log(`  ${c2.cyan}duck android launch <pkg>${c2.reset}       Launch app`);
+      console.log(`  ${c2.cyan}duck android kill <pkg>${c2.reset}         Kill app`);
+      console.log(`  ${c2.cyan}duck android install <apk>${c2.reset}      Install APK`);
+      console.log(`  ${c2.cyan}duck android termux <cmd>${c2.reset}      Termux API command`);
+      console.log(`  ${c2.cyan}duck android analyze${c2.reset}            Full screen+UI+app analysis`);
+    }
+  }
+}
+
 // ============ MEMORY ============
 
 async function memoryCommand(args: string[]) {
@@ -1006,7 +1293,7 @@ async function memoryCommand(args: string[]) {
 
   const [action, ...actionArgs] = args;
 
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'add':
     case 'remember':
       await agent.remember(actionArgs.join(' '));
@@ -1568,7 +1855,7 @@ async function buddyCommand(args: string[]) {
   
   console.log(`${c.cyan}Buddy Companion System${c.reset}`);
   
-  switch (action) {
+  switch (actionArgs[0]) {
       case 'hatch':
         console.log(`${c.green}🦴 Hatching a new buddy...${c.reset}`);
         console.log(`${c.yellow}(Buddy system requires full initialization)${c.reset}`);
@@ -1652,7 +1939,7 @@ async function teamCommand(args: string[]) {
 
   console.log(`\n${c2.cyan}${c2.bold}   Duck Agent Team System${c2.reset}\n`);
 
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'templates': {
       console.log(`${c2.bold}Available Team Templates:${c2.reset}\n`);
       for (const t of TEAM_TEMPLATES) {
@@ -1909,7 +2196,7 @@ async function cronCommand(args: string[]) {
     return;
   }
   
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'list': {
       console.log(`${c.cyan}Available Cron Jobs${c.reset}
 `);
@@ -2010,7 +2297,7 @@ async function traceCommand(args: string[]) {
   const action = args[0] || 'stats';
   const { tracer } = await import('../tracing/execution-tracer.js');
 
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'enable': {
       const sessionId = args[1];
       const traceId = tracer.startTrace(sessionId || 'default');
@@ -2060,7 +2347,7 @@ async function a2aCommand(args: string[]) {
   const action = args[0] || 'card';
   const { agentCardManager } = await import('../mesh/agent-card.js');
 
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'card': {
       const card = agentCardManager.getCard();
       console.log(`${c.cyan}Agent Card: ${card.name} v${card.version}${c.reset}`);
@@ -2083,7 +2370,7 @@ async function buddyCommand(args: string[]) {
   
   console.log(`${c.cyan}Buddy Companion System${c.reset}`);
   
-  switch (action) {
+  switch (actionArgs[0]) {
       case 'hatch':
         console.log(`${c.green}🦴 Hatching a new buddy...${c.reset}`);
         console.log(`${c.yellow}(Buddy system requires full initialization)${c.reset}`);
@@ -2167,7 +2454,7 @@ async function teamCommand(args: string[]) {
 
   console.log(`\n${c2.cyan}${c2.bold}   Duck Agent Team System${c2.reset}\n`);
 
-  switch (action) {
+  switch (actionArgs[0]) {
     case 'templates': {
       console.log(`${c2.bold}Available Team Templates:${c2.reset}\n`);
       for (const t of TEAM_TEMPLATES) {

@@ -786,11 +786,23 @@ func doctorCmd() *cobra.Command {
 	return cmd
 }
 
+// getFirstDevice returns the first connected ADB device serial
+func getFirstDevice() string {
+	out, err := exec.Command("sh", "-c", "adb devices 2>/dev/null | tail -n +2 | head -1 | awk '{print $1}'").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // runNodeWithEnv runs node with provider/model/priority env vars
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	exePath, _ := os.Executable()
 	cmdDir := filepath.Dir(exePath)
-	nodeCmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, strings.Fields(script)...)...)
+	parts := strings.SplitN(script, " ", 2)
+	nodeArgs := []string{filepath.Join(cmdDir, "dist", "cli", "main.js")}
+	for _, p := range parts { nodeArgs = append(nodeArgs, p) }
+	nodeCmd := exec.Command("node", nodeArgs...)
 	nodeCmd.Stdout = os.Stdout
 	nodeCmd.Stderr = os.Stderr
 	nodeCmd.Stdin = os.Stdin
@@ -828,7 +840,7 @@ func androidCmd() *cobra.Command {
 		Short: "List connected Android devices via ADB",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNodeWithEnv("android_devices", cmd)
+			return runNodeWithEnv("android devices", cmd)
 		},
 	}
 	screenshotCmd := &cobra.Command{
@@ -841,7 +853,7 @@ func androidCmd() *cobra.Command {
 				fname = args[0]
 			}
 			payload := fmt.Sprintf(`{"filename":"%s"}`, fname)
-			return runNodeWithEnv("android_screenshot "+payload, cmd)
+			return runNodeWithEnv("android screenshot "+payload, cmd)
 		},
 	}
 	tapCmd := &cobra.Command{
@@ -850,7 +862,7 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := fmt.Sprintf(`{"x":%s,"y":%s}`, args[0], args[1])
-			return runNodeWithEnv("android_tap "+payload, cmd)
+			return runNodeWithEnv("android tap "+payload, cmd)
 		},
 	}
 	typeCmd := &cobra.Command{
@@ -860,7 +872,7 @@ func androidCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			text := strings.Join(args, " ")
 			payload := fmt.Sprintf(`{"text":"%s"}`, strings.ReplaceAll(text, `"`, `\"`))
-			return runNodeWithEnv("android_type "+payload, cmd)
+			return runNodeWithEnv("android type "+payload, cmd)
 		},
 	}
 	shellCmdLocal := &cobra.Command{
@@ -870,7 +882,7 @@ func androidCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmdStr := strings.Join(args, " ")
 			payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(cmdStr, `"`, `\"`))
-			return runNodeWithEnv("android_shell "+payload, cmd)
+			return runNodeWithEnv("android shell "+payload, cmd)
 		},
 	}
 	dumpCmd := &cobra.Command{
@@ -883,7 +895,7 @@ func androidCmd() *cobra.Command {
 				query = args[0]
 			}
 			payload := fmt.Sprintf(`{"query":"%s"}`, query)
-			return runNodeWithEnv("android_dump "+payload, cmd)
+			return runNodeWithEnv("android dump "+payload, cmd)
 		},
 	}
 	findCmd := &cobra.Command{
@@ -892,7 +904,7 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := fmt.Sprintf(`{"query":"%s"}`, args[0])
-			return runNodeWithEnv("android_find_and_tap "+payload, cmd)
+			return runNodeWithEnv("android find "+payload, cmd)
 		},
 	}
 	swipeCmd := &cobra.Command{
@@ -905,7 +917,7 @@ func androidCmd() *cobra.Command {
 				dist = args[1]
 			}
 			payload := fmt.Sprintf(`{"direction":"%s","distance":%s}`, args[0], dist)
-			return runNodeWithEnv("android_swipe "+payload, cmd)
+			return runNodeWithEnv("android swipe "+payload, cmd)
 		},
 	}
 	pressCmd := &cobra.Command{
@@ -914,7 +926,7 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := fmt.Sprintf(`{"key":"%s"}`, args[0])
-			return runNodeWithEnv("android_press "+payload, cmd)
+			return runNodeWithEnv("android press "+payload, cmd)
 		},
 	}
 	appCmd := &cobra.Command{
@@ -923,7 +935,7 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := fmt.Sprintf(`{"action":"%s","package":"%s"}`, args[0], args[1])
-			return runNodeWithEnv("android_app "+payload, cmd)
+			return runNodeWithEnv("android app "+payload, cmd)
 		},
 	}
 	screenCmd := &cobra.Command{
@@ -931,7 +943,9 @@ func androidCmd() *cobra.Command {
 		Short: "Read all visible text on Android screen (OCR-style)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNodeWithEnv("android_screen", cmd)
+			serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android screen " + payload, cmd)
 		},
 	}
 	batteryCmd := &cobra.Command{
@@ -939,7 +953,9 @@ func androidCmd() *cobra.Command {
 		Short: "Get Android battery level",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNodeWithEnv("android_battery", cmd)
+			serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android battery " + payload, cmd)
 		},
 	}
 	infoCmd := &cobra.Command{
@@ -950,7 +966,7 @@ func androidCmd() *cobra.Command {
 			serial := ""
 			if len(args) > 0 { serial = args[0] }
 			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
-			return runNodeWithEnv("android_info "+payload, cmd)
+			return runNodeWithEnv("android info "+payload, cmd)
 		},
 	}
 	installCmd := &cobra.Command{
@@ -959,7 +975,7 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := fmt.Sprintf(`{"apk":"%s"}`, args[0])
-			return runNodeWithEnv("android_install "+payload, cmd)
+			return runNodeWithEnv("android install "+payload, cmd)
 		},
 	}
 	packagesCmd := &cobra.Command{
@@ -967,7 +983,9 @@ func androidCmd() *cobra.Command {
 		Short: "List installed packages",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNodeWithEnv("android_packages", cmd)
+			serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android packages " + payload, cmd)
 		},
 	}
 	termuxCmd := &cobra.Command{
@@ -976,7 +994,7 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := fmt.Sprintf(`{"command":"%s"}`, args[0])
-			return runNodeWithEnv("android_termux "+payload, cmd)
+			return runNodeWithEnv("android termux "+payload, cmd)
 		},
 	}
 	analyzeCmd := &cobra.Command{
@@ -984,7 +1002,9 @@ func androidCmd() *cobra.Command {
 		Short: "Full vision pipeline: screenshot + UI + app + battery",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNodeWithEnv("android_analyze", cmd)
+			serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android analyze " + payload, cmd)
 		},
 	}
 	clipboardCmd := &cobra.Command{
@@ -994,10 +1014,10 @@ func androidCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				payload := fmt.Sprintf(`{"action":"get"}`)
-				return runNodeWithEnv("android_clipboard "+payload, cmd)
+				return runNodeWithEnv("android clipboard "+payload, cmd)
 			}
 			payload := fmt.Sprintf(`{"action":"set","text":"%s"}`, strings.ReplaceAll(args[1], `"`, `"`))
-			return runNodeWithEnv("android_clipboard "+payload, cmd)
+			return runNodeWithEnv("android clipboard "+payload, cmd)
 		},
 	}
 	notificationsCmd := &cobra.Command{
@@ -1005,7 +1025,9 @@ func androidCmd() *cobra.Command {
 		Short: "Get recent Android notifications",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNodeWithEnv("android_notifications", cmd)
+			serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android notifications " + payload, cmd)
 		},
 	}
 
@@ -1021,47 +1043,51 @@ func androidCmd() *cobra.Command {
 			sub := args[0]
 			switch sub {
 			case "devices":
-				return runNodeWithEnv("android_devices", cmd)
+				return runNodeWithEnv("android devices", cmd)
 			case "screenshot":
 				fname := ""
 				if len(args) > 1 {
 					fname = args[1]
 				}
-				payload := fmt.Sprintf(`{"filename":"%s"}`, fname)
-				return runNodeWithEnv("android_screenshot "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"filename":"%s","serial":"%s"}`, fname, serial)
+				return runNodeWithEnv("android screenshot " + payload, cmd)
 			case "tap":
 				if len(args) < 3 {
 					return fmt.Errorf("Usage: duck android tap <x> <y>")
 				}
-				payload := fmt.Sprintf(`{"x":%s,"y":%s}`, args[1], args[2])
-				return runNodeWithEnv("android_tap "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"x":%s,"y":%s,"serial":"%s"}`, args[1], args[2], serial)
+				return runNodeWithEnv("android tap " + payload, cmd)
 			case "type":
 				if len(args) < 2 {
 					return fmt.Errorf("Usage: duck android type <text>")
 				}
 				text := strings.Join(args[1:], " ")
 				payload := fmt.Sprintf(`{"text":"%s"}`, strings.ReplaceAll(text, `"`, `\"`))
-				return runNodeWithEnv("android_type "+payload, cmd)
+				return runNodeWithEnv("android type "+payload, cmd)
 			case "shell":
 				if len(args) < 2 {
 					return fmt.Errorf("Usage: duck android shell <command>")
 				}
 				shellCmd := strings.Join(args[1:], " ")
 				payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(shellCmd, `"`, `\"`))
-				return runNodeWithEnv("android_shell "+payload, cmd)
+				return runNodeWithEnv("android shell "+payload, cmd)
 			case "dump":
 				query := ""
 				if len(args) > 1 {
 					query = args[1]
 				}
-				payload := fmt.Sprintf(`{"query":"%s"}`, query)
-				return runNodeWithEnv("android_dump "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"query":"%s","serial":"%s"}`, query, serial)
+				return runNodeWithEnv("android dump " + payload, cmd)
 			case "find":
 				if len(args) < 2 {
 					return fmt.Errorf("Usage: duck android find <text-or-id>")
 				}
-				payload := fmt.Sprintf(`{"query":"%s"}`, args[1])
-				return runNodeWithEnv("android_find_and_tap "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"query":"%s","serial":"%s"}`, args[1], serial)
+				return runNodeWithEnv("android find " + payload, cmd)
 			case "swipe":
 				if len(args) < 2 {
 					return fmt.Errorf("Usage: duck android swipe <direction> [distance]")
@@ -1070,51 +1096,64 @@ func androidCmd() *cobra.Command {
 				if len(args) > 2 {
 					dist = args[2]
 				}
-				payload := fmt.Sprintf(`{"direction":"%s","distance":%s}`, args[1], dist)
-				return runNodeWithEnv("android_swipe "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"direction":"%s","distance":%s,"serial":"%s"}`, args[1], dist, serial)
+				return runNodeWithEnv("android swipe " + payload, cmd)
 			case "press":
 				if len(args) < 2 {
 					return fmt.Errorf("Usage: duck android press <key>")
 				}
-				payload := fmt.Sprintf(`{"key":"%s"}`, args[1])
-				return runNodeWithEnv("android_press "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"key":"%s","serial":"%s"}`, args[1], serial)
+				return runNodeWithEnv("android press " + payload, cmd)
 			case "app":
 				if len(args) < 3 {
 					return fmt.Errorf("Usage: duck android app <action> <package>")
 				}
-				payload := fmt.Sprintf(`{"action":"%s","package":"%s"}`, args[1], args[2])
-				return runNodeWithEnv("android_app "+payload, cmd)
+				serial := getFirstDevice()
+				payload := fmt.Sprintf(`{"action":"%s","package":"%s","serial":"%s"}`, args[1], args[2], serial)
+				return runNodeWithEnv("android app " + payload, cmd)
 			case "screen":
-				return runNodeWithEnv("android_screen", cmd)
+				serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android screen " + payload, cmd)
 			case "battery":
-				return runNodeWithEnv("android_battery", cmd)
+				serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android battery " + payload, cmd)
 			case "info":
 				serial := ""
 				if len(args) > 1 { serial = args[1] }
 				payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
-				return runNodeWithEnv("android_info "+payload, cmd)
+				return runNodeWithEnv("android info "+payload, cmd)
 			case "install":
 				if len(args) < 2 { return fmt.Errorf("Usage: duck android install <apk-path>") }
 				payload := fmt.Sprintf(`{"apk":"%s"}`, args[1])
-				return runNodeWithEnv("android_install "+payload, cmd)
+				return runNodeWithEnv("android install "+payload, cmd)
 			case "packages":
-				return runNodeWithEnv("android_packages", cmd)
+				serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android packages " + payload, cmd)
 			case "termux":
 				if len(args) < 2 { return fmt.Errorf("Usage: duck android termux <command>") }
 				payload := fmt.Sprintf(`{"command":"%s"}`, args[1])
-				return runNodeWithEnv("android_termux "+payload, cmd)
+				return runNodeWithEnv("android termux "+payload, cmd)
 			case "analyze":
-				return runNodeWithEnv("android_analyze", cmd)
+				serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android analyze " + payload, cmd)
 			case "clipboard":
 				if len(args) < 2 { return fmt.Errorf("Usage: duck android clipboard <get|set> [text]") }
 				if len(args) == 2 {
 					payload := fmt.Sprintf(`{"action":"get"}`)
-					return runNodeWithEnv("android_clipboard "+payload, cmd)
+					return runNodeWithEnv("android clipboard "+payload, cmd)
 				}
 				payload := fmt.Sprintf(`{"action":"set","text":"%s"}`, strings.ReplaceAll(args[2], `"`, `"`))
-				return runNodeWithEnv("android_clipboard "+payload, cmd)
+				return runNodeWithEnv("android clipboard "+payload, cmd)
 			case "notifications", "notifs":
-				return runNodeWithEnv("android_notifications", cmd)
+				serial := getFirstDevice()
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android notifications " + payload, cmd)
 			default:
 				return fmt.Errorf("unknown android command: %s. Run 'duck android' for help.", sub)
 			}
