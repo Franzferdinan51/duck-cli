@@ -1,6 +1,6 @@
 # 🦆 duck-cli
 
-> **Unified Super Agent** — Local AI + Android Control via ADB + OpenClaw Bridge + Orchestrator Core v2
+> **Unified Super Agent** — Runs ON Mac/Linux/Windows/Android (Termux) + Controls Android via ADB + OpenClaw Bridge + Hybrid Orchestrator v2
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -11,53 +11,118 @@
 
 ## 🎯 What is duck-cli?
 
-**duck-cli** is a unified AI agent CLI that runs on Mac/Linux/Windows and controls Android devices via ADB, connects to OpenClaw gateway for ACP/MCP, and uses a smart **Orchestrator Core v2** to route tasks to the best available tool with automatic fallback.
+**duck-cli** is a unified AI agent CLI that:
+1. **Runs natively on Mac/Linux/Windows AND Android (Termux)** - the agent executes ON your device
+2. **Controls Android devices via ADB** when needed from desktop
+3. **Connects to OpenClaw gateway** for ACP/MCP/Agent Mesh
+4. **Uses Hybrid Orchestrator Core** with smart routing + AI Council deliberation
 
-Think of it as your AI-powered Android automation hub — with local LLM reasoning (Gemma 4 via LM Studio), multi-protocol bridges (ACP/MCP/WebSocket), and 40+ built-in tools.
+Think of it as your AI-powered agent hub — with local LLM reasoning (Gemma 4 via LM Studio), multi-protocol bridges (ACP/MCP/WebSocket), and 40+ built-in tools.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                        duck-cli                               │
-├──────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              Orchestrator Core v2                        │ │
-│  │  ├── Tool Registry (capability-based selection)         │ │
-│  │  ├── Fallback Manager (tries alternatives on failure)   │ │
-│  │  └── Task Router (routes to best tool)                 │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │                   Bridge Layer                           │ │
-│  │  ├── ACP Bridge ──► OpenClaw Gateway (ws://localhost:18789)│
-│  │  ├── MCP Bridge ──► MCP Tools (stdio / HTTP)            │ │
-│  │  └── WebSocket ───► Real-time streaming                 │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │                 Execution Layer                          │ │
-│  │  ├── 🤖 Android Agent (ADB automation + Gemma 4 vision)  │ │
-│  │  ├── 💬 LLM Providers (LM Studio, OpenAI, Kimi, MiniMax)  │ │
-│  │  └── 🔧 Tool Executors (40+ built-in tools)              │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           duck-cli                                       │
+├──────────────────────────────────────────────────────────────────────────┤
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │              Hybrid Orchestrator v2                                 │ │
+│  │  ├── Task Complexity Classifier (1-10 scoring)                       │ │
+│  │  ├── Model Router (auto-selects best model)                          │ │
+│  │  ├── AI Council Bridge (deliberates on complex tasks)                │ │
+│  │  ├── Tool Registry (capability-based selection)                       │ │
+│  │  └── Fallback Manager (tries alternatives on failure)                │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                   Bridge Layer                                      │ │
+│  │  ├── ACP Bridge ──► OpenClaw Gateway (ws://localhost:18789)         │ │
+│  │  ├── MCP Bridge ──► MCP Tools (stdio / HTTP)                        │ │
+│  │  └── WebSocket ───► Real-time streaming                             │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                 Execution Layer                                     │ │
+│  │  ├── 🤖 Android Agent (runs ON phone + ADB control)                 │ │
+│  │  ├── 🧠 AI Council (5+ councilors for complex decisions)           │ │
+│  │  ├── 💬 LLM Providers (LM Studio, OpenAI, Kimi, MiniMax)            │ │
+│  │  └── 🔧 Tool Executors (40+ built-in tools)                          │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## ✨ Features
 
-### 🤖 Android Agent
-Control Android devices with AI-powered reasoning:
-- **Gemma 4 Vision** — `gemma-4-e4b-it` model (specifically trained for Android tool-calling!)
-- **Perceive → Reason → Act** loop — sees screen, thinks, acts
-- **XML-based navigation** — no coordinate guessing, uses UI hierarchy
-- **30-step loops** with automatic stuck detection
-- Works via **ADB** (USB or WiFi)
+### 🤖 Android Agent (Runs ON + Controls Android)
+
+**duck-cli operates in TWO modes:**
+
+#### Mode 1: Run ON Android (Native Agent)
+The agent runs natively on your Android phone inside Termux - NOT controlled remotely!
 
 ```
-Phone ←─────────────── ADB ───────────────→ duck-cli (Mac)
-                                               │
-                                               ▼
-                                    LM Studio (gemma-4-e4b-it)
-                                    or OpenClaw (kimi-k2.5)
+┌─────────────────────────────────────────────────────────────────┐
+│                    Your Android Phone                            │
+│                                                                 │
+│   Termux                                                         │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │                    duck-cli                             │   │
+│   │  ┌─────────────────────────────────────────────────────┐ │   │
+│   │  │         Hybrid Orchestrator v2                     │ │   │
+│   │  │  ├── Task Complexity Classifier                      │ │   │
+│   │  │  ├── Model Router (Gemma 4 via HTTP to Mac)          │ │   │
+│   │  │  └── AI Council Bridge                              │ │   │
+│   │  └─────────────────────────────────────────────────────┘ │   │
+│   │                         │                               │   │
+│   │                         ▼                               │   │
+│   │  ┌─────────────────────────────────────────────────────┐ │   │
+│   │  │        Perceive → Reason → Act Loop                 │ │   │
+│   │  │     (XML dump → Gemma 4 → tap/type/swipe)            │ │   │
+│   │  └─────────────────────────────────────────────────────┘ │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│   Connects to: http://YOUR_MAC_IP:1234 (LM Studio)             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**How to run on Android:**
+```bash
+# On your phone (Termux)
+cd ~/duck-cli
+npm install && npm run build
+node dist/cli/main.js shell
+
+# Agent runs ON your phone!
+# Connects to Mac's LM Studio for Gemma 4 reasoning
+```
+
+#### Mode 2: Control Android via ADB (Remote Control)
+Control Android devices remotely from Mac/Linux/Windows
+
+```
+Mac/Windows/Linux                         Android Phone
+┌────────────────────┐                   ┌────────────────────┐
+│    duck-cli        │◄────── ADB ──────►│    Target Device   │
+│                    │     USB/WiFi       │                    │
+│  ┌──────────────┐  │                   │  duck-cli can      │
+│  │  Orchestrator │  │                   │  run here too!     │
+│  │  Core v2     │  │                   │                    │
+│  └──────────────┘  │                   └────────────────────┘
+│          │         │
+│          ▼         │
+│   LM Studio        │
+│   (gemma-4-e4b-it)  │
+└────────────────────┘
+```
+
+### 🧠 AI Council Integration
+
+Complex tasks trigger AI Council deliberation (5+ councilors):
+
+```typescript
+// Task scored as complex (7+/10)
+// → Engages AI Council
+// → Council debates (Speaker + Technocrat + Ethicist + Pragmatist + Skeptic)
+// → Returns verdict + recommendations
+// → Hybrid Orchestrator proceeds with execution
 ```
 
 ### 🔗 OpenClaw Bridge
@@ -71,15 +136,19 @@ Then spawn duck-cli agents from OpenClaw:
 openclaw acp spawn --agent duck-cli --task "control android"
 ```
 
-### 🎯 Orchestrator Core v2
-Intelligent tool routing with automatic fallback:
+### 🎯 Hybrid Orchestrator v2
+Intelligent task routing with AI Council:
 ```typescript
-// Tools auto-select based on capability + fallback
-const tool = registry.selectTool({
-  task: "Take a screenshot",
-  requiredCapabilities: ["screenshot"]
-});
-// Returns best tool, tries fallbacks on failure
+// Simple task (1-3) → Fast path, no council
+await orchestrator.execute("open settings");
+
+// Complex task (7+) → AI Council deliberation first
+await orchestrator.execute("should I upgrade this dependency?");
+// → Council debates → Verdict → Execute
+
+// Android task → Routes to Gemma 4
+await orchestrator.execute("tap the settings button");
+// → Routes to lmstudio/google/gemma-4-e4b-it
 ```
 
 ### 💬 Multi-Provider LLM
@@ -101,20 +170,42 @@ cd duck-cli
 npm install
 npm run build
 go build -o duck ./cmd/duck/
+./duck shell
 ```
 
-### Termux (Android)
+### Termux (Android) — RUN ON YOUR PHONE!
+
+**duck-cli runs NATIVELY on Android** via Termux. This is NOT just ADB control - the agent executes ON your phone!
 
 **Prerequisites:**
 - [Termux from F-Droid](https://f-droid.org/en/packages/com.termux/) (NOT Google Play)
 - [Termux:API app](https://f-droid.org/en/packages/com.termux.api/) from F-Droid
 
-**One-command setup:**
+**Setup:**
 ```bash
-pkg install -y git && git clone https://github.com/Franzferdinan51/duck-cli.git ~/duck-cli && cd ~/duck-cli && chmod +x setup.sh && ./setup.sh
+# In Termux on your phone:
+pkg update && pkg upgrade
+pkg install -y nodejs git
+git clone https://github.com/Franzferdinan51/duck-cli.git ~/duck-cli
+cd ~/duck-cli
+npm install
+npm run build
+
+# Run the agent ON your phone!
+node dist/cli/main.js shell
 ```
 
-**Or use OpenClaw-Android for a full OpenClaw installation on your phone:**
+**Phone connects to Mac's LM Studio:**
+```bash
+# On phone, set LM Studio endpoint to your Mac:
+export LM_STUDIO_URL=http://192.168.1.X:1234
+export LM_STUDIO_KEY=sk-lm-xxx
+
+# Now your phone's agent uses Gemma 4 from your Mac!
+```
+
+### OpenClaw-Android (Alternative Full Installation)
+For a complete OpenClaw installation on your phone:
 ```bash
 pkg install -y git && git clone https://github.com/irtiq7/OpenClaw-Android.git ~/openclaw-android-setup && cd ~/openclaw-android-setup && chmod +x *.sh && ./setup_claw.sh
 ```
@@ -128,14 +219,20 @@ pkg install -y git && git clone https://github.com/irtiq7/OpenClaw-Android.git ~
 # Interactive TUI shell
 duck shell
 
-# Or web UI
-duck web
-
 # Or single task
 duck run "hello world"
 ```
 
-### 2. Connect Android Device
+### 2. Run ON Android or Control via ADB
+
+**Option A: Run ON your phone (native)**
+```bash
+# On phone
+cd ~/duck-cli
+node dist/cli/main.js shell
+```
+
+**Option B: Control Android from Mac**
 ```bash
 # Via USB (enable USB debugging in Developer Options)
 adb devices
@@ -148,325 +245,121 @@ adb connect <device-ip>:5555
 duck android devices
 ```
 
-### 3. Control Android with AI
+### 3. Android Control Commands
 ```bash
-# Give it a goal — Gemma 4 handles the rest
-duck android goal "open settings and turn on dark mode"
-
-# Or step-by-step
+# Take screenshot
 duck android screenshot
-duck android analyze
-duck android tap 360 720
-duck android type "hello"
-```
 
-### 4. Connect to OpenClaw
-```bash
-# Bridge to OpenClaw gateway
-duck bridge connect --gateway ws://localhost:18789
+# Tap element
+duck android tap "Settings"
 
-# Register duck-cli tools with OpenClaw
-duck bridge register-tools
+# Dump UI
+duck android dump
 
-# Spawn duck-cli agent from OpenClaw
-openclaw acp spawn --agent duck-cli --task "automate android"
+# Run goal
+duck android goal "Open Chrome and search for cats"
 ```
 
 ---
 
-## 📱 Android Agent Commands
+## 🏗️ Architecture
 
-### Device Connection
-```bash
-duck android connect ZT4227P8NK        # Connect by serial
-duck android devices                   # List connected devices
-duck android disconnect               # Disconnect
-```
-
-### Screen Operations
-```bash
-duck android screenshot              # Capture screenshot
-duck android screen                  # OCR read screen text
-duck android analyze                 # AI analysis (sends to kimi-k2.5)
-duck android dump                    # Full UI hierarchy XML
-```
-
-### Interactions
-```bash
-duck android tap 360 720             # Tap coordinates
-duck android swipe up                # Swipe gestures
-duck android type "hello"            # Type text
-duck android key enter               # Press key
-duck android launch com.android.settings  # Launch app
-```
-
-### Termux API (with Termux:API app)
-```bash
-duck android termux battery          # Battery info
-duck android termux clip-get         # Get clipboard
-duck android termux clip-set "hi"    # Set clipboard
-duck android termux notif            # Notifications
-duck android termux location        # GPS location
-```
-
-### AI Goal Mode
-```bash
-# The agent loops Perceive → Reason → Act up to 30 times
-duck android goal "send a WhatsApp message to mom"
-
-# Uses gemma-4-e4b-it via LM Studio (or kimi-k2.5 as fallback)
-```
-
----
-
-## 🏗️ Architecture Deep Dive
-
-### Phone ↔ Mac Architecture
+### Hybrid Orchestrator Flow
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                        Mac/Linux                              │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │                    duck-cli                             │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐  │  │
-│  │  │  Android     │  │  OpenClaw     │  │ Orchestrator│  │  │
-│  │  │  Agent       │  │  Bridge       │  │ Core v2     │  │  │
-│  │  │  (Gemma 4)   │  │  (ACP/MCP)    │  │ (Tool Reg)  │  │  │
-│  │  └──────┬───────┘  └──────┬───────┘  └──────┬──────┘  │  │
-│  └─────────┼─────────────────┼─────────────────┼──────────┘  │
-│            │                 │                 │             │
-│  ┌─────────▼─────────────────▼─────────────────▼─────────┐ │
-│  │              Tool Executors + Bridge Layer                │ │
-│  └──────────────────────────────────────────────────────────┘ │
-│                              │                                 │
-└──────────────────────────────┼────────────────────────────────┘
-                               │ ADB (USB or WiFi)
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│                     Android Device                           │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  Termux + Termux:API (optional)                        │  │
-│  │  ├── Screencap / UIAutomator                          │  │
-│  │  ├── Input (tap/type/swipe)                           │  │
-│  │  ├── Notifications / Battery / Clipboard             │  │
-│  │  └── Camera / GPS / Sensors                           │  │
-│  └────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+User Task
+    │
+    ▼
+┌─────────────────────────┐
+│  Task Complexity        │  ← Scores 1-10
+│  Classifier             │
+└───────────┬─────────────┘
+            │
+    ┌───────┴───────┐
+    │               │
+ Complexity     isEthical?
+ < 7              │
+    │               │
+    ▼               ▼
+┌───────────┐  ┌───────────────┐
+│ Fast Path │  │ AI Council    │
+│ (No Delay)│  │ Deliberation  │
+└───────────┘  └───────┬───────┘
+                      │
+                 Verdict: approve/reject/conditional
+                      │
+                      ▼
+┌─────────────────────────┐
+│  Model Router          │  ← Selects best model
+│  (task → model)         │     Gemma 4 / Kimi / MiniMax
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Tool Executor          │  ← Runs with fallback
+│  (registry + retry)     │
+└─────────────────────────┘
 ```
 
-### OpenClaw ↔ duck-cli Bridge
+### Perceive → Reason → Act Loop
+
+For Android tasks, the agent:
+
+1. **Perceive** — Captures screen, dumps UI XML, extracts elements
+2. **Reason** — Sends context to Gemma 4 with goal + screen state
+3. **Act** — Executes action (tap/type/swipe/launch/wait)
+4. **Loop** — Repeats until goal reached or max steps (30)
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                   OpenClaw Gateway                            │
-│  ws://localhost:18789                                        │
-│  ├── ACP Protocol (agent spawning)                          │
-│  ├── MCP Protocol (tool calls)                              │
-│  └── WebSocket (real-time streaming)                        │
-└─────────────────────────────┬────────────────────────────────┘
-                              │ ACP / MCP
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    duck-cli Bridge                           │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │  ACP Bridge ──► openclaw acp spawn duck-cli            │  │
-│  │  MCP Bridge ──► duck tools as MCP tools                │  │
-│  │  WS Bridge ───► Real-time streaming to OpenClaw UI    │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                              │                                │
-│  ┌──────────────────────────▼──────────────────────────────┐  │
-│  │  Register duck-cli tools with OpenClaw:                │  │
-│  │  duck bridge connect --gateway ws://localhost:18789    │  │
-│  │  duck bridge register-tools                             │  │
-│  └────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Orchestrator Tool Registry Flow
-
-```
-Task: "Take a screenshot of the phone"
-
-         ┌─────────────────────────────────────┐
-         │       Orchestrator Core v2           │
-         │  ┌───────────────────────────────┐  │
-         │  │    Tool Registry               │  │
-         │  │  capability: screenshot       │  │
-         │  │  priority: [adb, scrot, native]│  │
-         │  └───────────────┬───────────────┘  │
-         └──────────────────┼──────────────────┘
-                            │
-         ┌──────────────────▼──────────────────┐
-         │       Fallback Manager                │
-         │                                       │
-         │  1. Try: adb screencap ──► ✅ Success │
-         │     └─► Return screenshot            │
-         │                                       │
-         │  If failed:                           │
-         │  2. Try: scrot ──► fallback tool      │
-         │  3. Try: native screenshot ──► last  │
-         │     └─► Return error if all fail     │
-         └───────────────────────────────────────┘
+Capture Screen → Parse UI → Gemma 4 reasons → Execute Action → Repeat
 ```
 
 ---
 
-## 🛠️ Tool Registry
-
-duck-cli uses a capability-based tool registry with automatic fallback:
-
-```typescript
-// Example: Tool registration
-registry.register({
-  name: "android_screenshot",
-  capability: "screenshot",
-  priority: 1,
-  handler: async () => {
-    // Use ADB screencap
-    const screenshot = await adb.screencap();
-    return screenshot;
-  }
-});
-
-// Fallback tool
-registry.register({
-  name: "scrot_screenshot",
-  capability: "screenshot",
-  priority: 2,
-  handler: async () => {
-    // Use scrot command
-    return exec("scrot /tmp/screen.png");
-  }
-});
-
-// Select best tool for task
-const tool = registry.selectTool({
-  task: "capture phone screen",
-  requiredCapabilities: ["screenshot"]
-});
-```
-
----
-
-## 🔧 LM Studio Configuration
-
-**Preferred model for Android control: `gemma-4-e4b-it`**
-
-Gemma 4 is specifically trained on Android development (Android Studio Agent Mode) with vision + autonomous tool-calling — perfect for Android automation!
-
-### Connect to LM Studio
-
-```bash
-# Via LM Link (remote GPU server)
-export LM_STUDIO_URL="http://100.68.208.113:1234"
-export LM_STUDIO_API_KEY="sk-lm-xWvfQHZF:L8P76SQakhEA95U8DDNf"
-export LM_STUDIO_MODEL="google/gemma-4-e4b-it"
-
-# Or use duck-cli's config
-duck config set lmstudio.url http://100.68.208.113:1234
-duck config set lmstudio.model google/gemma-4-e4b-it
-```
-
-### Available Models via LM Studio
-
-| Model | Use For | Context |
-|-------|---------|---------|
-| `google/gemma-4-e4b-it` | **Android control (PREFERRED)** | 262K |
-| `google/gemma-4-26b-a4b` | Large vision tasks | 262K |
-| `qwen/qwen3.5-9b` | Fast local vision | 32K |
-| `qwen/qwen3.5-27b` | Complex local reasoning | 50K |
-
----
-
-## 📂 Project Structure
+## 📁 Project Structure
 
 ```
 duck-cli/
-├── cmd/duck/            # Go CLI entry point
-├── src/                  # TypeScript source
-│   ├── android/         # Android agent tools
-│   ├── orchestrator/    # Core v2 registry
-│   ├── bridge/          # OpenClaw/MCP bridges
-│   └── tools/           # 40+ tool executors
-├── tools/               # Shell/Python scripts
-│   ├── android-agent.sh          # Shell agent (Mac-side)
-│   ├── android-agent-phone.py    # Python agent (phone-side)
-│   └── setup-android-agent.sh    # Setup script
-├── skills/              # duck-cli skills
-│   ├── android/         # Android skill
-│   └── ...
-├── docs/                # Documentation
-│   ├── ANDROID-AGENT.md  # Full Android docs
-│   ├── ORCHESTRATOR.md   # Orchestrator docs
-│   ├── OPENCLAW-BRIDGE.md # Bridge docs
-│   └── TERMUX-SETUP.md   # Termux installation
-├── dist/                # Built output
-└── duck                 # Compiled binary
+├── src/
+│   ├── orchestrator/          # Hybrid Orchestrator v2
+│   │   ├── task-complexity.ts    # 1-10 scoring
+│   │   ├── model-router.ts       # Model selection
+│   │   ├── council-bridge.ts     # AI Council integration
+│   │   ├── hybrid-core.ts        # Main orchestrator
+│   │   └── fallback-manager.ts    # Retry logic
+│   ├── agent/                # Agent implementations
+│   │   └── android-agent.ts       # Android control
+│   ├── bridge/               # Protocol bridges
+│   │   ├── acp-bridge.ts
+│   │   ├── mcp-bridge.ts
+│   │   └── websocket-bridge.ts
+│   ├── subconscious/          # AI Council-enhanced subconscious
+│   │   └── council-bridge.ts
+│   └── tools/                 # Built-in tools
+├── cmd/duck/                 # Go CLI layer
+├── skills/                   # duck-cli skills
+└── docs/                     # Documentation
 ```
 
 ---
 
-## 📖 Documentation
+## 📜 Documentation
 
-| Doc | Description |
-|-----|-------------|
-| [docs/ANDROID-AGENT.md](docs/ANDROID-AGENT.md) | Complete Android agent guide |
-| [docs/ORCHESTRATOR.md](docs/ORCHESTRATOR.md) | Orchestrator Core v2 reference |
-| [docs/OPENCLAW-BRIDGE.md](docs/OPENCLAW-BRIDGE.md) | OpenClaw integration guide |
-| [docs/TERMUX-SETUP.md](docs/TERMUX-SETUP.md) | Termux + duck-cli setup |
-| [docs/COMMANDS.md](docs/COMMANDS.md) | Full CLI command reference |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
+- [Orchestrator Docs](docs/ORCHESTRATOR.md)
+- [Android Integration](docs/ANDROID-INTEGRATION.md)
+- [OpenClaw Bridge](docs/OPENCLAW-BRIDGE.md)
+- [Termux Setup](docs/TERMUX-SETUP.md)
 
 ---
 
-## 🐛 Troubleshooting
+## 🦆 Powered By
 
-### Android device not found
-```bash
-adb kill-server
-adb start-server
-duck android devices
-```
-
-### LM Studio connection fails
-```bash
-# Check LM Studio is running
-curl http://100.68.208.113:1234/v1/models
-
-# Test with a simple prompt
-curl -X POST http://100.68.208.113:1234/v1/chat/completions \
-  -H "Authorization: Bearer sk-lm-xWvfQHZF:L8P76SQakhEA95U8DDNf" \
-  -d '{"model":"google/gemma-4-e4b-it","messages":[{"role":"user","content":"hi"}]}'
-```
-
-### Termux setup issues
-```bash
-# Use F-Droid Termux, NOT Google Play
-# Install Termux:API from F-Droid too
-pkg update
-pkg install git
-```
+- [OpenClaw](https://github.com/openclaw/openclaw) — ACP/MCP protocols, Skills system
+- [Hermes-Agent](https://github.com/NousResearch/hermes-agent) — Learning loops
+- [NeMoClaw](https://github.com/NVIDIA/NeMoClaw) — Security sandboxing
+- [Gemma 4](https://ai.google.dev/) — Android-specific LLM training
+- [LM Studio](https://lmstudio.ai/) — Local LLM inference
 
 ---
 
-## 🤝 Contributing
-
-1. Fork the repo
-2. Create a feature branch
-3. Add tests for new tools
-4. Submit a PR
-
----
-
-## 📜 License
-
-MIT License — see [LICENSE](LICENSE)
-
----
-
-## 🙏 Credits
-
-- **OpenClaw** — https://github.com/Franzferdinan51/OpenClaw
-- **OpenClaw-Android** — https://github.com/irtiq7/OpenClaw-Android
-- **LM Studio** — Local LLM inference
-- **Google Gemma 4** — Android development trained model
+**🦆 duck-cli — Your AI Agent that runs ON and controls Android!**
