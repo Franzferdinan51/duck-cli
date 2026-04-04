@@ -51,6 +51,7 @@ export interface SubagentConfig {
   maxTokens?: number;
   tools?: string[];        // allowed tools
   memory?: string;          // context to inject
+  autoStart?: boolean;     // if false, don't auto-start (for spawnTeam)
 }
 
 export interface TaskResult {
@@ -149,8 +150,10 @@ export class SubagentManager extends EventEmitter {
 
     this.notify({ type: 'spawned', agent });
 
-    // Auto-start
-    this.start(id, config);
+    // Auto-start (unless autoStart: false)
+    if (config.autoStart !== false) {
+      this.start(id, config);
+    }
 
     return agent;
   }
@@ -242,7 +245,7 @@ export class SubagentManager extends EventEmitter {
           agent.status = 'completed';
           agent.result = content;
           agent.toolsUsed = ['openclaw-gateway'];
-          return { output: content, cost: data.usage?.total_tokens ? undefined : undefined, toolsUsed: agent.toolsUsed };
+          return { output: content, cost: data.usage?.total_tokens ? Number(data.usage.total_tokens) : undefined, toolsUsed: agent.toolsUsed };
         }
       }
     } catch (e) {
@@ -349,6 +352,7 @@ export class SubagentManager extends EventEmitter {
   }
 
   /**
+  /**
    * Spawn multiple subagents in parallel for a task
    */
   spawnTeam(
@@ -357,17 +361,36 @@ export class SubagentManager extends EventEmitter {
   ): Subagent[] {
     const agents: Subagent[] = [];
 
+    // Pre-create all agents and register children with parent BEFORE starting
+    // This prevents race conditions where onChildComplete fires before child is tracked
+    if (parentId) {
+      const parent = this.agents.get(parentId);
+      if (parent) {
+        // Ensure parent has children array initialized
+        if (!parent.children) parent.children = [];
+      }
+    }
+
     for (const { task, role, name } of tasks) {
-      const agent = this.spawn(task, { role, name }, parentId);
-      agents.push(agent);
+      // Create agent first (doesn't auto-start)
+      const agent = this.spawn(task, { role, name, autoStart: false }, parentId);
       
-      // Track as children of parent
+      // Register with parent BEFORE starting
       if (parentId) {
         const parent = this.agents.get(parentId);
         if (parent) {
           parent.children.push(agent.id);
         }
       }
+      
+      agents.push(agent);
+    }
+
+    // Start all agents in parallel
+    for (const agent of agents) {
+      this.start(agent.id).catch(err => {
+        console.error(`[SubagentManager] Failed to start team agent ${agent.id}:`, err);
+      });
     }
 
     return agents;
@@ -510,6 +533,7 @@ export class SubagentManager extends EventEmitter {
         clearTimeout(timeout);
         this.off('complete', onComplete);
         this.off('error', onError);
+        this.off('cancelled', onCancelled);
       };
 
       const onComplete = (a: Subagent) => {
@@ -522,12 +546,20 @@ export class SubagentManager extends EventEmitter {
       const onError = (a: Subagent) => {
         if (a.id === id) {
           cleanup();
-          resolve(a); // Still resolves, check status
+          reject(new Error(`Subagent failed: ${a.error || 'Unknown error'}`));
+        }
+      };
+
+      const onCancelled = (a: Subagent) => {
+        if (a.id === id) {
+          cleanup();
+          reject(new Error('Subagent was cancelled'));
         }
       };
 
       this.on('complete', onComplete);
       this.on('error', onError);
+      this.on('cancelled', onCancelled);
     });
   }
 
@@ -566,7 +598,11 @@ export class SubagentManager extends EventEmitter {
 
   private notify(event: SubagentEvent): void {
     for (const cb of this._handlers) {
-      try { cb(event); } catch {}
+      try { 
+        cb(event);
+      } catch (err) {
+        console.error('[SubagentManager] notify handler error:', err);
+      }
     }
   }
 
