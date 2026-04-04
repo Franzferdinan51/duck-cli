@@ -131,8 +131,15 @@ export class ProviderManager {
       console.log(`[Router📡] Trying ${label}...`);
 
       try {
-        const result = await prov.complete({ model: target.model, messages: msgList });
-        const err = result.error;
+        // Add timeout wrapper for each provider request
+        const timeoutMs = 60000; // 60 second timeout per provider
+        const result = await Promise.race([
+          prov.complete({ model: target.model, messages: msgList }),
+          new Promise<{ text?: string; toolCalls?: any[]; error?: string }>((_, reject) => 
+            setTimeout(() => reject({ error: 'Request timed out' }), timeoutMs)
+          )
+        ]).catch((e: any) => ({ error: e?.error || e?.message || 'Unknown error' })) as { text?: string; toolCalls?: any[]; error?: string };
+        const err = result?.error || (result?.text === undefined ? 'No response' : undefined);
         if (result.text && !err) {
           console.log(`[Router📡] ✅  ${label} succeeded`);
           return { text: result.text, provider: target.provider, model: target.model! };
@@ -181,52 +188,84 @@ export class ProviderManager {
 
 class MiniMaxProvider implements Provider {
   name = 'minimax';
+  private retryDelays = [500, 1000, 2000, 4000];
+
   constructor(private apiKey: string) {}
 
-  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string }> {
-    try {
-      // MiniMax only supports ONE system message - merge multiple into one
-      let systemParts: string[] = [];
-      const nonSystem: any[] = [];
-      for (const m of opts.messages) {
-        if (m.role === 'system') {
-          const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-          systemParts.push(text);
-        } else {
-          nonSystem.push(m);
+  async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }> {
+    const makeRequest = async (): Promise<{ text?: string; error?: string }> => {
+      try {
+        // MiniMax only supports ONE system message - merge multiple into one
+        let systemParts: string[] = [];
+        const nonSystem: any[] = [];
+        for (const m of opts.messages) {
+          if (m.role === 'system') {
+            const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+            systemParts.push(text);
+          } else {
+            nonSystem.push(m);
+          }
+        }
+        const combinedSystem = systemParts.join('\n---\n');
+        // Preserve newlines in message content - only trim trailing whitespace
+        const msgs = [
+          { role: 'system', content: combinedSystem },
+          ...nonSystem.map((m: any) => ({
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content.trimEnd() : m.content
+          }))
+        ];
+        const model = opts.model || 'MiniMax-M2.7';
+        const body = JSON.stringify({ model, messages: msgs });
+        
+        const res = await fetch('https://api.minimax.io/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          },
+          body
+        });
+
+        if (!res.ok) {
+          const data: any = await res.json().catch(() => ({}));
+          return { error: `HTTP ${res.status}: ${data.error?.message || res.statusText}` };
+        }
+
+        const data: any = await res.json();
+        return { text: data.choices?.[0]?.message?.content };
+      } catch (error: any) {
+        const isRetryable = error.message?.includes('Connection') ||
+                           error.message?.includes('timeout') ||
+                           error.message?.includes('ECONNRESET') ||
+                           error.message?.includes('ETIMEDOUT');
+        return { error: isRetryable ? '__RETRY__' : error.message };
+      }
+    };
+
+    // Retry with exponential backoff
+    for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = this.retryDelays[attempt - 1];
+        console.log(`[MiniMax] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      const result = await makeRequest();
+      if (result.text !== undefined || !result.error || result.error === '__RETRY__' && attempt === this.retryDelays.length) {
+        if (result.text !== undefined) {
+          return { text: result.text };
+        }
+        if (result.error && result.error !== '__RETRY__') {
+          return { error: result.error };
         }
       }
-      const combinedSystem = systemParts.join('\n---\n');
-      const msgs = [
-        { role: 'system', content: combinedSystem },
-        ...nonSystem.map((m: any) => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content.replace(/\n/g, ' ') : m.content
-        }))
-      ];
-      const body = JSON.stringify({ model: 'MiniMax-M2.7', messages: msgs });
-      
-      const res = await fetch('https://api.minimax.io/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body
-      });
-
-      const data: any = await res.json();
-
-      if (!res.ok) {
-        console.error('MiniMax error:', data);
-        return { text: undefined };
+      if (result.error && result.error !== '__RETRY__') {
+        return { error: result.error };
       }
-
-      return { text: data.choices?.[0]?.message?.content };
-    } catch (error) {
-      console.error('MiniMax fetch error:', error);
-      return { text: undefined };
     }
+
+    return { error: 'Failed after retries' };
   }
 }
 
