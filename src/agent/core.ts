@@ -43,6 +43,8 @@ import { scanForSecrets, redactFromResult, warnOnSecrets } from './secret-scanne
 import { captureDiffSnapshot, generateDiff, formatInlineDiff } from './inline-diff.js';
 import { CredentialPoolManager } from './credential-pool.js';
 import { MemoryManager } from './memory-provider.js';
+import { WhisperEngine, MemoryBridge } from '../subconscious/index.js';
+import type { Whisper } from '../subconscious/index.js';
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
@@ -134,6 +136,10 @@ export class Agent extends EventEmitter {
   private memoryManager: any = null;  // MemoryManager instance
   private initialized: boolean = false;
   
+  // Sub-Conscious integration
+  private whisperEngine: WhisperEngine;
+  private memoryBridge: MemoryBridge;
+  
   // Conversation
   private history: Message[] = [];
   private maxHistory: number;
@@ -203,6 +209,10 @@ export class Agent extends EventEmitter {
     this.androidTools = getAndroidTools();
     this.executionTrace = new ExecutionTrace(this.sessionId);
     this.guard.setQuietMode(this.config.quietMode!);
+    
+    // Initialize Sub-Conscious
+    this.whisperEngine = new WhisperEngine();
+    this.memoryBridge = new MemoryBridge();
     
     // Subscribe to learning nudges
     this.learning.on('nudge', (nudge: any) => {
@@ -1873,6 +1883,27 @@ export class Agent extends EventEmitter {
     // Parse and execute tools in PARALLEL
     const toolCalls = this.parseToolCalls(response);
     const toolsUsed: string[] = [];
+    
+    // Generate whispers before tool execution (Sub-Conscious integration)
+    const whispers = await this.whisperEngine.generateWhispers({
+      message: safeMessage,
+      sessionHistory: this.history.slice(-5).map(m => m.content),
+      time: new Date()
+    });
+    // If high-confidence whisper, log it
+    for (const whisper of whispers) {
+      if (whisper.confidence >= 0.7) {
+        console.log(`👻 Whisper: ${whisper.message}`);
+      }
+    }
+    // Emit high-confidence whispers to user
+    if (whispers.length > 0) {
+      const highConfidence = whispers.filter(w => w.confidence >= 0.6);
+      if (highConfidence.length > 0) {
+        this.streams.whisper(this.sessionId, highConfidence);
+      }
+    }
+    
     if (toolCalls.length > 0) {
       const results = await Promise.all(toolCalls.map(async (call) => {
         const tStart = Date.now();
@@ -1913,6 +1944,14 @@ export class Agent extends EventEmitter {
           this.executionTrace.logToolResult(displayResult, tDuration);
           // ACPX-style NDJSON session stream
           this.sessionStream.notify('tool/execute', { tool: call.name, args: call.args }, { role: 'assistant', toolName: call.name, outcome: 'ok', durationMs: tDuration });
+          // Save to Sub-Conscious memory after tool success
+          await this.memoryBridge.save({
+            id: `whisper-${Date.now()}`,
+            content: `Tool ${call.name} succeeded`,
+            context: JSON.stringify(call.args),
+            timestamp: new Date(),
+            importance: 0.5
+          });
           return '\n\n🔧 ' + call.name + ': ' + JSON.stringify(result);
         } catch (e: any) {
           const tDuration = Date.now() - tStart;
@@ -1922,6 +1961,14 @@ export class Agent extends EventEmitter {
           this.executionTrace.logToolError(e.message, tDuration);
           // ACPX-style NDJSON session stream
           this.sessionStream.notify('tool/execute', { tool: call.name, args: call.args }, { role: 'assistant', toolName: call.name, outcome: 'failed', durationMs: tDuration, toolResult: e.message });
+          // Save to Sub-Conscious memory after tool failure
+          await this.memoryBridge.save({
+            id: `whisper-${Date.now()}`,
+            content: `Tool ${call.name} failed: ${e.message}`,
+            context: JSON.stringify(call.args),
+            timestamp: new Date(),
+            importance: 0.5
+          });
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
         }
       }));

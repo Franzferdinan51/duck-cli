@@ -4,12 +4,13 @@
  */
 
 import { Readable } from 'stream';
+import type { Whisper } from '../subconscious/index.js';
 
 export type StreamEventType = 
   | 'tool_start' | 'tool_output' | 'tool_end' | 'tool_error'
   | 'thinking' | 'plan_step' | 'plan_progress'
   | 'guard_block' | 'guard_warn'
-  | 'memory_save' | 'session_start' | 'session_end' | 'error' | 'connected';
+  | 'memory_save' | 'session_start' | 'session_end' | 'error' | 'connected' | 'whisper';
 
 export interface StreamEvent {
   type: StreamEventType;
@@ -106,6 +107,12 @@ export class StreamManager {
   }
   error(sessionId: string, err: string, context?: string): void {
     this.broadcast({ type: 'error', sessionId, timestamp: Date.now(), data: { error: err, context } });
+  }
+  
+  whisper(sessionId: string, whispers: Whisper[]): void {
+    const prompt = whispers.map(w => `👻 ${w.message}`).join('\n');
+    console.log(prompt);
+    this.broadcast({ type: 'whisper', sessionId, timestamp: Date.now(), data: { whispers } });
   }
 
   getRecentEvents(sessionId?: string, limit = 50): StreamEvent[] {

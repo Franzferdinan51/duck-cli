@@ -159,15 +159,8 @@ async function main() {
       await updateCommand(args);
       break;
 
-    case 'compat':
-    case 'compatibility':
-      await compatCommand(args);
-      break;
+    
 
-    case 'sync':
-    case 'openclaw-sync':
-      await syncCommand(args);
-      break;
 
 
     case 'send':
@@ -1824,143 +1817,7 @@ async function updateCommand(args: string[]) {
 
 
 
-// ============ COMPAT CHECK ============
 
-async function compatCommand(args: string[]) {
-  const { CompatChecker } = await import('../update/compat-check.js');
-  const checker = new CompatChecker();
-  
-  const subCmd = args[0];
-  
-  if (subCmd === 'check' || !subCmd) {
-    console.log(`${c.cyan}Checking OpenClaw compatibility...${c.reset}`);
-    const result = await checker.runAll();
-    const report = checker.printReport(result);
-    console.log(report);
-    
-    if (result.overall === 'fail') {
-      process.exit(1);
-    }
-  } else if (subCmd === 'list') {
-    const { OpenClawCompatibilityChecker } = await import('../compat/openclaw-compat.js');
-    const features = await new OpenClawCompatibilityChecker().getReport();
-    console.log("\n🦆 OpenClaw Feature Compatibility\n");
-    for (const feature of features) {
-      const icon = feature.available ? `${c.green}✓${c.reset}` : `${c.red}✗${c.reset}`;
-      console.log(`  ${icon} ${feature.name}`);
-      if (!feature.available && feature.fallback) {
-        console.log(`    → Fallback: ${feature.fallback}`);
-      }
-    }
-    console.log("");
-  } else if (subCmd === 'score') {
-    const { checkOpenClawCompatibility } = await import('../compat/openclaw-compat.js');
-    const { score } = await checkOpenClawCompatibility();
-    console.log(`\n🦆 OpenClaw Compatibility Score: ${score}/100\n`);
-  } else {
-    console.log(`${c.yellow}Usage:${c.reset}`);
-    console.log(`  ${c.bold}duck compat check${c.reset}  - Run full compatibility check`);
-    console.log(`  ${c.bold}duck compat list${c.reset}   - List all features`);
-    console.log(`  ${c.bold}duck compat score${c.reset}   - Show compatibility score`);
-    console.log("");
-  }
-}
-
-// ============ OPENCLAW SYNC ============
-
-async function syncCommand(args: string[]) {
-  const { OpenClawSync } = await import('../update/openclaw-sync.js');
-  const { Agent } = await import('../agent/core.js');
-  const sync = new OpenClawSync();
-  
-  const subCmd = args[0];
-  
-  if (subCmd === 'openclaw' || subCmd === 'upstream') {
-    console.log(`${c.cyan}Checking OpenClaw upstream...${c.reset}`);
-    
-    const status = sync.getStatus();
-    console.log(`\n  Remote:   ${status.remote}`);
-    console.log(`  Branch:   ${status.branch}`);
-    console.log(`  Behind:   ${status.commitsBehind}`);
-    console.log(`  Ahead:    ${status.commitsAhead}`);
-    console.log(`  Conflicts: ${status.conflicts}`);
-    console.log("");
-    
-    if (status.commitsBehind > 0) {
-      console.log(`${c.yellow}There are ${status.commitsBehind} commits behind upstream.${c.reset}`);
-      console.log(`Run ${c.bold}duck sync pull${c.reset} to sync.`);
-      console.log("");
-    } else if (status.commitsBehind === 0 && status.conflicts === 0) {
-      console.log(`${c.green}✓ Already up to date with OpenClaw upstream!${c.reset}`);
-      console.log("");
-    }
-    
-    if (status.conflicts > 0) {
-      console.log(`${c.red}⚠ ${status.conflicts} conflicts detected.${c.reset}`);
-      console.log("");
-    }
-  } else if (subCmd === 'pull') {
-    console.log(`${c.cyan}Pulling from OpenClaw upstream...${c.reset}\n`);
-    
-    const agent = new Agent({ name: 'Duck Agent Sync' });
-    await agent.initialize();
-    
-    const result = await sync.sync(agent);
-    
-    if (result.success) {
-      console.log(`${c.green}✓ Sync complete!${c.reset}`);
-      if (result.changes && result.changes.length > 0) {
-        console.log(`  Applied ${result.changes.length} changes.`);
-      }
-      if (result.backups && result.backups.length > 0) {
-        console.log(`  Backup: ${result.backups[0]}`);
-      }
-      console.log("");
-    } else {
-      console.log(`${c.red}✗ Sync failed: ${result.error}${c.reset}`);
-      if (result.conflicts && result.conflicts.length > 0) {
-        console.log(`\n  ${result.conflicts.length} conflicts require manual resolution.`);
-        for (const conflict of result.conflicts) {
-          console.log(`    - ${conflict.file}`);
-        }
-      }
-      console.log("");
-      await agent.shutdown();
-      process.exit(1);
-    }
-    
-    await agent.shutdown();
-  } else if (subCmd === 'status') {
-    const status = sync.getStatus();
-    console.log("\n🦆 OpenClaw Sync Status\n");
-    console.log(`  Configured:  ${status.configured ? `${c.green}Yes${c.reset}` : `${c.red}No${c.reset}`}`);
-    console.log(`  Remote:      ${status.remote}`);
-    console.log(`  Branch:      ${status.branch}`);
-    console.log(`  Behind:      ${status.commitsBehind}`);
-    console.log(`  Ahead:       ${status.commitsAhead}`);
-    console.log(`  Conflicts:   ${status.conflicts}`);
-    console.log("");
-  } else if (subCmd === 'setup') {
-    const result = sync.setupUpstream();
-    if (result.success) {
-      console.log(`${c.green}✓ OpenClaw upstream configured!${c.reset}`);
-      console.log(`  Remote: ${sync.getStatus().remote}`);
-      console.log("");
-    } else {
-      console.log(`${c.red}✗ Setup failed: ${result.error}${c.reset}`);
-      console.log("");
-    }
-  } else {
-    console.log(`${c.yellow}Usage:${c.reset}`);
-    console.log(`  ${c.bold}duck sync openclaw${c.reset}  - Check upstream status`);
-    console.log(`  ${c.bold}duck sync status${c.reset}   - Show sync status`);
-    console.log(`  ${c.bold}duck sync setup${c.reset}    - Configure upstream`);
-    console.log(`  ${c.bold}duck sync pull${c.reset}      - Pull from upstream`);
-    console.log("");
-    console.log(`${c.dim}Use ${c.bold}duck compat check${c.dim} to test compatibility.${c.reset}`);
-    console.log("");
-  }
-}
 
 // ============ ACP SERVER (for OpenClaw) ============
 
