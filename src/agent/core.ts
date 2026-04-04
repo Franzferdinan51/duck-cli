@@ -1393,6 +1393,15 @@ ${capabilities.join('\n')}`;
         const cost = (promptTokens + completionTokens) / 1_000_000 * rate;
         this.totalCost += cost;
         this.costRecords.push({ provider, model: this.config.model || 'default', promptTokens, completionTokens, cost, timestamp: Date.now() });
+        // Prune unbounded collections to prevent memory leaks
+        if (this.costRecords.length > 1000) this.costRecords = this.costRecords.slice(-500);
+        if (this.learningLog.length > 500) this.learningLog = this.learningLog.slice(-250);
+        if (this.learnedPatterns.size > 100) {
+          // Remove oldest entries when map gets too big
+          const entries = [...this.learnedPatterns.entries()];
+          this.learnedPatterns.clear();
+          entries.slice(-50).forEach(([k, v]) => this.learnedPatterns.set(k, v));
+        }
       }
 
       getMetrics(): AgentMetrics {
