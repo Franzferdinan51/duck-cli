@@ -1,6 +1,6 @@
 # 🦆 Duck Agent
 
-> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 45-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
+> **Duck Agent v0.4.1** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, KAIROS proactive AI, Agent Mesh networking, OpenClaw-RL self-improvement, 42-agent AI Council, unified headless protocols (MCP/ACP/WebSocket), Claude Code tools, autonomous cron automation, multi-agent orchestration, and OpenClaw v2026.3.31 compatibility.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -34,7 +34,7 @@ duck gateway            # Gateway API (port 18792)
 
 ## 🖥️ Desktop UI — NOW RUNNABLE
 
-**v0.4.0 brings a fully functional desktop shell** built with Vite + React + CopilotKit + Pretext Canvas.
+**v0.4.1 brings a fully functional desktop shell** built with Vite + React + CopilotKit + Pretext Canvas.
 
 ```bash
 cd src/ui/desktop
@@ -79,7 +79,7 @@ npm run preview  # Preview production build
 
 ## 👻 Sub-Conscious — Claude Subconscious-Style (No Letta)
 
-**v0.4.0 introduces Sub-Conscious** — a lightweight self-reflection layer that runs whisper prompts through your own AI models. Zero external dependencies, no Letta server needed.
+**Sub-Conscious** — a lightweight self-reflection layer that runs whisper prompts through your own AI models. Zero external dependencies, no Letta server needed.
 
 ### How It Works
 
@@ -170,7 +170,7 @@ Examples: WeatherCard, CryptoChart, CouncilVoteDisplay (in `src/ui/desktop/src/e
 
 ## 🤖 CopilotKit — Generative UI in React
 
-**v0.4.0 integrates CopilotKit** for streaming chat with React-native generative UI components.
+**CopilotKit integration** for streaming chat with React-native generative UI components.
 
 ### What CopilotKit Enables
 
@@ -234,14 +234,18 @@ agent.updateContext({ meshStatus: 'connected', agents: 3 })
 | 🧠 **KAIROS** | Proactive AI with heartbeat, decision engine, auto-dream |
 | 👻 **Sub-Conscious** | Claude-style self-reflection with 5 whisper triggers |
 | 🤖 **Agent Core** | Reasoning, task planning, tool orchestration |
-| 🛠️ **Claude Code Tools** | 60+ coding tools (read, write, edit, bash, grep, LSP…) |
+| 🛠️ **Claude Code Tools** | 74 tools with JSON schemas, retry/fallback, error classification |
 | 🌐 **MCP Server** | Full MCP 2024-11-05 spec, port 3850 |
 | 🚪 **Gateway API** | OpenAI-compatible REST, port 18792 |
 | 📡 **ACP Client** | Spawn Codex, Claude, Cursor, Gemini, Pi, OpenClaw |
 | 🔗 **ACP Server** | Let OpenClaw connect TO you, port 18794 |
 | 🗣️ **Voice / TTS** | MiniMax speech synthesis |
-| ⏰ **Cron Automation** | 21 predefined jobs |
+| ⏰ **Cron Automation** | 28 predefined jobs |
 | 🔬 **Diagnostics** | `duck doctor` — system diagnostics |
+| ❤️ **Health Checks** | `duck health` — Gateway, MiniMax, Kimi, Android, LM Studio |
+| 📊 **Stats** | `duck stats` — runs, success rate, token usage |
+| ⚙️ **Config** | `duck config get/set — YAML config management |
+| 📜 **Traces** | `duck trace` — execution traces with DUCK_TRACE=1 |
 | 🚀 **Shell Exec** | `duck exec` — run shell commands |
 | ⚙️ **Setup Wizard** | `duck setup` — configure API keys |
 | 💾 **Memory System** | 3-tier context + learned patterns |
@@ -328,7 +332,7 @@ duck subconscious stats   # Show whisper history
 
 ---
 
-## 🏛️ AI Council Chamber — OPTIONAL (45 Councilors)
+## 🏛️ AI Council Chamber — OPTIONAL (42 Councilors)
 
 **Deliberative decision making with 45 specialized AI perspectives**
 
@@ -338,7 +342,7 @@ duck council list          # List all 45 councilors
 duck council summon <role> # Call specific councilor
 ```
 
-### The 42 Councilors
+### The Councilors
 
 | # | Name | Role | Specialty |
 |---|------|------|-----------|
@@ -577,7 +581,7 @@ duck mcp                  # HTTP server on port 3850
 duck mcp --stdio          # Stdio transport (for LM Studio, Claude Desktop)
 ```
 
-**Built-in Tools (61+):** Full tool suite including:
+**Built-in Tools (74):** Full tool suite including:
 - Duck CLI: `duck_run`, `duck_status`, `duck_doctor`, `duck_kairos`, `duck_council`, `duck_update`, `duck_skills`, `duck_team`, `duck_security`, `duck_mesh`, `duck_cron`, `duck_agent`, `duck_think`, `duck_buddy`
 - Provider: `provider_list`, `provider_set`
 - Memory: `memory_stats`, `memory_recall`, `memory_list`, `memory_remember`
@@ -642,7 +646,7 @@ duck team status               # Check progress
 
 ## ⏰ Cron Automation — REQUIRED
 
-**21 predefined jobs**
+**28 predefined jobs**
 
 ```bash
 duck cron list              # List all jobs
@@ -703,7 +707,7 @@ openclaw unified
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Duck Agent v0.4.0                        │
+│                         Duck Agent v0.4.1                        │
 │                                                                  │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │                    User Interfaces                          │  │
@@ -751,7 +755,7 @@ Duck Agent/
 ├── src/
 │   ├── agent/           # Core AI agent
 │   ├── kairos/          # KAIROS autonomous system
-│   ├── subconscious/    # Sub-Conscious whisper layer (v0.4.0 NEW)
+│   ├── subconscious/    # Sub-Conscious whisper layer
 │   ├── mesh/            # Agent Mesh networking 🌐
 │   ├── rl/              # OpenClaw-RL integration 🧪
 │   ├── buddy/           # Buddy companion
@@ -792,9 +796,14 @@ Duck Agent/
 duck                   # Interactive shell (auto-starts)
 duck setup             # API key setup wizard
 duck doctor            # System diagnostics
+duck health            # System health check
+duck stats             # Usage statistics
+duck config            # Config management
 duck exec <cmd>        # Execute shell command
 duck status            # Show providers, skills, tools
-duck tools             # List all 60+ tools
+duck tools             # List all 74 tools (JSON schemas)
+duck tools search <q>  # Search tool registry
+duck tools schema <n>  # Show tool schema
 duck history           # Conversation history
 duck clear             # Clear history
 duck think <prompt>    # Reasoning (no tools)
@@ -881,8 +890,8 @@ duck update restore   # Rollback
 
 | Version | Milestone | Description |
 |---------|-----------|-------------|
-| **v0.4.0** | ✅ Desktop UI + Sub-Conscious | Vite+React Desktop UI, CopilotKit, Pretext Canvas, Sub-Conscious |
-| **v0.5.0** | 🔧 ClawHub Integration | Full skill marketplace, SOUL.md sharing, community ratings |
+| **v0.4.1** | ✅ Production Hardening | Tool failure handling, registry, traces, health checks, stats |
+| **v0.4.2** | 🔧 ClawHub Integration | Full skill marketplace, SOUL.md sharing, community ratings |
 | **v1.0.0** | 🏆 Production Ready | Stabilized APIs, comprehensive tests, full documentation |
 
 ---
@@ -894,7 +903,7 @@ duck update restore   # Rollback
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [COMMANDS.md](docs/COMMANDS.md) | CLI reference |
 | [UPDATES.md](docs/UPDATES.md) | Version history & roadmap |
-| [DESKTOP-UI.md](docs/DESKTOP-UI.md) | Desktop UI guide (v0.4.0) |
+| [DESKTOP-UI.md](docs/DESKTOP-UI.md) | Desktop UI guide |
 
 ---
 
