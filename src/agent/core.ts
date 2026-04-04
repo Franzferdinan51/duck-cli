@@ -424,7 +424,13 @@ export class Agent extends EventEmitter {
         const { writeFile, mkdir } = await import('fs/promises');
         try {
           const dir = args.path.substring(0, args.path.lastIndexOf('/'));
-          if (dir) await mkdir(dir, { recursive: true }).catch(() => {});
+          if (dir) {
+            try {
+              await mkdir(dir, { recursive: true });
+            } catch (dirErr: any) {
+              return { error: `Failed to create directory: ${dirErr.message}` };
+            }
+          }
           await writeFile(args.path, args.content);
           const duration = Date.now() - start;
           this.memory.logTool('file_write', args.path, true, undefined, duration).catch(() => {});
@@ -470,7 +476,14 @@ export class Agent extends EventEmitter {
       this.registerTool({ name: 'plan_create', description: 'Create autonomous plan', 
         schema: { goal: { type: 'string' }, context: { type: 'string', optional: true } }, dangerous: false,
         handler: async (args: any) => {
-          const context = args.context ? JSON.parse(args.context) : {};
+          let context = {};
+          if (args.context) {
+            try {
+              context = JSON.parse(args.context);
+            } catch {
+              return { error: 'Invalid context JSON' };
+            }
+          }
           const plan = await this.planner.createPlan(args.goal, context, this.tools.list().map(t => t.name));
           this.streams.sessionStart(this.sessionId, args.goal);
           return this.planner.formatProgress(plan);
@@ -600,9 +613,28 @@ export class Agent extends EventEmitter {
             name: 'angle_' + role
           }));
           this.streams.thinking(this.sessionId, 'Spawning ' + n + ' parallel thinking agents...');
-          const agents = this.subagents.spawnTeam(tasks);
+          
+          // Spawn team with error handling
+          let agents;
+          try {
+            agents = this.subagents.spawnTeam(tasks);
+          } catch (err: any) {
+            return { error: `Failed to spawn agents: ${err.message}` };
+          }
+          
           const agentIds = agents.map(a => a.id);
-          const results = await Promise.all(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+          
+          // Wait for all agents with error isolation (Promise.allSettled)
+          const settled = await Promise.allSettled(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+          
+          const results = settled.map((result, i) => {
+            if (result.status === 'fulfilled') {
+              return result.value;
+            } else {
+              return { error: result.reason?.message || 'Agent failed', status: 'failed' };
+            }
+          });
+          
           return {
             prompt: prompt,
             perspectives: roles.map((role, i) => ({ role: role, result: results[i] })),
@@ -1192,7 +1224,9 @@ export class Agent extends EventEmitter {
             const agentIds: string[] = result.agentIds || [];
             if (agentIds.length > 0) {
               this.streams.thinking(this.sessionId, 'Waiting for ' + agentIds.length + ' parallel agents...');
-              const agentResults = await Promise.all(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+              // Wait for agents with error isolation
+              const settled = await Promise.allSettled(agentIds.map(id => this.subagents.waitFor(id, 300000)));
+              const agentResults = settled.map((r, i) => r.status === 'fulfilled' ? r.value : { error: r.reason?.message || 'Agent failed', id: agentIds[i] });
               result = { agents: agentIds, results: agentResults };
             }
           }
