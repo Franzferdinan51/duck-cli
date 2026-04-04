@@ -8,7 +8,7 @@ import { OpenClawGatewayProvider } from './openclaw-gateway';
 
 export interface Provider {
   name: string;
-  complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }>;
+  complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }>;
 }
 
 export class ProviderManager {
@@ -232,27 +232,84 @@ class MiniMaxProvider implements Provider {
 
 class LMStudioProvider implements Provider {
   name = 'lmstudio';
+  private retryDelays = [500, 1000, 2000, 4000]; // Exponential backoff
+
   constructor(private url: string, private key: string = 'not-needed') {}
 
-  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string }> {
-    try {
-      const res = await fetch(`${this.url}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.key}`
-        },
-        body: JSON.stringify({
-          model: opts.model || 'local-model',
-          messages: opts.messages
-        })
-      });
+  async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
+    const makeRequest = async (): Promise<{ text?: string; toolCalls?: any[]; error?: string }> => {
+      try {
+        // Use native LM Studio v1 API for MCP support
+        // /v1/chat/completions = OpenAI compat = NO MCP
+        // /api/v1/chat = Native LM Studio = YES MCP
+        const endpoint = this.url.includes('/api/v1') ? this.url : this.url.replace('/v1', '/api/v1');
+        
+        const res = await fetch(`${endpoint}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.key}`
+          },
+          body: JSON.stringify({
+            model: opts.model || 'local-model',
+            messages: opts.messages,
+            tools: opts.tools,  // Pass through tools for MCP support
+            stream: false
+          })
+        });
 
-      const data: any = await res.json();
-      return { text: data.choices?.[0]?.message?.content };
-    } catch (error) {
-      return { text: undefined };
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => 'Unknown error');
+          return { error: `HTTP ${res.status}: ${errorText}` };
+        }
+
+        const data: any = await res.json();
+        
+        // Handle native LM Studio response format
+        const message = data.message || data.choices?.[0]?.message || {};
+        const content = message.content || '';
+        const toolCalls = message.toolCalls || [];
+        
+        return { 
+          text: content, 
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined 
+        };
+      } catch (error: any) {
+        // Detect connection errors that are retryable
+        const isRetryable = error.message?.includes('Connection') ||
+                           error.message?.includes('timeout') ||
+                           error.message?.includes('ECONNRESET') ||
+                           error.message?.includes('ETIMEDOUT');
+        return { error: isRetryable ? '__RETRY__' : error.message };
+      }
+    };
+
+    // Retry with exponential backoff for connection issues
+    for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = this.retryDelays[attempt - 1];
+        console.log(`[LMStudio] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      const result = await makeRequest();
+      if (!result.error || result.error === '__RETRY__' && attempt === this.retryDelays.length) {
+        if (result.text !== undefined || result.toolCalls !== undefined) {
+          return { text: result.text, toolCalls: result.toolCalls };
+        }
+        if (result.error && result.error !== '__RETRY__') {
+          console.log('[LMStudio] Error:', result.error);
+          return { text: undefined };
+        }
+      }
+      if (result.error && result.error !== '__RETRY__') {
+        console.log('[LMStudio] Error:', result.error);
+        return { text: undefined };
+      }
     }
+    
+    console.log('[LMStudio] Failed after retries');
+    return { text: undefined };
   }
 }
 
