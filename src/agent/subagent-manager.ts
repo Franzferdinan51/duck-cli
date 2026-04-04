@@ -261,8 +261,16 @@ export class SubagentManager extends EventEmitter {
       ], {
         cwd: process.cwd(),
         env: { ...process.env },
-        timeout,
       });
+
+      // Set up timeout to kill process - spawn() timeout option is IGNORED!
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM');
+        agent.status = 'failed';
+        agent.error = `Process timed out after ${timeout}ms`;
+        agent.completedAt = Date.now();
+        agent.duration = agent.completedAt - (agent.startedAt || agent.createdAt);
+      }, timeout);
 
       this.processes.set(agent.id, child);
 
@@ -296,6 +304,7 @@ export class SubagentManager extends EventEmitter {
       });
 
       child.on('close', (code) => {
+        clearTimeout(timer); // Clear timeout timer
         this.processes.delete(agent.id);
         agent.exitCode = code || undefined;
 
@@ -312,6 +321,7 @@ export class SubagentManager extends EventEmitter {
       });
 
       child.on('error', (err) => {
+        clearTimeout(timer);
         this.processes.delete(agent.id);
         reject(err);
       });
@@ -496,22 +506,28 @@ export class SubagentManager extends EventEmitter {
         reject(new Error(`Timeout waiting for subagent ${id}`));
       }, timeoutMs);
 
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.off('complete', onComplete);
+        this.off('error', onError);
+      };
+
       const onComplete = (a: Subagent) => {
         if (a.id === id) {
-          clearTimeout(timeout);
+          cleanup();
           resolve(a);
         }
       };
 
       const onError = (a: Subagent) => {
         if (a.id === id) {
-          clearTimeout(timeout);
+          cleanup();
           resolve(a); // Still resolves, check status
         }
       };
 
-      // (removed once listener)
-      // (removed once listener)
+      this.on('complete', onComplete);
+      this.on('error', onError);
     });
   }
 
@@ -578,7 +594,16 @@ export class SubagentManager extends EventEmitter {
       proc.kill('SIGTERM');
     }
     this.processes.clear();
+    this.agents.clear(); // Clear all agents to prevent memory leak
     try { if (this.db.open) this.db.close(); } catch {}
+  }
+
+  /**
+   * Remove agent from agents Map to prevent memory leak
+   * Call this after agent completes and caller has retrieved results
+   */
+  removeAgent(id: string): void {
+    this.agents.delete(id);
   }
 }
 
