@@ -1653,6 +1653,118 @@ export class Agent extends EventEmitter {
         return level >= 0 ? `${level}%` : { error: 'Could not read battery level' };
       }
     });
+    this.registerTool({
+      name: 'android_info',
+      description: '📱 Get full device info (model, Android version, SDK, screen, battery, IP)',
+      schema: { serial: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const info = await this.androidTools.getDeviceInfo(args.serial);
+        if (info.error) return info;
+        return `Device: ${info.serial}\n  Model: ${info.model}\n  Manufacturer: ${info.manufacturer}\n  Android: ${info.android} (SDK ${info.sdk})\n  Screen: ${(info.screen as any)?.width}x${(info.screen as any)?.height}\n  Density: ${info.density}\n  State: ${info.state}\n  Battery: ${info.battery}%\n  IP: ${info.ip || 'Not found'}`;
+      }
+    });
+    this.registerTool({
+      name: 'android_install',
+      description: '📦 Install APK on Android device',
+      schema: { apk: { type: 'string' }, serial: { type: 'string', optional: true } },
+      dangerous: true,
+      handler: async (args: any) => {
+        const result = await this.androidTools.installApk(args.apk, args.serial);
+        return result;
+      }
+    });
+    this.registerTool({
+      name: 'android_packages',
+      description: '📋 List installed packages on Android device',
+      schema: { serial: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const apps = await this.androidTools.listApps();
+        return `Installed packages (${apps.length}):\n\n${apps.slice(0, 80).join('\n')}${apps.length > 80 ? `\n... and ${apps.length - 80} more` : ''}`;
+      }
+    });
+    this.registerTool({
+      name: 'android_termux',
+      description: '🖥️ Run Termux API command (battery, clip-get, clip-set, notif, sensors, location, wifi, toast, vibrate, torch)',
+      schema: { command: { type: 'string' }, serial: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const map: Record<string, string> = {
+          battery: 'termux-battery-status', 'clip-get': 'termux-clipboard-get', 'clip-set': 'termux-clipboard-set',
+          clipboard: 'termux-clipboard-get', notif: 'termux-notification-list', notifications: 'termux-notification-list',
+          'notif-show': "termux-notification -t DuckCLI -c 'From duck-cli'",
+          sensors: 'termux-sensor -s accelerometer -n 1', location: 'termux-location -l',
+          wifi: 'termux-wifi-scaninfo', tel: 'termux-telephony-deviceinfo',
+          camera: 'termux-camera-info', sms: 'termux-sms-list',
+          toast: "termux-toast 'duck-cli'", vibrate: 'termux-vibrate -d 500',
+          torch: 'termux-torch on', 'torch-on': 'termux-torch on', 'torch-off': 'termux-torch off',
+        };
+        const cmd = map[args.command.toLowerCase()] || `termux-${args.command}`;
+        const result = await this.androidTools.termuxCommand(cmd, args.serial || null);
+        if (!result || result === '(no output)') {
+          return `Termux API not available. Install:\n  pkg install termux-api`;
+        }
+        return result;
+      }
+    });
+    this.registerTool({
+      name: 'android_analyze',
+      description: '🔍 Full vision pipeline: screenshot + UI tree + foreground app + battery + screen',
+      schema: { serial: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const data = await this.androidTools.screenshotAnalyze(args.serial);
+          return data;
+        } catch (e: any) {
+          return { error: e.message };
+        }
+      }
+    });
+    this.registerTool({
+      name: 'android_push',
+      description: '📤 Push local file to Android device',
+      schema: { local: { type: 'string' }, remote: { type: 'string' }, serial: { type: 'string', optional: true } },
+      dangerous: true,
+      handler: async (args: any) => {
+        if (args.serial) this.androidTools.setDevice(args.serial);
+        return (await this.androidTools.pushFile(args.local, args.remote)) ? 'Pushed successfully' : 'Push failed';
+      }
+    });
+    this.registerTool({
+      name: 'android_pull',
+      description: '📥 Pull file from Android device',
+      schema: { remote: { type: 'string' }, local: { type: 'string' }, serial: { type: 'string', optional: true } },
+      dangerous: true,
+      handler: async (args: any) => {
+        return (await this.androidTools.pullFile(args.remote, args.local)) ? 'Pulled' : 'Pull failed';
+      }
+    });
+    this.registerTool({
+      name: 'android_clipboard',
+      description: '📋 Get/set clipboard on Android',
+      schema: { action: { type: 'string', description: 'get | set' }, text: { type: 'string', optional: true }, serial: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        if (args.action === 'get') {
+          const text = await this.androidTools.getClipboard();
+          return text || '(empty)';
+        } else {
+          return (await this.androidTools.setClipboard(args.text || '')) ? 'Clipboard set' : 'Clipboard failed';
+        }
+      }
+    });
+    this.registerTool({
+      name: 'android_notifications',
+      description: '🔔 Get recent Android notifications',
+      schema: { serial: { type: 'string', optional: true } },
+      dangerous: false,
+      handler: async (args: any) => {
+        const notifs = await this.androidTools.getNotifications();
+        return notifs.length > 0 ? notifs.join('\n') : 'No notifications';
+      }
+    });
 
     // ─── Agent Card (A2A/Mesh Discovery) ────────────────────
     this.registerTool({

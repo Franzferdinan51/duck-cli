@@ -942,11 +942,77 @@ func androidCmd() *cobra.Command {
 			return runNodeWithEnv("android_battery", cmd)
 		},
 	}
+	infoCmd := &cobra.Command{
+		Use:   "info",
+		Short: "Get full device info (model, Android, SDK, screen, battery, IP)",
+		Args:  cobra.RangeArgs(0, 1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serial := ""
+			if len(args) > 0 { serial = args[0] }
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android_info "+payload, cmd)
+		},
+	}
+	installCmd := &cobra.Command{
+		Use:   "install <apk-path>",
+		Short: "Install APK on Android device",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"apk":"%s"}`, args[0])
+			return runNodeWithEnv("android_install "+payload, cmd)
+		},
+	}
+	packagesCmd := &cobra.Command{
+		Use:   "packages",
+		Short: "List installed packages",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android_packages", cmd)
+		},
+	}
+	termuxCmd := &cobra.Command{
+		Use:   "termux <command>",
+		Short: "Run Termux API (battery|clip-get|notif|sensors|location|wifi|toast|vibrate|torch)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"command":"%s"}`, args[0])
+			return runNodeWithEnv("android_termux "+payload, cmd)
+		},
+	}
+	analyzeCmd := &cobra.Command{
+		Use:   "analyze",
+		Short: "Full vision pipeline: screenshot + UI + app + battery",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android_analyze", cmd)
+		},
+	}
+	clipboardCmd := &cobra.Command{
+		Use:   "clipboard <get|set> [text]",
+		Short: "Get or set Android clipboard",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				payload := fmt.Sprintf(`{"action":"get"}`)
+				return runNodeWithEnv("android_clipboard "+payload, cmd)
+			}
+			payload := fmt.Sprintf(`{"action":"set","text":"%s"}`, strings.ReplaceAll(args[1], `"`, `"`))
+			return runNodeWithEnv("android_clipboard "+payload, cmd)
+		},
+	}
+	notificationsCmd := &cobra.Command{
+		Use:   "notifications",
+		Short: "Get recent Android notifications",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android_notifications", cmd)
+		},
+	}
 
 	cmd := &cobra.Command{
 		Use:     "android [command] [args]",
 		Short:   "DroidClaw-style Android ADB automation",
-		Long:    `DroidClaw Android automation via ADB.\n\nCommands:\n  duck android devices                List connected devices\n  duck android screenshot [fname]      Capture screen\n  duck android tap <x> <y>             Tap coordinates\n  duck android type <text>            Type text\n  duck android shell <cmd>            Run ADB shell command\n  duck android dump [query]           Dump UI hierarchy\n  duck android find <text>            Find element and tap\n  duck android swipe <dir> [dist]     Swipe (up|down|left|right)\n  duck android press <key>            Press key (enter|back|home|recent)\n  duck android app <act> <pkg>         App action (launch|kill|foreground)\n  duck android screen                  Read all visible text\n  duck android battery                 Battery level`,
+		Long:    `DroidClaw-style Android ADB automation.\n\nDevice:\n  duck android devices                List connected devices\n  duck android info                   Full device info (model, Android, IP)\n\nControl:\n  duck android tap <x> <y>             Tap coordinates\n  duck android swipe <dir> [dist]     Swipe (up|down|left|right)\n  duck android type <text>            Type text\n  duck android press <key>            Key (enter|back|home|recent|power)\n  duck android clipboard <get|set>    Clipboard operations\n\nScreen:\n  duck android screenshot [fname]      Capture screen\n  duck android screen                  Read visible text (OCR-style)\n  duck android dump [query]           Dump UI hierarchy\n  duck android find <text>            Find element and tap\n  duck android analyze                 Full vision: screenshot + UI + app + battery\n\nApps:\n  duck android app launch <pkg>       Launch app\n  duck android app kill <pkg>          Force-stop app\n  duck android app foreground           Get foreground app\n  duck android install <apk>           Install APK\n  duck android packages                List packages\n\nSystem:\n  duck android shell <cmd>            Run ADB shell command\n  duck android battery                 Battery level\n  duck android notifications           Recent notifications\n  duck android termux <cmd>            Termux API (battery|clip|notif|sensors|location|wifi|torch)\n\nDroidClaw:\n  duck android droidclaw [ws-url]      DroidClaw protocol (remote AI control)\n  duck android node [gateway]          OpenClaw Node on Android`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -1022,11 +1088,38 @@ func androidCmd() *cobra.Command {
 				return runNodeWithEnv("android_screen", cmd)
 			case "battery":
 				return runNodeWithEnv("android_battery", cmd)
+			case "info":
+				serial := ""
+				if len(args) > 1 { serial = args[1] }
+				payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+				return runNodeWithEnv("android_info "+payload, cmd)
+			case "install":
+				if len(args) < 2 { return fmt.Errorf("Usage: duck android install <apk-path>") }
+				payload := fmt.Sprintf(`{"apk":"%s"}`, args[1])
+				return runNodeWithEnv("android_install "+payload, cmd)
+			case "packages":
+				return runNodeWithEnv("android_packages", cmd)
+			case "termux":
+				if len(args) < 2 { return fmt.Errorf("Usage: duck android termux <command>") }
+				payload := fmt.Sprintf(`{"command":"%s"}`, args[1])
+				return runNodeWithEnv("android_termux "+payload, cmd)
+			case "analyze":
+				return runNodeWithEnv("android_analyze", cmd)
+			case "clipboard":
+				if len(args) < 2 { return fmt.Errorf("Usage: duck android clipboard <get|set> [text]") }
+				if len(args) == 2 {
+					payload := fmt.Sprintf(`{"action":"get"}`)
+					return runNodeWithEnv("android_clipboard "+payload, cmd)
+				}
+				payload := fmt.Sprintf(`{"action":"set","text":"%s"}`, strings.ReplaceAll(args[2], `"`, `"`))
+				return runNodeWithEnv("android_clipboard "+payload, cmd)
+			case "notifications", "notifs":
+				return runNodeWithEnv("android_notifications", cmd)
 			default:
 				return fmt.Errorf("unknown android command: %s. Run 'duck android' for help.", sub)
 			}
 		},
 	}
-	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd)
+	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd)
 	return cmd
 }

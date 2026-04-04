@@ -463,6 +463,144 @@ export class AndroidTools {
       .filter(Boolean)
       .join("\n");
   }
+
+  // ─── NEW: DroidClaw Enhanced Methods ──────────────────────────────────
+
+  async getProperty(serial: string | null | undefined, prop: string): Promise<string> {
+    const dev = serial || this.serial;
+    if (!dev) return "";
+    try {
+      const { stdout } = await execAsync(`adb -s ${dev} shell getprop ${prop}`, { timeout: 5000 });
+      return stdout.trim();
+    } catch { return ""; }
+  }
+
+  async getDeviceState(serial?: string): Promise<string> {
+    const dev = serial || this.serial;
+    if (!dev) return "no device";
+    try {
+      const { stdout } = await execAsync(`adb -s ${dev} get-state`, { timeout: 5000 });
+      return stdout.trim() || "unknown";
+    } catch { return "offline"; }
+  }
+
+  async getDeviceIP(serial?: string | null): Promise<string | null> {
+    const dev = serial || this.serial;
+    if (!dev) return null;
+    try {
+      const { stdout } = await execAsync(
+        `adb -s ${dev} shell "ip route | grep wlan0 | awk '{print \\\$3}' | head -1"`,
+        { timeout: 5000 }
+      );
+      return stdout.trim() || null;
+    } catch { return null; }
+  }
+
+  async getDeviceInfo(serial?: string | null): Promise<Record<string, unknown>> {
+    const dev = serial || this.serial;
+    if (!dev) return { error: "No device selected" };
+    const [model, manufacturer, android, sdk, battery, density, state] = await Promise.all([
+      this.getProperty(dev, "ro.product.model"),
+      this.getProperty(dev, "ro.product.manufacturer"),
+      this.getProperty(dev, "ro.build.version.release"),
+      this.getProperty(dev, "ro.build.version.sdk"),
+      this.getBatteryLevel(),
+      this.getProperty(dev, "ro.sf.lcd_density"),
+      this.getDeviceState(dev),
+    ]);
+    const screen = await this.getScreenSize().catch(() => ({ width: 0, height: 0 }));
+    const ip = await this.getDeviceIP(dev).catch(() => null);
+    return { serial: dev, model, manufacturer, android, sdk, battery, density, state, screen, ip };
+  }
+
+  async installApk(apkPath: string, serial?: string | null): Promise<string> {
+    const dev = serial || this.serial;
+    if (!dev) return "Error: No device selected";
+    const { existsSync } = await import("fs");
+    if (!existsSync(apkPath)) return `Error: APK not found: ${apkPath}`;
+    try {
+      const { stdout, stderr } = await execAsync(`adb -s ${dev} install -r "${apkPath}"`, { timeout: 120000 });
+      if (stderr && stderr.includes("Failure")) return `Install failed: ${stderr}`;
+      return stdout.trim() || "Installed successfully";
+    } catch (e: any) { return `Install failed: ${e.message}`; }
+  }
+
+  async uninstallPackage(packageName: string, serial?: string | null): Promise<string> {
+    const dev = serial || this.serial;
+    if (!dev) return "Error: No device selected";
+    try {
+      const { stdout } = await execAsync(`adb -s ${dev} uninstall ${packageName}`, { timeout: 30000 });
+      return stdout.trim();
+    } catch (e: any) { return `Uninstall failed: ${e.message}`; }
+  }
+
+  async launchAppExplicit(packageName: string, activity: string, serial?: string | null): Promise<boolean> {
+    const dev = serial || this.serial;
+    if (!dev) return false;
+    const comp = `${packageName}/${activity}`;
+    const { exitCode } = await this.shell(`am start -n "${comp}"`);
+    return exitCode === 0;
+  }
+
+  async pressPower(serial?: string | null): Promise<boolean> {
+    const dev = serial || this.serial;
+    if (!dev) return false;
+    const { exitCode } = await this.shell(`input keyevent 26`);
+    return exitCode === 0;
+  }
+
+  async pressVolumeUp(serial?: string | null): Promise<boolean> {
+    const dev = serial || this.serial;
+    if (!dev) return false;
+    const { exitCode } = await this.shell(`input keyevent 24`);
+    return exitCode === 0;
+  }
+
+  async pressVolumeDown(serial?: string | null): Promise<boolean> {
+    const dev = serial || this.serial;
+    if (!dev) return false;
+    const { exitCode } = await this.shell(`input keyevent 25`);
+    return exitCode === 0;
+  }
+
+  async reboot(serial?: string | null): Promise<string> {
+    const dev = serial || this.serial;
+    if (!dev) return "Error: No device selected";
+    try { await execAsync(`adb -s ${dev} reboot`, { timeout: 5000 }); return "Rebooting..."; }
+    catch (e: any) { return `Reboot failed: ${e.message}`; }
+  }
+
+  async termuxCommand(command: string, serial?: string | null): Promise<string> {
+    const dev = serial || this.serial;
+    if (!dev) return "Error: No device selected";
+    const { stdout } = await this.shell(command);
+    return stdout || "(no output)";
+  }
+
+  async screenshotAnalyze(serial?: string | null): Promise<Record<string, unknown>> {
+    const dev = serial || this.serial;
+    if (!dev) throw new Error("No device selected");
+    const capture = await this.captureScreen();
+    const xml = await this.dumpUiXml();
+    const elements = this.parseUiXml(xml);
+    const { readFileSync, statSync } = await import("fs");
+    let screenshotBase64 = "";
+    let sizeKb = 0;
+    try { screenshotBase64 = readFileSync(capture.path).toString("base64"); sizeKb = Math.round(statSync(capture.path).size / 1024); } catch {}
+    return {
+      screenshotPath: capture.path,
+      screenshotBase64,
+      screenshotSizeKb: sizeKb,
+      uiXmlLength: xml.length,
+      uiElementCount: elements.length,
+      uiElements: elements.slice(0, 50),
+      foregroundApp: await this.getForegroundApp(),
+      screen: `${capture.width}x${capture.height}`,
+      battery: await this.getBatteryLevel(),
+      device: dev,
+      timestamp: new Date().toISOString(),
+    };
+  }
 }
 
 // ─── Singleton for convenience ─────────────────────────────────────────────
