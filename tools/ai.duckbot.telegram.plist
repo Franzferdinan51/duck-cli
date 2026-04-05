@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.duckbot.telegram</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>-u</string>
+        <string>/Users/duckets/.openclaw/workspace/tools/telegram-bot-standalone.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/duckets/.openclaw/workspace/tools</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/telegram-bot.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/telegram-bot.err</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DUCK_CLI_PATH</key>
+        <string>/Users/duckets/.openclaw/workspace/duck-cli-src/duck</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>
