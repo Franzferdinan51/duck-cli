@@ -778,10 +778,13 @@ func channelsCmd() *cobra.Command {
 		Use:     "channels [subcommand]",
 		Aliases: []string{"telegram", "discord"},
 		Short:   "Start Telegram/Discord channels",
-		Args:    cobra.MaximumNArgs(1),
+		Args:    cobra.ArbitraryArgs, // Forward all args to node script
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// If called as 'telegram' or 'discord' subcommand, handle directly
 			if cmd.CalledAs() == "telegram" {
+				if len(args) > 0 {
+					return runNodeWithEnv("channels telegram "+strings.Join(args, " "), cmd)
+				}
 				return runNodeWithEnv("channels telegram", cmd)
 			}
 			if cmd.CalledAs() == "discord" {
@@ -901,7 +904,13 @@ func getFirstDevice() string {
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	exePath, _ := os.Executable()
 	cmdDir := filepath.Dir(exePath)
-	parts := strings.SplitN(script, " ", 2)
+	// Resolve symlinks in dist/ path so DUCK_SOURCE_DIR points to real source dir
+	distPath := filepath.Join(cmdDir, "dist")
+	if realDist, err := filepath.EvalSymlinks(distPath); err == nil {
+		// realDist is the real path of dist/, so go up one level to get the project root
+		cmdDir = filepath.Dir(realDist)
+	}
+	parts := strings.Split(script, " ")
 	nodeArgs := []string{filepath.Join(cmdDir, "dist", "cli", "main.js")}
 	for _, p := range parts { nodeArgs = append(nodeArgs, p) }
 	nodeCmd := exec.Command("node", nodeArgs...)
@@ -924,6 +933,8 @@ func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 		env = append(env, "DUCK_PRIORITY="+flagPriority)
 	}
 	nodeCmd.Env = env
+	// Pass the source directory (where dist/ is) so Node can find .env
+	nodeCmd.Env = append(nodeCmd.Env, "DUCK_SOURCE_DIR="+cmdDir)
 	return nodeCmd.Run()
 }
 
