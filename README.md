@@ -455,6 +455,20 @@ duck-cli/
 
 ---
 
+## 🔗 Related Repos We Maintain
+
+| Repo | Purpose |
+|------|---------|
+| **[Franzferdinan51/duck-cli](https://github.com/Franzferdinan51/duck-cli)** | **Main repo** — unified desktop + mobile + android agent |
+| **[Franzferdinan51/droidclaw](https://github.com/Franzferdinan51/droidclaw)** | Tracking fork of [unitedbyai/droidclaw](https://github.com/unitedbyai/droidclaw) — duck-cli provider for DroidClaw upstream |
+| **[Franzferdinan51/Open-WebUi-Lobster-Edition](https://github.com/Franzferdinan51/Open-WebUi-Lobster-Edition)** | OpenWebUI fork with OpenClaw integration + generative UI |
+| **[Franzferdinan51/AI-Bot-Council-Concensus](https://github.com/Franzferdinan51/AI-Bot-Council-Concensus)** | AI Council — multi-agent deliberation chamber |
+| **[Franzferdinan51/RS-Agent-Skill-Lobster-Edition](https://github.com/Franzferdinan51/RS-Agent-Skill-Lobster-Edition)** | RuneScape API toolkit + Discord bot |
+| **[irtiq7/OpenClaw-Android](https://github.com/irtiq7/OpenClaw-Android)** | OpenClaw Termux setup (upstream — we build on this) |
+| **[unitedbyai/droidclaw](https://github.com/unitedbyai/droidclaw)** | DroidClaw upstream (we track via our fork) |
+
+---
+
 ## 🦆 Powered By
 
 - [OpenClaw](https://github.com/openclaw/openclaw) — ACP/MCP protocols, Skills system
