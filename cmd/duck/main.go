@@ -1132,11 +1132,39 @@ func androidCmd() *cobra.Command {
 			return runNodeWithEnv("android notifications " + payload, cmd)
 		},
 	}
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show device status (model, Android, battery, screen, IP)",
+		Args:  cobra.RangeArgs(0, 1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serial := ""
+			if len(args) > 0 { serial = args[0] }
+			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+			return runNodeWithEnv("android status "+payload, cmd)
+		},
+	}
+	forwardCmd := &cobra.Command{
+		Use:   "forward <local> <remote>",
+		Short: "Setup ADB port forwarding (e.g. tcp:18789 tcp:18789)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload := fmt.Sprintf(`{"local":"%s","remote":"%s"}`, args[0], args[1])
+			return runNodeWithEnv("android forward "+payload, cmd)
+		},
+	}
+	pushCmd := &cobra.Command{
+		Use:   "push",
+		Short: "Push duck-android binary to device at /data/local/tmp/duck",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("android push ", cmd)
+		},
+	}
 
 	cmd := &cobra.Command{
 		Use:     "android [command] [args]",
 		Short:   "DroidClaw-style Android ADB automation",
-		Long:    `DroidClaw-style Android ADB automation.\n\nDevice:\n  duck android devices                List connected devices\n  duck android info                   Full device info (model, Android, IP)\n\nControl:\n  duck android tap <x> <y>             Tap coordinates\n  duck android swipe <dir> [dist]     Swipe (up|down|left|right)\n  duck android type <text>            Type text\n  duck android press <key>            Key (enter|back|home|recent|power)\n  duck android clipboard <get|set>    Clipboard operations\n\nScreen:\n  duck android screenshot [fname]      Capture screen\n  duck android screen                  Read visible text (OCR-style)\n  duck android dump [query]           Dump UI hierarchy\n  duck android find <text>            Find element and tap\n  duck android analyze                 Full vision: screenshot + UI + app + battery\n\nApps:\n  duck android app launch <pkg>       Launch app\n  duck android app kill <pkg>          Force-stop app\n  duck android app foreground           Get foreground app\n  duck android install <apk>           Install APK\n  duck android packages                List packages\n\nSystem:\n  duck android shell <cmd>            Run ADB shell command\n  duck android battery                 Battery level\n  duck android notifications           Recent notifications\n  duck android termux <cmd>            Termux API (battery|clip|notif|sensors|location|wifi|torch)\n\nDroidClaw:\n  duck android droidclaw [ws-url]      DroidClaw protocol (remote AI control)\n  duck android node [gateway]          OpenClaw Node on Android`,
+		Long:    `DroidClaw-style Android ADB automation.\n\nDevice:\n  duck android devices                List connected devices\n  duck android status [serial]          Device status (model, battery, screen, IP)\n  duck android info                   Full device info (model, Android, IP)\n  duck android forward <local> <remote> ADB port forwarding\n  duck android push                    Push duck-android binary to device\n\nControl:\n  duck android tap <x> <y>             Tap coordinates\n  duck android swipe <dir> [dist]     Swipe (up|down|left|right)\n  duck android type <text>            Type text\n  duck android press <key>            Key (enter|back|home|recent|power)\n  duck android clipboard <get|set>    Clipboard operations\n\nScreen:\n  duck android screenshot [fname]      Capture screen\n  duck android screen                  Read visible text (OCR-style)\n  duck android dump [query]           Dump UI hierarchy\n  duck android find <text>            Find element and tap\n  duck android analyze                 Full vision: screenshot + UI + app + battery\n\nApps:\n  duck android app launch <pkg>       Launch app\n  duck android app kill <pkg>          Force-stop app\n  duck android app foreground           Get foreground app\n  duck android install <apk>           Install APK\n  duck android packages                List packages\n\nSystem:\n  duck android shell <cmd>            Run ADB shell command\n  duck android battery                 Battery level\n  duck android notifications           Recent notifications\n  duck android termux <cmd>            Termux API (battery|clip|notif|sensors|location|wifi|torch)\n\nDroidClaw:\n  duck android droidclaw [ws-url]      DroidClaw protocol (remote AI control)\n  duck android node [gateway]          OpenClaw Node on Android`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
@@ -1256,11 +1284,24 @@ func androidCmd() *cobra.Command {
 				serial := getFirstDevice()
 			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
 			return runNodeWithEnv("android notifications " + payload, cmd)
+			case "status":
+				serial := ""
+				if len(args) > 1 { serial = args[1] }
+				payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
+				return runNodeWithEnv("android status "+payload, cmd)
+			case "forward":
+				if len(args) < 3 {
+					return fmt.Errorf("Usage: duck android forward <local> <remote>")
+				}
+				payload := fmt.Sprintf(`{"local":"%s","remote":"%s"}`, args[1], args[2])
+				return runNodeWithEnv("android forward "+payload, cmd)
+			case "push":
+				return runNodeWithEnv("android push ", cmd)
 			default:
 				return fmt.Errorf("unknown android command: %s. Run 'duck android' for help.", sub)
 			}
 		},
 	}
-	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd)
+	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd, statusCmd, forwardCmd, pushCmd)
 	return cmd
 }

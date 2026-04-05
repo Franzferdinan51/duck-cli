@@ -408,6 +408,28 @@ export class AndroidTools {
     }
   }
 
+  // ─── Port Forwarding ──────────────────────────────────────────────────────
+
+  async forward(local: string, remote: string): Promise<boolean> {
+    if (!this.serial) return false;
+    try {
+      await execAsync(`adb -s ${this.serial} forward "${local}" "${remote}"`, { timeout: 15000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async removeForward(local: string): Promise<boolean> {
+    if (!this.serial) return false;
+    try {
+      await execAsync(`adb -s ${this.serial} forward --remove "${local}"`, { timeout: 15000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ─── System Info ─────────────────────────────────────────────────────────
 
   async getBatteryLevel(): Promise<number> {

@@ -158,6 +158,12 @@ async function main() {
       break;
 
     case 'telegram':
+      {
+        const { telegramCommand } = await import('../plugins/telegram.js');
+        await telegramCommand(args);
+      }
+      break;
+
     case 'discord':
     case 'channels':
       await startChannels(args);
@@ -1645,10 +1651,96 @@ async function androidCommand(args: string[]) {
       console.log(`${c2.green}✓${c2.reset} ${devices.length} device(s) found`);
       break;
     }
+    case 'status': {
+      await android.refreshDevices();
+      const serial = payload.serial ?? actionArgs[0];
+      if (!serial) {
+        // Show all connected devices with status summary
+        const devices = android.getDevices();
+        if (devices.length === 0) {
+          console.log(`${c2.yellow}No Android devices connected.${c2.reset}`);
+          return;
+        }
+        console.log(`${c2.bold}Android Device Status:${c2.reset}`);
+        for (const dev of devices) {
+          const current = android.getCurrentDevice();
+          const isActive = current?.serial === dev.serial;
+          console.log(`  ${isActive ? c2.green + '[*] ' : c2.dim + '[-] '}${dev.serial}${c2.reset}`);
+          if (dev.model) console.log(`    Model: ${dev.model}`);
+          console.log(`    State: ${dev.state}`);
+          if (isActive) {
+            const bat = await android.getBatteryLevel().catch(() => -1);
+            const fg = await android.getForegroundApp().catch(() => null);
+            const size = await android.getScreenSize().catch(() => ({ width: 0, height: 0 }));
+            if (bat >= 0) console.log(`    Battery: ${bat}%`);
+            if (fg) console.log(`    Foreground: ${fg}`);
+            console.log(`    Screen: ${size.width}x${size.height}`);
+          }
+        }
+        return;
+      }
+      // Show specific device info
+      android.setDevice(serial);
+      const bat = await android.getBatteryLevel().catch(() => -1);
+      const fg = await android.getForegroundApp().catch(() => null);
+      const size = await android.getScreenSize().catch(() => ({ width: 0, height: 0 }));
+      const info = await android.getDeviceInfo(serial).catch(() => null);
+      console.log(`${c2.bold}Device: ${serial}${c2.reset}`);
+      if (info?.model) console.log(`  Model: ${info.model}`);
+      if (info?.android) console.log(`  Android: ${info.android}`);
+      if (bat >= 0) console.log(`  Battery: ${bat}%`);
+      if (fg) console.log(`  Foreground: ${fg}`);
+      console.log(`  Screen: ${size.width}x${size.height}`);
+      if (info?.ip) console.log(`  IP: ${info.ip}`);
+      break;
+    }
+    case 'forward': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const local = payload.local ?? actionArgs[0];
+      const remote = payload.remote ?? actionArgs[1];
+      if (!local || !remote) { console.log(`${c2.red}Usage: duck android forward <local> <remote>${c2.reset}`); return; }
+      const ok = await android.forward(local, remote);
+      console.log(ok ? `${c2.green}✓ Forwarded ${local} -> ${remote}${c2.reset}` : `${c2.red}✗ Forward failed${c2.reset}`);
+      break;
+    }
+    case 'push': {
+      // If no args from Go layer, run the push-android.sh script
+      if (!actionArgs[0] || (actionArgs.length === 1 && actionArgs[0] === '')) {
+        const { execSync } = await import('child_process');
+        const { join } = await import('path');
+        const rootDir = join(process.cwd());
+        const scriptPath = join(rootDir, 'tools', 'push-android.sh');
+        try {
+          console.log(`${c2.cyan}→ Running push-android.sh...${c2.reset}`);
+          const result = execSync(`bash "${scriptPath}"`, { cwd: rootDir, encoding: 'utf8', stdio: 'inherit' });
+        } catch (e: any) {
+          if (e.status) {
+            process.exit(e.status);
+          } else {
+            console.log(`${c2.red}Error: ${e.message}${c2.reset}`);
+            process.exit(1);
+          }
+        }
+        return;
+      }
+      // Generic file push: duck android push <local> <remote>
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const local = payload.local ?? actionArgs[0];
+      const remote = payload.remote ?? actionArgs[1];
+      if (!local || !remote) { console.log(`${c2.red}Usage: duck android push <local-path> <remote-path>${c2.reset}`); return; }
+      const ok = await android.pushFile(local, remote);
+      console.log(ok ? `${c2.green}✓ Pushed${c2.reset}` : `${c2.red}✗ Push failed${c2.reset}`);
+      break;
+    }
     default: {
       console.log(`${c2.bold}Android CLI - DroidClaw-style commands:${c2.reset}`);
       console.log(`  ${c2.cyan}duck android devices${c2.reset}         List connected devices`);
-      console.log(`  ${c2.cyan}duck android info [serial]${c2.reset}      Device info`);
+      console.log(`  ${c2.cyan}duck android status [serial]${c2.reset}     Device status (battery, screen, app)`);
+      console.log(`  ${c2.cyan}duck android info [serial]${c2.reset}      Device info (model, Android, IP)`);
+      console.log(`  ${c2.cyan}duck android forward <l> <r>${c2.reset}    ADB port forwarding`);
+      console.log(`  ${c2.cyan}duck android push${c2.reset}               Push duck-android binary to device`);
       console.log(`  ${c2.cyan}duck android shell <cmd>${c2.reset}       Run ADB shell command`);
       console.log(`  ${c2.cyan}duck android screenshot${c2.reset}         Capture screen`);
       console.log(`  ${c2.cyan}duck android tap <x> <y>${c2.reset}        Tap at coordinates`);
@@ -1826,6 +1918,23 @@ main().catch(e => {
 // ============ TELEGRAM & DISCORD ============
 
 async function startChannels(args: string[]) {
+  // Handle duck telegram / duck channels telegram [subcommand]
+  // When called via Go wrapper: duck telegram → channels telegram → args=['telegram']
+  // duck telegram test → channels telegram test → args=['telegram', 'test']
+  if (args[0] === 'telegram' || args[0] === 'test' || args[0] === 'send') {
+    const { telegramCommand } = await import('../plugins/telegram.js');
+    // If called as 'telegram' with no subcommand, default to 'test'
+    if (args[0] === 'telegram' && !args[1]) {
+      await telegramCommand(['test']);
+    } else if (args[0] === 'telegram') {
+      await telegramCommand(args.slice(1));
+    } else {
+      // args[0] is 'test' or 'send'
+      await telegramCommand(args);
+    }
+    return;
+  }
+
   const configFile = args[0] || './channels.json';
   
   console.log(logo);
@@ -1853,6 +1962,9 @@ async function startChannels(args: string[]) {
   }
 }
 `);
+    console.log(`\n${c.bold}Quick Telegram commands (no config file needed):${c.reset}`);
+    console.log(`  ${c.green}duck telegram test${c.reset}  - Send test message to your Telegram`);
+    console.log(`  ${c.green}duck telegram send <msg>${c.reset} - Send a message to your Telegram`);
     return;
   }
 
