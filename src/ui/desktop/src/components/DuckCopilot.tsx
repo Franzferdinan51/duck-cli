@@ -29,9 +29,20 @@ export const DuckCopilot: React.FC<DuckCopilotProps> = ({
   backendEndpoint = 'http://localhost:18796',
   showChat = true
 }) => {
+  const publicApiKey = import.meta.env.VITE_COPILOTKIT_PUBLIC_API_KEY
+  const publicLicenseKey = import.meta.env.VITE_COPILOTKIT_PUBLIC_LICENSE_KEY
+  const runtimeUrl = import.meta.env.VITE_COPILOTKIT_RUNTIME_URL || backendEndpoint
+  const hasCopilotRuntime = Boolean(publicApiKey || publicLicenseKey || runtimeUrl)
+
+  if (!hasCopilotRuntime) {
+    return <>{children}</>
+  }
+
   return (
     <CopilotKit
-      serverUrl={backendEndpoint}
+      runtimeUrl={runtimeUrl}
+      publicApiKey={publicApiKey}
+      publicLicenseKey={publicLicenseKey}
     >
       {children}
       {showChat && (
