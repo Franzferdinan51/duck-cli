@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import Database from 'better-sqlite3';
+import Database from '../vendor/better-sqlite3.js';
 
 export interface CronJob {
   id: string;
@@ -348,7 +348,7 @@ export class CronScheduler {
 
       this.db.prepare(`
         UPDATE cron_runs SET completed_at = ?, duration = ?, success = 1, output = ? WHERE id = ?
-      `).run(completedAt, duration, output.slice(0, 10000), runId);
+      `).run(completedAt, duration, String(output || '').slice(0, 10000), runId);
 
       run.success = true;
       run.completedAt = completedAt;
@@ -364,11 +364,11 @@ export class CronScheduler {
       this.db.prepare(`
         UPDATE cron_jobs SET last_run = ?, run_count = run_count + 1,
           failure_count = failure_count + 1, last_error = ?, last_modified = ? WHERE id = ?
-      `).run(startedAt, error.slice(0, 500), completedAt, job.id);
+      `).run(startedAt, String(error || '').slice(0, 500), completedAt, job.id);
 
       this.db.prepare(`
         UPDATE cron_runs SET completed_at = ?, duration = ?, success = 0, error = ? WHERE id = ?
-      `).run(completedAt, duration, error.slice(0, 500), runId);
+      `).run(completedAt, duration, String(error || '').slice(0, 500), runId);
 
       run.completedAt = completedAt;
       run.duration = duration;
@@ -481,13 +481,15 @@ export class CronScheduler {
 
   stats(): { totalJobs: number; enabledJobs: number; runningJobs: number; totalRuns: number; successRate: number } {
     const jobs = this.listJobs();
-    const runs = this.db.prepare(`SELECT COUNT(*) as c, SUM(success) as s FROM cron_runs`).get() as any;
+    const runs = (this.db.prepare(`SELECT COUNT(*) as c, SUM(success) as s FROM cron_runs`).get() as any) || {};
+    const totalRuns = Number(runs.c) || 0;
+    const successSum = Number(runs.s) || 0;
     return {
       totalJobs: jobs.length,
       enabledJobs: jobs.filter(j => j.enabled).length,
       runningJobs: this.runningJobs.size,
-      totalRuns: runs.c || 0,
-      successRate: runs.c > 0 ? Math.round((runs.s || 0) / runs.c * 100) / 100 : 0
+      totalRuns,
+      successRate: totalRuns > 0 ? Math.round(successSum / totalRuns * 100) / 100 : 0
     };
   }
 

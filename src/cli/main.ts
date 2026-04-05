@@ -11,7 +11,7 @@ function getAgentConfig() {
     openai: 'gpt-4o-mini',
     anthropic: 'claude-3-5-sonnet-20241022',
     gemini: 'gemini-2.0-flash',
-    lmstudio: 'local-model'
+    lmstudio: 'gemma-4-e4b-it'
   };
   const model = process.env.DUCK_MODEL || modelMap[provider] || 'claude-3-5-sonnet-20241022';
   return { provider, model };
@@ -750,6 +750,9 @@ async function runTask(task: string) {
     console.log(formatResponse(result));
   } catch (e: any) {
     console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
+    if (process.env.DEBUG_STACK === '1' && e?.stack) {
+      console.log(`${c.dim}${e.stack}${c.reset}`);
+    }
   }
 
   await agent.shutdown();

@@ -167,10 +167,8 @@ await orchestrator.execute("tap the settings button");
 ```bash
 git clone https://github.com/Franzferdinan51/duck-cli.git
 cd duck-cli
-npm install
-npm run build
-go build -o duck ./cmd/duck/
-./duck shell
+bash tools/install-pc.sh
+duck status
 ```
 
 ### Termux (Android) — RUN ON YOUR PHONE!
@@ -188,20 +186,22 @@ pkg update && pkg upgrade
 pkg install -y nodejs git
 git clone https://github.com/Franzferdinan51/duck-cli.git ~/duck-cli
 cd ~/duck-cli
-npm install
-npm run build
+bash tools/install-termux.sh
 
 # Run the agent ON your phone!
-node dist/cli/main.js shell
+duck run "Say hi"
 ```
 
 **Phone connects to Mac's LM Studio:**
 ```bash
-# On phone, set LM Studio endpoint to your Mac:
-export LM_STUDIO_URL=http://192.168.1.X:1234
-export LM_STUDIO_KEY=sk-lm-xxx
+# On phone, set LM Studio endpoint + gateway in ~/duck-cli/.env:
+LMSTUDIO_URL=http://192.168.1.X:1234
+LMSTUDIO_KEY=sk-lm-xxx
+LMSTUDIO_MODELS=gemma-4-e4b-it
+OPENCLAW_GATEWAY=ws://192.168.1.X:18789
+OPENCLAW_GATEWAY_HTTP=http://192.168.1.X:18789
 
-# Now your phone's agent uses Gemma 4 from your Mac!
+# Now your phone's agent uses Gemma 4 / gateway from your Mac or PC.
 ```
 
 ### OpenClaw-Android (Alternative Full Installation)

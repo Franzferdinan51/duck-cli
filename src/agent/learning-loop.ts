@@ -8,7 +8,7 @@ import { EventEmitter } from 'events';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import Database from 'better-sqlite3';
+import Database from '../vendor/better-sqlite3.js';
 
 export interface Interaction {
   id: string;
@@ -171,7 +171,7 @@ export class LearningLoop extends EventEmitter {
     `);
 
     // Initialize user_model if empty
-    const count = (this.db.prepare(`SELECT COUNT(*) as c FROM user_model`).get() as any).c;
+    const count = Number(((this.db.prepare(`SELECT COUNT(*) as c FROM user_model`).get() as any) || {}).c) || 0;
     if (count === 0) {
       this.db.prepare(`INSERT INTO user_model (id, last_updated) VALUES (1, ?)`).run(Date.now());
     }
@@ -194,10 +194,14 @@ export class LearningLoop extends EventEmitter {
     this.interactionCount++;
 
     // Serialize input/output - SQLite can only bind primitives
-    const inputRaw = typeof interaction.input === 'string' ? interaction.input : JSON.stringify(interaction.input);
-    const outputRaw = typeof interaction.output === 'string' ? interaction.output : JSON.stringify(interaction.output);
-    const inputStr = inputRaw.slice(0, 10000);
-    const outputStr = outputRaw.slice(0, 50000);
+    const inputRaw = typeof interaction.input === 'string'
+      ? interaction.input
+      : JSON.stringify(interaction.input ?? '') || '';
+    const outputRaw = typeof interaction.output === 'string'
+      ? interaction.output
+      : JSON.stringify(interaction.output ?? '') || '';
+    const inputStr = String(inputRaw || '').slice(0, 10000);
+    const outputStr = String(outputRaw || '').slice(0, 50000);
 
 
     this.db.prepare(`
@@ -385,11 +389,13 @@ export class LearningLoop extends EventEmitter {
       WHERE input LIKE ? AND outcome = 'failed' AND timestamp > ?
     `).get(`%${inputStr.slice(0, 50)}%`, Date.now() - 86400000) as any;
 
-    if (recentFailures.c >= 2) {
+    const recentFailureCount = Number(recentFailures?.c) || 0;
+
+    if (recentFailureCount >= 2) {
       this.createNudge({
         type: 'warn',
         content: `Task "${inputStr.slice(0, 100)}" has failed multiple times. Consider a different approach.`,
-        reason: `Failed ${recentFailures.c + 1} times in recent history`,
+        reason: `Failed ${recentFailureCount + 1} times in recent history`,
         priority: 'high',
         triggeredBy: interaction.id
       });
@@ -616,10 +622,10 @@ export class LearningLoop extends EventEmitter {
 
     const trigger = words.slice(0, 5).join(' ');
 
-    const count = (this.db.prepare(`
+    const count = Number((((this.db.prepare(`
       SELECT COUNT(*) as c FROM interactions
       WHERE input LIKE ? AND outcome = 'success' AND timestamp > ?
-    `).get(`%${trigger}%`, Date.now() - 7 * 86400000) as any).c;
+    `).get(`%${trigger}%`, Date.now() - 7 * 86400000) as any) || {}).c)) || 0;
 
     if (count >= 3) {
       return { trigger, count };
@@ -816,7 +822,9 @@ export class LearningLoop extends EventEmitter {
       ORDER BY count DESC LIMIT 5
     `).all() as any[];
 
-    const frequentTasks = freqRows.map(r => ({ task: r.task, count: r.count }));
+    const frequentTasks = freqRows
+      .map(r => ({ task: typeof r.task === 'string' ? r.task : String(r.task ?? ''), count: Number(r.count) || 0 }))
+      .filter(r => r.task.length > 0);
 
     return {
       recentInteractions,
@@ -856,7 +864,7 @@ export class LearningLoop extends EventEmitter {
     if (ctx.frequentTasks.length > 0) {
       parts.push('## Frequent Tasks');
       for (const ft of ctx.frequentTasks.slice(0, 3)) {
-        parts.push(`- "${ft.task.slice(0, 60)}" (done ${ft.count}x)`);
+        parts.push(`- "${String(ft.task || '').slice(0, 60)}" (done ${Number(ft.count) || 0}x)`);
       }
     }
 

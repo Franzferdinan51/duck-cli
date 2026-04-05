@@ -17,13 +17,10 @@ git clone https://github.com/Franzferdinan51/duck-cli.git
 cd duck-cli
 
 # 2. Install + build
-npm install
-npm run build          # TypeScript → dist/ + copies skills
-go build -o duck ./cmd/duck/
+bash tools/install-pc.sh
 
-# 3. Install binary
-cp duck ~/.local/bin/duck
-cp -r dist/* ~/.local/bin/dist/
+# 3. Test
+~/.local/bin/duck status
 
 # 4. Configure API keys
 duck setup            # interactive wizard
@@ -51,7 +48,15 @@ OPENROUTOR_API_KEY=sk-or-v1-...
 KIMI_API_KEY=sk-kimi-...
 ```
 
-Keys are saved to `~/.duck/.env` by `duck setup`.
+Keys/settings can also live in project `.env` (useful for phone + PC installs):
+
+```bash
+LMSTUDIO_URL=http://localhost:1234
+LMSTUDIO_KEY=your_lmstudio_api_key_here
+LMSTUDIO_MODELS=gemma-4-e4b-it
+OPENCLAW_GATEWAY=ws://localhost:18789
+OPENCLAW_GATEWAY_HTTP=http://localhost:18789
+```
 
 ## Usage
 
@@ -65,6 +70,21 @@ duck help             # all commands
 duck run "fix the auth bug"
 duck council "PostgreSQL or MongoDB?"
 duck status
+```
+
+## Termux / Android
+
+```bash
+pkg update && pkg upgrade
+pkg install -y nodejs git
+
+git clone https://github.com/Franzferdinan51/duck-cli.git ~/duck-cli
+cd ~/duck-cli
+bash tools/install-termux.sh
+
+# configure ~/duck-cli/.env, then:
+source ~/.bashrc
+duck run "Say hi"
 ```
 
 ## Uninstall

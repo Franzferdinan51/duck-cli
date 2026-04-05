@@ -1,13 +1,11 @@
 /**
- * Duck Agent Sub-Conscious - SQLite Memory Store
+ * Duck Agent Sub-Conscious - Pure JavaScript Memory Store
  * Persistent memory storage for the Sub-Conscious daemon
- * NO external Letta dependency
+ * No native modules - works on any platform including Android/Termux
  */
 
-// @ts-ignore
-import Database from 'better-sqlite3';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
 
 export interface StoredMemory {
   id: string;
@@ -33,176 +31,166 @@ export interface MemoryQuery {
 }
 
 export class SqliteStore {
-  private db: any;
-  private dataDir: string;
+  private dbPath: string;
+  private memories: StoredMemory[] = [];
+  private initialized = false;
 
   constructor(dataDir?: string) {
-    this.dataDir = dataDir || join(process.env.HOME || '/tmp', '.duckagent', 'subconscious');
-    if (!existsSync(this.dataDir)) {
-      mkdirSync(this.dataDir, { recursive: true });
+    const baseDir = dataDir || join(process.env.HOME || '/tmp', '.duck', 'subconscious');
+    this.dbPath = join(baseDir, 'memories.json');
+  }
+
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+    
+    try {
+      const dir = join(this.dbPath, '..');
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+      
+      if (existsSync(this.dbPath)) {
+        const data = readFileSync(this.dbPath, 'utf-8');
+        this.memories = JSON.parse(data);
+      } else {
+        this.memories = [];
+        this.saveToDisk();
+      }
+      
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize Sub-Conscious store:', error);
+      this.memories = [];
+      this.initialized = true;
     }
+  }
+
+  private saveToDisk(): void {
+    try {
+      writeFileSync(this.dbPath, JSON.stringify(this.memories, null, 2));
+    } catch (error) {
+      console.error('Failed to save memories:', error);
+    }
+  }
+
+  async addMemory(memory: Omit<StoredMemory, 'id' | 'createdAt' | 'accessedAt' | 'accessCount'>): Promise<StoredMemory> {
+    await this.initialize();
     
-    const dbPath = join(this.dataDir, 'memories.db');
-    this.db = new Database(dbPath);
-    this.init();
-  }
-
-  private init(): void {
-    // Enable FTS5 for full-text search
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS memories (
-        id TEXT PRIMARY KEY,
-        content TEXT NOT NULL,
-        context TEXT DEFAULT '',
-        tags TEXT DEFAULT '[]',
-        importance REAL DEFAULT 0.5,
-        source TEXT DEFAULT 'session',
-        session_id TEXT,
-        topic TEXT,
-        embedding TEXT,
-        created_at TEXT NOT NULL,
-        accessed_at TEXT NOT NULL,
-        access_count INTEGER DEFAULT 0
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_memories_source ON memories(source);
-      CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(topic);
-      CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
-      
-      CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
-        content, context, tags,
-        content='memories',
-        content_rowid='rowid'
-      );
-      
-      CREATE TABLE IF NOT EXISTS council_memories (
-        id TEXT PRIMARY KEY,
-        councilor_id TEXT,
-        topic TEXT,
-        deliberation TEXT,
-        insight TEXT,
-        tags TEXT DEFAULT '[]',
-        created_at TEXT NOT NULL
-      );
-      
-      CREATE TABLE IF NOT EXISTS session_summaries (
-        session_id TEXT PRIMARY KEY,
-        summary TEXT,
-        patterns TEXT,
-        key_decisions TEXT,
-        topics TEXT,
-        created_at TEXT NOT NULL
-      );
-    `);
-
-    // Triggers to keep FTS in sync
-    this.db.exec(`
-      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-        INSERT INTO memories_fts(rowid, content, context, tags)
-        VALUES (new.rowid, new.content, new.context, new.tags);
-      END;
-    `);
-  }
-
-  /**
-   * Store a new memory
-   */
-  async save(memory: StoredMemory): Promise<void> {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO memories 
-      (id, content, context, tags, importance, source, session_id, topic, embedding, created_at, accessed_at, access_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    const newMemory: StoredMemory = {
+      ...memory,
+      id: `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      accessedAt: new Date().toISOString(),
+      accessCount: 0
+    };
     
-    stmt.run(
-      memory.id,
-      memory.content,
-      memory.context,
-      JSON.stringify(memory.tags),
-      memory.importance,
-      memory.source,
-      memory.sessionId || null,
-      memory.topic || null,
-      memory.embedding || null,
-      memory.createdAt,
-      memory.accessedAt,
-      memory.accessCount
-    );
+    this.memories.push(newMemory);
+    this.saveToDisk();
+    return newMemory;
   }
 
-  /**
-   * Search memories by query (FTS5 full-text search)
-   */
   async search(query: MemoryQuery): Promise<StoredMemory[]> {
-    const { query: q, tags, source, limit = 20, since } = query;
+    await this.initialize();
     
-    let sql = `
-      SELECT m.*, bm25(memories_fts) as rank
-      FROM memories m
-      JOIN memories_fts f ON m.rowid = f.rowid
-      WHERE memories_fts MATCH ?
-    `;
-    const params: any[] = [q + '*'];  // FTS5 wildcard search
-
-    if (source) {
-      sql += ' AND m.source = ?';
-      params.push(source);
+    let results = this.memories;
+    
+    if (query.tags && query.tags.length > 0) {
+      results = results.filter(m => 
+        query.tags!.some(tag => m.tags.includes(tag))
+      );
     }
-
-    if (since) {
-      sql += ' AND m.created_at >= ?';
-      params.push(since);
+    
+    if (query.source) {
+      results = results.filter(m => m.source === query.source);
     }
-
-    sql += ' ORDER BY rank LIMIT ?';
-    params.push(limit);
-
-    const rows = this.db.prepare(sql).all(...params) as any[];
-    return rows.map(this.rowToMemory);
-  }
-
-  /**
-   * Get memories by tags
-   */
-  async byTags(tags: string[], limit = 20): Promise<StoredMemory[]> {
-    const tagList = tags.map(t => `"${t}"`).join(' ');
-    const rows = this.db.prepare(`
-      SELECT * FROM memories 
-      WHERE tags LIKE ? 
-      ORDER BY importance DESC, created_at DESC 
-      LIMIT ?
-    `).all(`%${tags[0]}%`, limit) as any[];
-    return rows.map(this.rowToMemory);
-  }
-
-  /**
-   * Get recent memories
-   */
-  async recent(limit = 20): Promise<StoredMemory[]> {
-    const rows = this.db.prepare(`
-      SELECT * FROM memories 
-      ORDER BY accessed_at DESC 
-      LIMIT ?
-    `).all(limit) as any[];
-    return rows.map(this.rowToMemory);
-  }
-
-  /**
-   * Get memory by ID
-   */
-  async get(id: string): Promise<StoredMemory | null> {
-    const row = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as any;
-    if (row) {
-      // Update access count
-      this.db.prepare('UPDATE memories SET access_count = access_count + 1, accessed_at = ? WHERE id = ?')
-        .run(new Date().toISOString(), id);
+    
+    if (query.query) {
+      const q = query.query.toLowerCase();
+      results = results.filter(m => 
+        m.content.toLowerCase().includes(q) ||
+        m.context.toLowerCase().includes(q)
+      );
     }
-    return row ? this.rowToMemory(row) : null;
+    
+    if (query.since) {
+      const sinceDate = new Date(query.since);
+      results = results.filter(m => new Date(m.createdAt) >= sinceDate);
+    }
+    
+    return results.slice(0, query.limit || 20);
   }
 
-  /**
-   * Store council deliberation memory
-   */
+  async searchMemories(query: MemoryQuery): Promise<StoredMemory[]> {
+    return this.search(query);
+  }
+
+  async recent(limit: number = 20): Promise<StoredMemory[]> {
+    await this.initialize();
+    return this.memories
+      .sort((a, b) => new Date(b.accessedAt).getTime() - new Date(a.accessedAt).getTime())
+      .slice(0, limit);
+  }
+
+  async getMemory(id: string): Promise<StoredMemory | null> {
+    await this.initialize();
+    
+    const memory = this.memories.find(m => m.id === id);
+    if (memory) {
+      memory.accessCount++;
+      memory.accessedAt = new Date().toISOString();
+      this.saveToDisk();
+    }
+    return memory || null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    await this.initialize();
+    
+    const index = this.memories.findIndex(m => m.id === id);
+    if (index !== -1) {
+      this.memories.splice(index, 1);
+      this.saveToDisk();
+      return true;
+    }
+    return false;
+  }
+
+  async deleteMemory(id: string): Promise<boolean> {
+    return this.delete(id);
+  }
+
+  async clear(): Promise<void> {
+    await this.initialize();
+    this.memories = [];
+    this.saveToDisk();
+  }
+
+  async saveSessionSummary(
+    sessionId: string,
+    summary: string,
+    patterns: string[],
+    keyDecisions: string[],
+    topics: string[]
+  ): Promise<void> {
+    await this.initialize();
+    
+    const memory: StoredMemory = {
+      id: `session_${sessionId}_${Date.now()}`,
+      content: summary,
+      context: patterns.join('; '),
+      tags: ['session', 'summary', ...topics.slice(0, 2)],
+      importance: 7,
+      source: 'session',
+      sessionId,
+      createdAt: new Date().toISOString(),
+      accessedAt: new Date().toISOString(),
+      accessCount: 0
+    };
+    
+    this.memories.push(memory);
+    this.saveToDisk();
+  }
+
   async saveCouncilMemory(
     id: string,
     councilorId: string,
@@ -211,105 +199,64 @@ export class SqliteStore {
     insight: string,
     tags: string[]
   ): Promise<void> {
-    this.db.prepare(`
-      INSERT OR REPLACE INTO council_memories 
-      (id, councilor_id, topic, deliberation, insight, tags, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, councilorId, topic, deliberation, insight, JSON.stringify(tags), new Date().toISOString());
-  }
-
-  /**
-   * Get council memories for a topic
-   */
-  async getCouncilMemories(topic: string, limit = 10): Promise<any[]> {
-    return this.db.prepare(`
-      SELECT * FROM council_memories 
-      WHERE topic LIKE ? 
-      ORDER BY created_at DESC 
-      LIMIT ?
-    `).all(`%${topic}%`, limit);
-  }
-
-  /**
-   * Store session summary
-   */
-  async saveSessionSummary(
-    sessionId: string,
-    summary: string,
-    patterns: string[],
-    keyDecisions: string[],
-    topics: string[]
-  ): Promise<void> {
-    this.db.prepare(`
-      INSERT OR REPLACE INTO session_summaries 
-      (session_id, summary, patterns, key_decisions, topics, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(sessionId, summary, JSON.stringify(patterns), JSON.stringify(keyDecisions), JSON.stringify(topics), new Date().toISOString());
-  }
-
-  /**
-   * Get session summary
-   */
-  async getSessionSummary(sessionId: string): Promise<any | null> {
-    const row = this.db.prepare('SELECT * FROM session_summaries WHERE session_id = ?').get(sessionId) as any;
-    if (!row) return null;
-    return {
-      ...row,
-      patterns: JSON.parse(row.patterns || '[]'),
-      keyDecisions: JSON.parse(row.key_decisions || '[]'),
-      topics: JSON.parse(row.topics || '[]')
+    await this.initialize();
+    
+    const memory: StoredMemory = {
+      id: id || `council_${topic}_${Date.now()}`,
+      content: insight,
+      context: deliberation,
+      tags: ['council', councilorId, ...tags.slice(0, 3)],
+      importance: 7,
+      source: 'council',
+      topic,
+      createdAt: new Date().toISOString(),
+      accessedAt: new Date().toISOString(),
+      accessCount: 0
     };
+    
+    this.memories.push(memory);
+    this.saveToDisk();
   }
 
-  /**
-   * Get stats
-   */
-  async stats(): Promise<{ total: number; bySource: Record<string, number>; oldest: string | null; newest: string | null }> {
-    const total = (this.db.prepare('SELECT COUNT(*) as c FROM memories').get() as any).c;
-    const bySourceRows = this.db.prepare('SELECT source, COUNT(*) as c FROM memories GROUP BY source').all() as any[];
-    const oldest = (this.db.prepare('SELECT MIN(created_at) as d FROM memories').get() as any)?.d;
-    const newest = (this.db.prepare('SELECT MAX(created_at) as d FROM memories').get() as any)?.d;
+  async getCouncilMemories(topic: string, limit: number = 10): Promise<StoredMemory[]> {
+    await this.initialize();
+    return this.memories
+      .filter(m => m.source === 'council' && m.topic === topic)
+      .sort((a, b) => b.importance - a.importance)
+      .slice(0, limit);
+  }
+
+  async save(memory: StoredMemory): Promise<void> {
+    await this.initialize();
+    this.memories.push(memory);
+    this.saveToDisk();
+  }
+
+  async stats(): Promise<{ total: number; bySource: Record<string, number>; byTag: Record<string, number> }> {
+    await this.initialize();
     
     const bySource: Record<string, number> = {};
-    for (const row of bySourceRows) {
-      bySource[row.source] = row.c;
+    const byTag: Record<string, number> = {};
+    
+    for (const memory of this.memories) {
+      bySource[memory.source] = (bySource[memory.source] || 0) + 1;
+      for (const tag of memory.tags) {
+        byTag[tag] = (byTag[tag] || 0) + 1;
+      }
     }
     
-    return { total, bySource, oldest, newest };
-  }
-
-  /**
-   * Delete memory
-   */
-  async delete(id: string): Promise<void> {
-    this.db.prepare('DELETE FROM memories WHERE id = ?').run(id);
-  }
-
-  /**
-   * Clear all memories
-   */
-  async clear(): Promise<void> {
-    this.db.exec('DELETE FROM memories; DELETE FROM council_memories; DELETE FROM session_summaries;');
-  }
-
-  private rowToMemory(row: any): StoredMemory {
     return {
-      id: row.id,
-      content: row.content,
-      context: row.context || '',
-      tags: JSON.parse(row.tags || '[]'),
-      importance: row.importance,
-      source: row.source,
-      sessionId: row.session_id,
-      topic: row.topic,
-      embedding: row.embedding,
-      createdAt: row.created_at,
-      accessedAt: row.accessed_at,
-      accessCount: row.access_count
+      total: this.memories.length,
+      bySource,
+      byTag
     };
+  }
+
+  async getStats(): Promise<{ total: number; bySource: Record<string, number>; byTag: Record<string, number> }> {
+    return this.stats();
   }
 
   close(): void {
-    this.db.close();
+    // No-op for JSON file storage
   }
 }

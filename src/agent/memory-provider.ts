@@ -72,7 +72,7 @@ export interface MemoryProvider {
 
 // ─── Built-in Provider: SQLite Memory ──────────────────────────────────
 
-import Database from "better-sqlite3";
+import Database from "../vendor/better-sqlite3.js";
 import { join } from "path";
 import { mkdirSync } from "fs";
 import { homedir } from "os";

@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/vendor dist/vendor && cp src/vendor/*.js dist/vendor/ 2>/dev/null || true",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "demo": "node --loader ts-node/esm demo.ts"
   },
