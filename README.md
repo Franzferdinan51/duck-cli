@@ -11,13 +11,14 @@
 
 ## 🎯 What is duck-cli?
 
-**duck-cli** is a unified AI agent CLI (and it happens to be really good for Android automation):
-1. **General-purpose AI agent** - runs on Mac/Linux/Windows, with native Android support
-2. **Controls Android devices via ADB** when needed from desktop
-3. **Connects to OpenClaw gateway** for ACP/MCP/Agent Mesh
-4. **Uses Hybrid Orchestrator Core** with smart routing + AI Council deliberation
+**duck-cli** is not just a CLI anymore — it is a multi-surface agent stack with:
+1. **CLI runtime** for shell/chat/automation flows on PC and Termux
+2. **Desktop app / web UI** for chat + generative UI panels + canvas demos
+3. **Android automation layer** for ADB + Termux + on-device agent workflows
+4. **OpenClaw bridge** for ACP/MCP/gateway/agent-mesh integration
+5. **Hybrid orchestrator** for routing between local models, gateway providers, tools, and council-style reasoning
 
-Think of it as your AI-powered agent hub — with local LLM reasoning (Gemma 4 via LM Studio), multi-protocol bridges (ACP/MCP/WebSocket), and 40+ built-in tools.
+Think of it as an AI-powered agent platform with a CLI, an app UI, Android control, OpenClaw interoperability, and local/remote model routing.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -48,6 +49,28 @@ Think of it as your AI-powered agent hub — with local LLM reasoning (Gemma 4 v
 ```
 
 ---
+
+## 🖥️ The App (Desktop / Web UI)
+
+The app bundled with duck-cli is a React/Vite desktop-style UI under `src/ui/desktop/`.
+
+What it currently includes:
+- **Chat view** via `GenerativeChat`
+- **Demo / showcase view** with Pretext canvas examples
+- **Weather card** example
+- **Crypto chart** example
+- **AI Council vote display** example
+- **Canvas / particle effects** demo
+- **CopilotKit wrapper** via `DuckCopilot`
+
+Important: the current app is better described as a **desktop/web UI for chat + generative UI experiments** than as a finished polished desktop product. It is part of the duck-cli system, not a separate random app.
+
+Run it from the desktop UI project when available in your workflow:
+```bash
+cd src/ui/desktop
+npm install
+npm run dev
+```
 
 ## ✨ Features
 
