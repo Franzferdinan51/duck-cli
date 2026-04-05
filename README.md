@@ -9,6 +9,43 @@
 
 ---
 
+## ⚡ Quick Start — Download & Run (Recommended)
+
+Everything you need in one download:
+
+### 1. Install the Android App (for phone control)
+**Download:** [DuckBot-New.apk](https://github.com/Franzferdinan51/duck-cli/releases/latest) *(attached to the latest release)*
+
+The app gives you:
+- 📱 Step-by-step Termux bootstrap installer
+- 🔧 Tool browser (102+ tools)
+- 🌐 Connection manager (local/remote/Tailscale)
+- 💬 Chat interface
+- ⚙️ Settings for Telegram, LM Studio, gateway
+
+### 2. Install duck-cli on your Mac/PC
+```bash
+curl -sSL https://git.io/duck-install | bash
+```
+
+Or one-shot:
+```bash
+git clone https://github.com/Franzferdinan51/duck-cli.git
+cd duck-cli
+./tools/install-pc.sh
+```
+
+### 3. Start the Telegram bot (optional — chat with duck-cli from Telegram!)
+```bash
+duck telegram start
+```
+Now message @AgentSmithsbot on Telegram and get AI responses!
+
+### 4. Connect from the Android app
+Open DuckBot-New → Install tab → follow the Termux bootstrap steps
+
+---
+
 ## 🎯 What is duck-cli?
 
 **duck-cli** is not just a CLI anymore — it is a multi-surface agent stack with:
