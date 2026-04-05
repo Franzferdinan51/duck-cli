@@ -493,6 +493,113 @@ am force-stop com.termux
 
 ---
 
+## Automated Setup with Bootstrap Script
+
+The easiest way to install duck-cli on Termux is using the bootstrap script. This handles everything in one step.
+
+### One-Line Install (in Termux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Franzferdinan51/duck-cli/main/tools/termux-bootstrap.sh | bash
+```
+
+Or if you prefer to copy the file manually:
+
+```bash
+# On Mac: copy bootstrap script to phone
+adb push tools/termux-bootstrap.sh /sdcard/Download/
+
+# In Termux:
+bash ~/storage/shared/termux-bootstrap.sh
+```
+
+### What the Bootstrap Script Does
+
+1. **Installs dependencies** — `nodejs`, `git`, `rsync`, `openssh`
+2. **Clones duck-cli** from GitHub (or updates if already cloned)
+3. **Builds the TypeScript source** — `npm install && npm run build`
+4. **Creates `~/bin/duck`** wrapper that auto-loads `.env`
+5. **Installs MCP auto-start** in `~/.termux/boot/termux-mcp-server.sh`
+6. **Generates `.env`** from `.env.example` with guidance
+
+### After Bootstrap
+
+```bash
+source ~/.bashrc           # Reload PATH
+duck run "Say hello"      # First run
+```
+
+### MCP Server Management
+
+The bootstrap installs `tools/termux-mcp-server.sh` which handles the MCP server:
+
+```bash
+# From ~/duck-cli directory:
+bash tools/termux-mcp-server.sh start    # Start daemon
+bash tools/termux-mcp-server.sh status   # Check running?
+bash tools/termux-mcp-server.sh logs     # View logs
+bash tools/termux-mcp-server.sh stop      # Stop daemon
+bash tools/termux-mcp-server.sh run       # Run in foreground (stdio mode)
+```
+
+Or use `duck mcp` directly:
+
+```bash
+duck mcp          # Start MCP server (HTTP, default port 3850)
+duck mcp --stdio  # Start MCP server with stdio transport
+duck mcp 4000     # Start on custom port
+```
+
+### MCP Server Auto-Start
+
+The bootstrap script installs `~/.termux/boot/termux-mcp-server.sh` which starts the MCP server automatically every time Termux boots. This uses termux-services (runit).
+
+To enable:
+```bash
+pkg install termux-services
+sv up termux-mcp-server  # Start now
+```
+
+## Go Binary: duck (Native Executable)
+
+A pre-built Go binary (`duck`) is available in `/data/local/tmp/duck` on your phone. This is pushed from your Mac using `duck android push`. It wraps the Node.js TypeScript CLI.
+
+**Important:** The Go binary requires Node.js to be installed in Termux. Use the bootstrap script above to install Node.js.
+
+```bash
+# The Go binary delegates to the Node.js CLI
+/data/local/tmp/duck mcp --stdio
+```
+
+## Environment Variables (IMPORTANT)
+
+**⚠️ NEVER commit `.env` to GitHub!** The `.env` file contains sensitive tokens.
+
+The `.gitignore` already excludes `.env`. If you have a `.env` on your phone, it will not be pushed to GitHub.
+
+Required variables in `~/duck-cli/.env`:
+
+```bash
+# Required
+MINIMAX_API_KEY=your_minimax_api_key
+
+# Optional: Telegram (if using the Telegram channel)
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF
+TELEGRAM_CHAT_ID=588090613
+
+# Optional: LM Studio (local AI on your Mac)
+LM_STUDIO_URL=http://100.68.208.113:1234
+LM_STUDIO_KEY=sk-lm-xxx
+LM_STUDIO_MODEL=google/gemma-4-e4b-it
+
+# Optional: OpenClaw gateway
+OPENCLAW_GATEWAY=ws://localhost:18789
+OPENCLAW_GATEWAY_HTTP=http://localhost:18789
+
+# Optional: MCP
+MCP_SERVER_PORT=3850
+```
+
 ## Quick Reference Card
 
 ```
@@ -500,27 +607,31 @@ am force-stop com.termux
 ║              TERMUX + duck-cli QUICK REFERENCE                 ║
 ╠════════════════════════════════════════════════════════════════╣
 ║                                                                ║
-║  INSTALL duck-cli ON PHONE:                                    ║
-║  pkg update && pkg install -y git python nodejs adb           ║
+║  ONE-LINE INSTALL (in Termux):                                 ║
+║  curl -fsSL .../termux-bootstrap.sh | bash                     ║
+║                                                                ║
+║  MANUAL INSTALL:                                               ║
+║  pkg update && pkg install -y nodejs git                       ║
 ║  git clone https://github.com/Franzferdinan51/duck-cli.git    ║
-║  cd duck-cli && chmod +x tools/*.sh                            ║
+║  cd duck-cli && npm install && npm run build                   ║
 ║                                                                ║
-║  INSTALL OpenClaw ON PHONE:                                    ║
-║  git clone https://github.com/irtiq7/OpenClaw-Android.git     ║
-║  cd OpenClaw-Android && chmod +x *.sh && ./setup_claw.sh       ║
+║  DUCK LAUNCHER:                                                ║
+║  ~/bin/duck run "Say hello"   # Run a task                     ║
+║  ~/bin/duck mcp --stdio       # MCP server (stdio)            ║
+║  ~/bin/duck mcp               # MCP server (HTTP port 3850)   ║
+║  ~/bin/duck status            # Check status                   ║
 ║                                                                ║
-║  RUN ANDROID AGENT (from phone):                               ║
-║  python3 ~/duck-cli/tools/android-agent-phone.py \              ║
-║    --goal "open settings"                                      ║
+║  MCP SERVER:                                                   ║
+║  bash tools/termux-mcp-server.sh start  # Daemon               ║
+║  bash tools/termux-mcp-server.sh run    # Foreground           ║
 ║                                                                ║
-║  CONNECT TO MAC LM STUDIO:                                     ║
+║  CONNECT MAC LM STUDIO:                                        ║
 ║  export LM_STUDIO_URL="http://100.68.208.113:1234"             ║
-║  export LM_STUDIO_API_KEY="sk-lm-xWvfQHZF:L8P76SQakhEA95U8DDNf"║
+║  export LM_STUDIO_KEY="sk-lm-xxx"                              ║
 ║  export LM_STUDIO_MODEL="google/gemma-4-e4b-it"                ║
 ║                                                                ║
-║  KEEP OPENCLAW RUNNING:                                        ║
-║  sv up openclaw                                                ║
-║  termux-wake-lock                                              ║
+║  OPENCLAW GATEWAY:                                             ║
+║  openclaw gateway start                                        ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
