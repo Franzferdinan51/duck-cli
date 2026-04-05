@@ -31,6 +31,7 @@ import { homedir } from 'os';
 import { join, dirname } from 'path';
 import * as readline from 'readline';
 import { meshCommand, meshServerCommand } from './mesh-cmd.js';
+import { toolsCommand as showToolsCommand } from './tools-command.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
 import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
@@ -145,7 +146,7 @@ async function main() {
       break;
 
     case 'tools':
-      await toolsCommand(args);
+      showToolsCommand();
       break;
 
     case 'history':
