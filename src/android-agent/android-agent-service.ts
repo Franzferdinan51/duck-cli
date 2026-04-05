@@ -166,7 +166,7 @@ export class AndroidAgentService {
   constructor(config: Partial<AgentConfig> = {}) {
     this.android = new AndroidTools();
     this.sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    this.logDir = '/tmp/duck-android-agent';
+    this.logDir = '/tmp/duck-android-agent-logs';
 
     this.config = {
       maxSteps: config.maxSteps ?? 30,
