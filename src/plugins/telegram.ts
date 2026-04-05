@@ -11,7 +11,7 @@
 import https from 'https';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { Agent } from 'http';
+import { spawn } from 'child_process';
 
 // ─── Env Loading ────────────────────────────────────────────────────────────────
 
@@ -118,48 +118,76 @@ async function getUpdates(offset: number = 0, timeout: number = 30): Promise<any
 // ─── Duck CLI Gateway Forwarder ──────────────────────────────────────────────
 
 async function forwardToGateway(message: string): Promise<string> {
-  // Try local OpenClaw gateway first
-  const gateways = [
-    'http://127.0.0.1:18789',
-    'http://localhost:18789',
-    'http://127.0.0.1:8080',
-  ];
-
-  for (const base of gateways) {
-    try {
-      const res = await fetch(`${base}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'duckbot',
-          messages: [{ role: 'user', content: message }],
-          max_tokens: 1024,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json() as any;
-        return data.choices?.[0]?.message?.content || 'OK';
-      }
-    } catch {}
+  return new Promise((resolve) => {
+    // Find duck binary - check multiple possible locations
+    const duckBin = process.env.DUCK_BINARY 
+      || findDuckBinary();
     
-    // Try OpenClaw WebSocket/API
-    try {
-      const wsRes = await fetch(`${base}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
-      });
-      if (wsRes.ok) {
-        const data = await wsRes.json() as any;
-        return data.response || data.message || JSON.stringify(data);
+    if (!duckBin) {
+      resolve('🦆 Duck CLI not found. Install duck-cli first: https://github.com/Franzferdinan51/duck-cli');
+      return;
+    }
+    
+    // Escape message for shell
+    const escapedMsg = message.replace(/[\\"`'${}]/g, '\\$&').replace(/\n/g, '\\n');
+    
+    const child = spawn(duckBin, ['run', message], {
+      cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
+      env: { ...process.env },
+      timeout: 45000,
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    child.on('close', (code) => {
+      if (stdout.trim()) {
+        // Return last 1500 chars (Telegram limit per message)
+        const result = stdout.trim().slice(-1500);
+        resolve(result);
+      } else if (stderr.trim()) {
+        resolve('🦆 ' + stderr.trim().slice(-1500));
+      } else {
+        resolve('🦆 Processed (no output)');
       }
-    } catch {}
-  }
+    });
+    
+    child.on('error', (err) => {
+      resolve(`🦆 Error running duck: ${err.message}`);
+    });
+    
+    // Timeout after 45 seconds
+    setTimeout(() => {
+      child.kill();
+      resolve('🦆 Request timed out (45s limit)');
+    }, 45000);
+  });
+}
 
-  // Fallback: acknowledge and route info
-  return `🦆 Message received: "${message.slice(0, 100)}"\n\n` +
-    `To respond, I need to connect to the Duck CLI gateway.\n` +
-    `Make sure duck-cli is running with: duck gateway`;
+function findDuckBinary(): string | undefined {
+  // Check DUCK_SOURCE_DIR first
+  if (process.env.DUCK_SOURCE_DIR) {
+    const inSource = join(process.env.DUCK_SOURCE_DIR, 'duck');
+    if (existsSync(inSource)) return inSource;
+  }
+  // Check where the Go binary usually is
+  const paths = [
+    '/Users/duckets/.openclaw/workspace/duck-cli-src/duck',
+    '/Users/duckets/.local/bin/duck',
+    '/usr/local/bin/duck',
+  ];
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
+  return undefined;
 }
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
