@@ -1171,6 +1171,24 @@ func androidCmd() *cobra.Command {
 			return runNodeWithEnv("android push ", cmd)
 		},
 	}
+	agentCmd := &cobra.Command{
+		Use:   "agent <goal>",
+		Short: "🦆 Run DroidClaw-style AI agent loop on Android",
+		Long:  `DroidClaw-style perceive→reason→act loop with duck-cli LLM routing.
+
+Examples:
+  duck android agent "open WhatsApp and send the message hi"
+  duck android agent "search for pizza on Google Maps"
+  duck android agent "open settings and turn on WiFi"
+
+Uses Gemma 4 (LM Studio) by default — vision + Android tool-calling trained!
+Other models: set GEMMA_MODEL, DUCK_PRIORITY, or DUCK_CLI_MODEL env vars.`,
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			goal := strings.Join(args, " ")
+			return runNodeWithEnv("android-agent "+goal, cmd)
+		},
+	}
 
 	cmd := &cobra.Command{
 		Use:     "android [command] [args]",
@@ -1313,6 +1331,6 @@ func androidCmd() *cobra.Command {
 			}
 		},
 	}
-	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd, statusCmd, forwardCmd, pushCmd)
+	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd, statusCmd, forwardCmd, pushCmd, agentCmd)
 	return cmd
 }

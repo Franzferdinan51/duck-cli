@@ -192,6 +192,25 @@ async function main() {
       await androidCommand(args);
       break;
 
+    case 'android-agent': {
+      const { AndroidAgentService } = await import('../android-agent/index.js');
+      const goal = args.join(' ').trim();
+      if (!goal) {
+        console.log(`${c.red}Usage: duck android agent <goal>${c.reset}`);
+        console.log(`${c.dim}Example: duck android agent "open WhatsApp and send the message hi"${c.reset}`);
+        return;
+      }
+      const service = new AndroidAgentService();
+      const ok = await service.init();
+      if (!ok) {
+        console.log(`${c.red}Failed to connect to Android device${c.reset}`);
+        return;
+      }
+      const result = await service.run(goal);
+      console.log(`\n${result.success ? '✅' : '⚠️'} Session complete: ${result.stepsUsed}/${result.maxSteps} steps, success=${result.success}`);
+      break;
+    }
+
     case 'memory':
       await memoryCommand(args);
       break;
@@ -1392,6 +1411,7 @@ async function desktopCommand(args: string[]) {
 }
 
 // ============ ANDROID ============
+
 async function androidCommand(args: string[]) {
   const android = getAndroidTools();
   const [action, ...actionArgs] = args;
@@ -1754,7 +1774,6 @@ async function androidCommand(args: string[]) {
       console.log(`  ${c2.cyan}duck android kill <pkg>${c2.reset}         Kill app`);
       console.log(`  ${c2.cyan}duck android install <apk>${c2.reset}      Install APK`);
       console.log(`  ${c2.cyan}duck android termux <cmd>${c2.reset}      Termux API command`);
-      console.log(`  ${c2.cyan}duck android analyze${c2.reset}            Full screen+UI+app analysis`);
     }
   }
 }
