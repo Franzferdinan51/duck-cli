@@ -101,7 +101,33 @@ else
     exit 1
 fi
 
+#-------------------------------------------------------------------------------
+# Push Termux scripts to /sdcard/Download (accessible from Termux)
+#-------------------------------------------------------------------------------
+echo -e "${CYAN}→ Pushing Termux bootstrap scripts to /sdcard/Download/...${RESET}"
+
+SCRIPTS_TO_PUSH=(
+    "tools/termux-bootstrap.sh:termux-bootstrap.sh"
+    "tools/termux-mcp-server.sh:termux-mcp-server.sh"
+)
+
+PUSHED_SCRIPTS=""
+for item in "${SCRIPTS_TO_PUSH[@]}"; do
+    local_path="${item%%:*}"
+    remote_name="${item##*:}"
+    if [[ -f "$ROOT_DIR/$local_path" ]]; then
+        if $ADB_CMD push "$ROOT_DIR/$local_path" "/sdcard/Download/$remote_name" 2>/dev/null; then
+            echo -e "${GREEN}✓${RESET} $remote_name"
+            PUSHED_SCRIPTS="$PUSHED_SCRIPTS $remote_name"
+        else
+            echo -e "${YELLOW}!${RESET} $remote_name (push skipped - may need storage permission)"
+        fi
+    fi
+done
+
+#-------------------------------------------------------------------------------
 # Verify
+#-------------------------------------------------------------------------------
 echo -e "${CYAN}→ Verifying installation...${RESET}"
 REMOTE_SIZE=$($ADB_CMD shell "stat -c%s $REMOTE_PATH 2>/dev/null || stat -f%z $REMOTE_PATH 2>/dev/null" 2>/dev/null | tr -d '\r\n')
 LOCAL_SIZE=$(stat -c%s "$BINARY" 2>/dev/null || stat -f%z "$BINARY" 2>/dev/null)
@@ -123,3 +149,10 @@ echo ""
 echo "To forward a port and run:"
 echo -e "  ${CYAN}duck android forward tcp:18789 tcp:18789${RESET}"
 echo -e "  ${CYAN}adb shell $REMOTE_PATH${RESET}"
+echo ""
+if [[ -n "$PUSHED_SCRIPTS" ]]; then
+    echo -e "${GREEN}✅ Termux scripts pushed to /sdcard/Download/${NC}${PUSHED_SCRIPTS}"
+    echo ""
+    echo "In Termux, run the bootstrap script:"
+    echo -e "  ${CYAN}bash ~/storage/shared/Download/termux-bootstrap.sh${NC}"
+fi
