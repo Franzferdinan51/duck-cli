@@ -46,6 +46,20 @@ Open DuckBot-New → Install tab → follow the Termux bootstrap steps
 
 ---
 
+## 🔗 Related Projects
+
+This is the **unified home** for duck-cli. Everything lives here — desktop, mobile, android agent, and more.
+
+| Project | Relationship |
+|---------|-------------|
+| **[DroidClaw](https://github.com/unitedbyai/droidclaw)** | Upstream inspiration — Bun-based Android AI agent. Our fork tracks it [here](https://github.com/Franzferdinan51/droidclaw) |
+| **[OpenClaw-Android](https://github.com/irtiq7/OpenClaw-Android)** | OpenClaw Android Termux setup that duck-cli builds on |
+| **[duck-cli-android-agent](../src/android-agent/)** | Built into this repo — `duck android agent` command |
+
+No separate repos needed. Desktop, mobile, and android agent all in one.
+
+---
+
 ## 🎯 What is duck-cli?
 
 **duck-cli** is not just a CLI anymore — it is a multi-surface agent stack with:
