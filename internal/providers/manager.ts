@@ -76,7 +76,7 @@ export class ProviderManager {
       name: 'lmstudio',
       baseUrl: process.env.LMSTUDIO_URL || 'http://localhost:1234',
       apiKey: process.env.LMSTUDIO_API_KEY,
-      models: ['local-model']
+      models: process.env.LMSTUDIO_MODELS?.split(',') || ['gemma-4-e4b-it']
     };
     this.configs.set('lmstudio', lmConfig);
     const lmProvider = new LMStudioProvider(lmConfig);
@@ -347,7 +347,7 @@ class LMStudioProvider implements ModelProvider {
         ...(this.config.apiKey ? { 'Authorization': `Bearer ${this.config.apiKey}` } : {})
       },
       body: JSON.stringify({
-        model: request.model || 'local-model',
+        model: request.model || 'gemma-4-e4b-it',
         messages: [
           ...(request.systemPrompt ? [{ role: 'system' as const, content: request.systemPrompt }] : []),
           ...request.messages

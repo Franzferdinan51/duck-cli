@@ -30,7 +30,10 @@ export type {
   MoltBrainStats,
 } from './moltbrain-client';
 
-import { getMoltBrain, MoltBrainClient } export const moltbrainService = getMoltBrain();
+// Singleton instance
+import { MoltBrainClient, DEFAULT_CONFIG } from './moltbrain-client';
+const moltbrainService = new MoltBrainClient(DEFAULT_CONFIG);
+export { moltbrainService };
 
 /**
  * Start MoltBrain worker locally
@@ -38,8 +41,6 @@ import { getMoltBrain, MoltBrainClient } export const moltbrainService = getMolt
  * Requires: npm install -g moltbrain or npx moltbrain
  */
 export async function startWorker(): Promise<boolean> {
-  // This would spawn the worker process
-  // For now, assume it's running via OpenClaw plugin
   return false;
 }
 
@@ -77,14 +78,12 @@ export async function searchWithContext(
 export async function injectMemory(context: string): Promise<string> {
   const client = moltbrainService;
   
-  // Get recent observations
   const timeline = await client.timeline(undefined, 3);
   
   if (timeline.length === 0) {
     return context;
   }
 
-  // Build memory context
   const memoryLines = ['## Recent Memory\n'];
   
   for (const entry of timeline) {

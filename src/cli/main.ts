@@ -82,6 +82,12 @@ async function main() {
       await runTask(args.join(' '));
       break;
 
+    case 'help':
+    case 'h':
+    case '?':
+      consoleHelp();
+      break;
+
     case 'think':
       await think(args.join(' '));
       break;
@@ -489,6 +495,96 @@ async function main() {
     default:
       await runTask(command + ' ' + args.join(' '));
   }
+}
+
+// ============ TOP-LEVEL HELP ============
+
+function consoleHelp() {
+  console.log(`
+${logo}`);
+  console.log(`${c.bold}🦆 Duck CLI — Available Commands${c.reset}\n`);
+  console.log(`${c.bold}USAGE${c.reset}: ${c.green}duck <command> [args]${c.reset}\n`);
+
+  const sections: [string, [string, string][]][] = [
+    ['RUN / THINK', [
+      ['duck run "task"', 'Run a task with AI agent'],
+      ['duck think "prompt"', 'Think about something'],
+      ['duck think-speak "prompt"', 'Think and speak aloud'],
+      ['duck status', 'Show agent status'],
+      ['duck history', 'Show conversation history'],
+    ]],
+    ['AGENT SYSTEMS', [
+      ['duck council [?]', 'Start AI Council deliberation'],
+      ['duck kairos [mode]', 'Proactive AI heartbeat system'],
+      ['duck subconscious [cmd]', 'Self-reflection system'],
+      ['duck buddy [action]', 'Buddy companion system'],
+      ['duck rl [cmd]', 'OpenClaw-RL self-improvement'],
+    ]],
+    ['SERVER / NETWORK', [
+      ['duck gateway', 'Start local gateway server'],
+      ['duck web [port]', 'Start web UI (default 3001)'],
+      ['duck mcp [port]', 'Start MCP server (default 3850)'],
+      ['duck acp-server [port]', 'Start ACP server (default 18794)'],
+      ['duck unified [port]', 'Start unified server (all protocols)'],
+      ['duck ws [port]', 'Start WebSocket server'],
+    ]],
+    ['TOOLS / PLUGINS', [
+      ['duck tools', 'List available tools'],
+      ['duck mcp-connect', 'Connect external MCP server'],
+      ['duck mesh [cmd]', 'Agent mesh networking'],
+      ['duck skills [action]', 'Skills marketplace'],
+      ['duck setup', 'Run interactive setup'],
+    ]],
+    ['ANDROID / PHONE', [
+      ['duck android [cmd]', 'Android device control'],
+      ['duck desktop [cmd]', 'Desktop control (ClawdCursor)'],
+    ]],
+    ['CONFIG / UTILS', [
+      ['duck config [get|set|list]', 'Config management'],
+      ['duck doctor', 'Run system diagnostics'],
+      ['duck health', 'Health check'],
+      ['duck boot', 'Boot diagnostics'],
+      ['duck stats', 'Agent statistics'],
+      ['duck cron [cmd]', 'Cron automation'],
+      ['duck update [action]', 'Update / backup duck-cli'],
+      ['duck trace <list|show|clear>', 'Trace/debug logs'],
+    ]],
+    ['CHANNELS / MESSAGING', [
+      ['duck telegram [args]', 'Telegram bot mode'],
+      ['duck discord [args]', 'Discord bot mode'],
+      ['duck send <target> <msg>', 'Send message to channel'],
+    ]],
+    ['ADVANCED', [
+      ['duck workflow <file.json>', 'Run JSON workflow'],
+      ['duck flow <file.yaml>', 'Run YAML workflow'],
+      ['duck team [cmd]', 'Multi-agent team coordination'],
+      ['duck a2a [cmd]', 'Agent-to-agent protocol'],
+      ['duck sync [cmd]', 'Sync/up sync command'],
+      ['duck memory [cmd]', 'Memory management'],
+    ]],
+    ['SHELL MODE', [
+      ['duck', 'Start interactive shell'],
+      ['duck shell', 'Start interactive shell'],
+    ]],
+  ];
+
+
+  for (const [title, cmds] of sections) {
+    console.log(`${c.bold}${c.cyan}${title}${c.reset}`);
+    for (const [cmd, desc] of cmds) {
+      console.log(`  ${c.green}${cmd.padEnd(35)}${c.reset}${c.dim}${desc}${c.reset}`);
+    }
+    console.log();
+  }
+
+  console.log(`${c.bold}QUICK START${c.reset}`);
+  console.log(`  ${c.green}duck${c.reset}                       Start interactive shell`);
+  console.log(`  ${c.green}duck run "build a REST API"${c.reset}  Execute a task`);
+  console.log(`  ${c.green}duck help${c.reset}                      Show this help`);
+  console.log(`  ${c.green}duck setup${c.reset}                     Interactive setup`);
+  console.log(`  ${c.green}duck doctor${c.reset}                   Check system health`);
+  console.log();
+  console.log(`${c.dim}For more info: duck <command> --help${c.reset}\n`);
 }
 
 // ============ SHELL MODE ============

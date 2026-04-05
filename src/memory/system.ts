@@ -160,13 +160,8 @@ I am Duck Agent — a super AI coding agent built on duck-cli.
   ): Promise<void> {
     await this.store.saveSession({
       id: `sess_${Date.now()}`,
-      sessionId,
-      summary,
-      keyDecisions,
-      toolsUsed,
-      outcome,
-      duration,
-      timestamp: Date.now(),
+      lastMessage: Date.now(),
+      topic: summary.substring(0, 50),
     });
   }
 

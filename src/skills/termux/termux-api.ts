@@ -28,6 +28,22 @@ export const DEFAULT_CONFIG: TermuxConfig = {
   termuxBootPackage: 'com.termux.boot',
 };
 
+export interface TermuxResult {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+}
+
+export interface PhoneInfo {
+  serial: string;
+  model: string;
+  androidVersion: string;
+  termuxInstalled: boolean;
+  termuxApiInstalled: boolean;
+  termuxTaskerInstalled: boolean;
+  termuxBootInstalled: boolean;
+}
+
 // Broadcast receiver for Termux:API
 const TERMUX_API_RECEIVER = 'com.termux.api/.TermuxAPIReceiver';
 const TERMUX_API_ACTION = 'com.termux.api.ACTION_RUN_COMMAND';
@@ -53,9 +69,6 @@ export class TermuxAPI {
 
   /**
    * Run a command via Termux:API broadcast
-   * 
-   * Note: Runs in restricted context, not full Termux environment.
-   * For full Termux access, need allow-external-apps=true in termux.properties
    */
   async runCommand(command: string, background = false): Promise<TermuxResult> {
     const extra = background ? 'true' : 'false';
@@ -219,17 +232,14 @@ export class TermuxAPI {
     };
 
     try {
-      // Get device model
       const modelCmd = `adb -s ${this.config.phoneSerial} shell getprop ro.product.model`;
       const { stdout: model } = await execAsync(modelCmd);
       devices.model = model.trim();
 
-      // Get Android version
       const versionCmd = `adb -s ${this.config.phoneSerial} shell getprop ro.build.version.release`;
       const { stdout: version } = await execAsync(versionCmd);
       devices.androidVersion = version.trim();
 
-      // Check packages
       const packages = await this.checkInstalledPackages();
       devices.termuxInstalled = packages.includes('com.termux');
       devices.termuxApiInstalled = packages.includes('com.termux.api');
@@ -241,22 +251,6 @@ export class TermuxAPI {
 
     return devices;
   }
-}
-
-export interface TermuxResult {
-  success: boolean;
-  stdout: string;
-  stderr: string;
-}
-
-export interface PhoneInfo {
-  serial: string;
-  model: string;
-  androidVersion: string;
-  termuxInstalled: boolean;
-  termuxApiInstalled: boolean;
-  termuxTaskerInstalled: boolean;
-  termuxBootInstalled: boolean;
 }
 
 // Singleton instance

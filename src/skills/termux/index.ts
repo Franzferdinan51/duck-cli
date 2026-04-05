@@ -20,7 +20,7 @@ export { TermuxAPI, getTermuxAPI, termuxTools, DEFAULT_CONFIG } from './termux-a
 export type { TermuxConfig, TermuxResult, PhoneInfo } from './termux-api';
 
 // Convenience singleton
-import { getTermuxAPI, TermuxAPI } from './termux-api';
+import { getTermuxAPI, TermuxAPI, TermuxResult } from './termux-api';
 
 export const termuxService = getTermuxAPI();
 

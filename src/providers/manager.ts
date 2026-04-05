@@ -86,8 +86,10 @@ export class ProviderManager {
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
     
     // Smart default: prefer local (free) > API > paid
+    // Use GEMMA_MODEL env var for LM Studio, or first available model
+    const lmModel = process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || 'google/gemma-4-e4b-it';
     let targets = [
-      { provider: 'lmstudio',  model: undefined,             label: 'LM Studio (local, FREE)' },
+      { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (local, FREE)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
       { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'OpenClaw (Kimi k2.5)' },
       { provider: 'minimax',   model: 'MiniMax-M2.7',        label: 'MiniMax M2.7' },
@@ -327,7 +329,7 @@ class LMStudioProvider implements Provider {
             'Authorization': `Bearer ${this.key}`
           },
           body: JSON.stringify({
-            model: opts.model || 'local-model',
+            model: opts.model || process.env.GEMMA_MODEL || 'google/gemma-4-26b-a4b',
             messages: opts.messages,
             tools: opts.tools,
             stream: false

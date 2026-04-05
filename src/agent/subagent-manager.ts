@@ -6,7 +6,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import Database from 'better-sqlite3';
+import Database from '../vendor/better-sqlite3.js';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
