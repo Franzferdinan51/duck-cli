@@ -5,7 +5,6 @@
   "main": "dist/orchestrator/index.js",
   "module": "dist/orchestrator/index.js",
   "types": "dist/orchestrator/index.d.ts",
-  "type": "module",
   "exports": {
     ".": {
       "import": "./dist/orchestrator/index.js",
