@@ -316,8 +316,37 @@ duck android tap "Settings"
 # Dump UI
 duck android dump
 
-# Run goal
+# Run goal (one-shot)
 duck android goal "Open Chrome and search for cats"
+
+# 🤖 AI Agent (perceive→reason→act loop)
+duck android agent "open settings"
+duck android agent "open WhatsApp and send the message hi"
+```
+
+### 🤖 Android Agent (AI-Powered)
+
+The android agent uses a **perceive→reason→act** loop powered by AI:
+
+```bash
+# Run AI agent with goal
+duck android agent "open settings"
+duck android agent "open WhatsApp and send the message hi"
+duck android agent "go home"
+```
+
+**How it works:**
+1. Perceive — dumps accessibility tree via ADB
+2. Reason — sends state to LLM (Gemma 4 / Kimi / MiniMax)
+3. Act — executes tap/type/launch commands
+4. Repeats until goal is reached or max steps
+
+**Model selection:**
+- `gemma-4-e4b-it` — **PREFERRED** for Android (trained on Android Studio Agent Mode + vision + tool-calling)
+- `minimax/MiniMax-M2.7` — fast fallback
+- Falls back through provider chain automatically
+
+**Also see:** [DroidClaw fork](https://github.com/Franzferdinan51/droidclaw) — Bun-based version with same duck-cli provider integration
 ```
 
 ---
