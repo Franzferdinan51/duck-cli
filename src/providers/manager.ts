@@ -99,11 +99,14 @@ export class ProviderManager {
     }
 
     // BrowserOS - browser automation
-    this.browserOS = new BrowserOSProvider({
-      host: process.env.BROWSEROS_HOST || '127.0.0.1',
-      port: parseInt(process.env.BROWSEROS_PORT || '9100'),
-      
-    });
+    try {
+      this.browserOS = new BrowserOSProvider({
+        host: process.env.BROWSEROS_HOST || '127.0.0.1',
+        port: parseInt(process.env.BROWSEROS_PORT || '9100'),
+      });
+    } catch (e: any) {
+      console.warn(`[Provider] BrowserOS instantiation failed (non-fatal): ${e.message}`);
+    }
 
     if (process.env.KIMI_API_KEY) {
       this.providers.set('kimi', new KimiProvider(process.env.KIMI_API_KEY));
@@ -529,21 +532,18 @@ class LMStudioProvider implements Provider {
       }
       
       const result = await makeRequest();
-      if (!result.error || result.error === '__RETRY__' && attempt === this.retryDelays.length) {
+      if (!result.error) {
         if (result.text !== undefined || result.toolCalls !== undefined) {
           return { text: result.text, toolCalls: result.toolCalls };
-        }
-        if (result.error && result.error !== '__RETRY__') {
-          console.log('[LMStudio] Error:', result.error);
-          return { text: undefined };
         }
       }
       if (result.error && result.error !== '__RETRY__') {
         console.log('[LMStudio] Error:', result.error);
         return { text: undefined };
       }
+      // result.error === '__RETRY__' → fall through to next retry attempt
     }
-    
+
     console.log('[LMStudio] Failed after retries');
     return { text: undefined };
   }

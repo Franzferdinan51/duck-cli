@@ -103,6 +103,12 @@ export class AgentMesh {
       return true;
     } catch (error) {
       log('❌ WebSocket failed:', error);
+      // Clean up dangling ws reference so reconnect attempts start fresh
+      if (this.ws) {
+        try { this.ws.close(); } catch { /* ignore */ }
+        this.ws = null;
+      }
+      this.connected = false;
       return false;
     }
   }
