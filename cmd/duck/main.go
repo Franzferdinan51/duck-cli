@@ -793,6 +793,10 @@ func runNode(args ...string) error {
 	nodeCmd.Stdout = os.Stdout
 	nodeCmd.Stderr = os.Stderr
 	nodeCmd.Stdin = os.Stdin
+	env := os.Environ()
+	env = ensureNodePath(env)
+	nodeCmd.Env = env
+	nodeCmd.Env = append(nodeCmd.Env, "DUCK_SOURCE_DIR="+cmdDir)
 	return nodeCmd.Run()
 }
 
@@ -1016,23 +1020,25 @@ func runNodeDirectList(args []string, cobraCmd *cobra.Command) error {
 }
 
 
-// ensureNodePath adds common Node.js paths to PATH so "node" resolves
-// even from minimal-PATH environments (systemd, Telegram subprocess, etc.)
+// ensureNodePath ensures the PATH contains known Node.js locations
+// so "node" resolves even in minimal-PATH environments (LaunchAgents, Telegram subprocess, etc.)
 func ensureNodePath(env []string) []string {
+	// Always add common Node.js paths - these are checked first so existing PATH is preserved
+	extraPaths := "/usr/local/bin" + string(os.PathListSeparator) +
+		"/opt/homebrew/bin" + string(os.PathListSeparator) +
+		"/usr/bin"
+	// Also try to find node via LookPath to add its directory first
 	if nodePath, err := exec.LookPath("node"); err == nil {
-		nodeDir := filepath.Dir(nodePath)
-		extraPaths := nodeDir + string(os.PathListSeparator) +
-			"/usr/local/bin" + string(os.PathListSeparator) +
-			"/usr/bin" + string(os.PathListSeparator) +
-			"/opt/homebrew/bin"
-		for i, e := range env {
-			if strings.HasPrefix(e, "PATH=") {
-				env[i] = "PATH=" + extraPaths + string(os.PathListSeparator) + strings.TrimPrefix(e, "PATH=")
-				return env
-			}
-		}
-		env = append(env, "PATH="+extraPaths)
+		extraPaths = filepath.Dir(nodePath) + string(os.PathListSeparator) + extraPaths
 	}
+	// Prepend extraPaths to existing PATH
+	for i, e := range env {
+		if strings.HasPrefix(e, "PATH=") {
+			env[i] = "PATH=" + extraPaths + string(os.PathListSeparator) + strings.TrimPrefix(e, "PATH=")
+			return env
+		}
+	}
+	env = append(env, "PATH="+extraPaths)
 	return env
 }
 
