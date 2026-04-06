@@ -109,6 +109,14 @@ Task → MetaPlanner (LLM) → Structured Plan
 9. **Sandboxed preview** — `duck meta plan` shows the plan without executing
 10. **Cross-session learning** — MetaLearner accumulates lessons over time
 
+**Model Selection:**
+```bash
+./duck meta plan "task"                          # MiniMax M2.7 (default)
+./duck meta run "task" --planner qwen3.5-0.8b --provider lmstudio   # Free local!
+./duck meta run "task" --planner MiniMax-M2.7 --provider minimax     # API
+./duck meta run "task" --provider lmstudio                       # All components via LM Studio
+```
+
 
 **OpenRouter free models** also available:
 - `qwen/qwen3.6-plus-preview:free` — 1M context
