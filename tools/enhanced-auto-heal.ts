@@ -40,46 +40,78 @@ interface Service {
 }
 
 const SERVICES: Service[] = [
-  // Core OpenClaw Services
+  // duck-cli Core Services (standalone — duck-cli runs without OpenClaw)
   {
-    name: 'OpenClaw Gateway',
+    name: 'Duck Gateway API',
+    key: 'duck-gateway',
+    url: 'http://127.0.0.1:18792',
+    port: 18792,
+    type: 'process',
+    check: async () => checkHttp('http://127.0.0.1:18792'),
+    heal: () => healDuckGateway(),
+    critical: true,
+  },
+  {
+    name: 'Duck Chat Agent',
+    key: 'duck-chat',
+    url: 'http://127.0.0.1:18797',
+    port: 18797,
+    type: 'process',
+    check: async () => checkHttp('http://127.0.0.1:18797'),
+    heal: () => healDuckChat(),
+    critical: false,
+  },
+  {
+    name: 'Duck MCP Server',
+    key: 'duck-mcp',
+    url: 'http://127.0.0.1:3850',
+    port: 3850,
+    type: 'process',
+    check: async () => checkHttp('http://127.0.0.1:3850'),
+    heal: () => healMCP(),
+    critical: false,
+  },
+  // OpenClaw Services (optional — duck-cli does NOT require OpenClaw)
+  // These are monitored only when OpenClaw is installed and the bridge is used.
+  {
+    name: 'OpenClaw Gateway (optional)',
     key: 'gateway',
     url: 'http://127.0.0.1:18789',
     port: 18789,
     type: 'process',
     check: async () => checkHttp('http://127.0.0.1:18789'),
     heal: () => healOpenClawGateway(),
-    critical: true,
+    critical: false,  // OPTIONAL — duck-cli is standalone without OpenClaw
   },
   {
-    name: 'MCP Server (ClawdCursor)',
-    key: 'mcp',
+    name: 'OpenClaw MCP (optional)',
+    key: 'oc-mcp',
     url: 'http://127.0.0.1:3848',
     port: 3848,
     type: 'process',
     check: async () => checkHttp('http://127.0.0.1:3848'),
     heal: () => healMCP(),
-    critical: true,
+    critical: false,
   },
   {
-    name: 'ACP Server',
-    key: 'acp',
+    name: 'OpenClaw ACP (optional)',
+    key: 'oc-acp',
     url: 'http://127.0.0.1:18790',
     port: 18790,
     type: 'process',
     check: async () => checkHttp('http://127.0.0.1:18790'),
     heal: () => healACP(),
-    critical: true,
+    critical: false,
   },
   {
-    name: 'WebSocket Server',
-    key: 'websocket',
+    name: 'OpenClaw WS (optional)',
+    key: 'oc-ws',
     url: 'http://127.0.0.1:18791',
     port: 18791,
     type: 'process',
     check: async () => checkHttp('http://127.0.0.1:18791'),
     heal: () => healWebSocket(),
-    critical: true,
+    critical: false,
   },
   // Web UIs
   {
@@ -288,6 +320,39 @@ async function sendTelegramAlert(message: string, parseMode = 'HTML'): Promise<v
 // Service Heal Functions
 // =============================================================================
 
+async function healDuckGateway(): Promise<boolean> {
+  log('  -> Attempting to heal Duck Gateway (duck-cli built-in, port 18792)...');
+  try {
+    // Restart duck-cli's own gateway
+    execSync('pkill -f "duck gateway" 2>/dev/null || true', { stdio: 'ignore' });
+    await sleep(1000);
+    const duckBin = process.env.DUCK_BINARY ||
+      (process.env.DUCK_SOURCE_DIR ? `${process.env.DUCK_SOURCE_DIR}/duck` : 'duck');
+    execSync(`cd ${process.env.DUCK_SOURCE_DIR || '.'} && nohup ${duckBin} gateway > /tmp/duck-gateway.log 2>&1 &`, { stdio: 'ignore' });
+    await sleep(5000);
+    return await checkHttp('http://127.0.0.1:18792');
+  } catch (e) {
+    log(`  -> ERROR: Failed to heal Duck Gateway: ${e}`);
+    return false;
+  }
+}
+
+async function healDuckChat(): Promise<boolean> {
+  log('  -> Attempting to heal Duck Chat Agent (port 18797)...');
+  try {
+    execSync('pkill -f "duck chat-agent" 2>/dev/null || true', { stdio: 'ignore' });
+    await sleep(1000);
+    const duckBin = process.env.DUCK_BINARY ||
+      (process.env.DUCK_SOURCE_DIR ? `${process.env.DUCK_SOURCE_DIR}/duck` : 'duck');
+    execSync(`cd ${process.env.DUCK_SOURCE_DIR || '.'} && nohup ${duckBin} chat-agent > /tmp/duck-chat.log 2>&1 &`, { stdio: 'ignore' });
+    await sleep(5000);
+    return await checkHttp('http://127.0.0.1:18797');
+  } catch (e) {
+    log(`  -> ERROR: Failed to heal Duck Chat Agent: ${e}`);
+    return false;
+  }
+}
+
 async function healOpenClawGateway(): Promise<boolean> {
   log('  -> Attempting to heal OpenClaw Gateway...');
   try {
@@ -301,22 +366,19 @@ async function healOpenClawGateway(): Promise<boolean> {
 }
 
 async function healMCP(): Promise<boolean> {
-  log('  -> Attempting to heal MCP Server (ClawdCursor)...');
+  log('  -> Attempting to heal Duck MCP Server (port 3850)...');
   try {
     // Kill existing
-    execSync('pkill -f "clawdcursor" 2>/dev/null || true', { stdio: 'ignore' });
+    execSync('pkill -f "duck mcp" 2>/dev/null || true', { stdio: 'ignore' });
     await sleep(1000);
-    
-    // Restart
-    execSync(
-      'cd /Users/duckets/.openclaw/workspace/clawd-cursor && ' +
-      'nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &',
-      { stdio: 'ignore' }
-    );
+    // Restart duck-cli's MCP server
+    const duckBin = process.env.DUCK_BINARY ||
+      (process.env.DUCK_SOURCE_DIR ? `${process.env.DUCK_SOURCE_DIR}/duck` : 'duck');
+    execSync(`cd ${process.env.DUCK_SOURCE_DIR || '.'} && nohup ${duckBin} mcp > /tmp/duck-mcp.log 2>&1 &`, { stdio: 'ignore' });
     await sleep(5000);
-    return await checkHttp('http://127.0.0.1:3848');
+    return await checkHttp('http://127.0.0.1:3850');
   } catch (e) {
-    log(`  -> ERROR: Failed to heal MCP: ${e}`);
+    log(`  -> ERROR: Failed to heal Duck MCP: ${e}`);
     return false;
   }
 }
