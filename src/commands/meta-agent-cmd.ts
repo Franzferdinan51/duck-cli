@@ -134,29 +134,30 @@ async function executeTool(tool: string, params: any): Promise<any> {
 
 async function spawnAgentStub(task: string): Promise<string> {
   const { SubagentManager } = await import('../agent/subagent-manager.js');
+  const subagentModel = process.env.DUCK_META_SUBAGENT_MODEL || process.env.DUCK_MODEL || 'qwen3.5-0.8b';
+  const subagentProvider = process.env.DUCK_META_SUBAGENT_PROVIDER || process.env.DUCK_PROVIDER || 'lmstudio';
   // Use shared singleton so agents persist across calls
   const manager = getSharedSubagentManager();
   const agent = manager.spawn(task, {
     role: 'general',
     timeout: 300000,
-    model: process.env.DUCK_MODEL || 'qwen3.5-0.8b',
-    provider: process.env.DUCK_PROVIDER || 'lmstudio',
-  });
-
-  // Fire-and-forget with logging — return ID immediately so MetaAgent can proceed
-  manager.start(agent.id, {
-    role: 'general',
-    timeout: 300000,
-    model: process.env.DUCK_MODEL || 'qwen3.5-0.8b',
-    provider: process.env.DUCK_PROVIDER || 'lmstudio',
-  }).then((result: any) => {
-    console.log(`[MetaCLI] Subagent ${agent.id} completed`);
-  }).catch((err: any) => {
-    console.error(`[MetaCLI] Subagent ${agent.id} failed: ${err?.message || err}`);
+    model: subagentModel,
+    provider: subagentProvider,
   });
 
   console.log(`[MetaCLI] Spawned subagent ${agent.id}: "${task.substring(0, 60)}"`);
-  return agent.id;
+
+  // Start and wait so MetaAgent gets real fan-in output instead of only an ID.
+  await manager.start(agent.id, {
+    role: 'general',
+    timeout: 300000,
+    model: subagentModel,
+    provider: subagentProvider,
+  });
+  const completed = await manager.waitFor(agent.id, 300000);
+  const resultText = completed.result || completed.error || `[Subagent ${agent.id} completed with no result]`;
+  console.log(`[MetaCLI] Subagent ${agent.id} completed (${resultText.substring(0, 80)})`);
+  return resultText;
 }
 
 /**
@@ -181,13 +182,13 @@ export function createMetaAgentCommand(): Command {
     .command('plan <task>')
     .description('Preview what duck-cli v3 would do (no execution)')
     .option('--json', 'Output plan as JSON')
-    .option('--planner <model>', 'Planner model (e.g. qwen3.5-0.8b for local free)')
+    .option('--planner <model>', 'Planner model (default: qwen3.5-0.8b)')
     .option('--provider <name>', 'Provider: lmstudio (local), minimax, kimi')
     .action(async (task: string, options: any) => {
       const pm = new ProviderManager();
       await pm.load();
-      const model = options.planner || 'qwen3.5-0.8b';
-      const provider = options.provider || 'lmstudio';
+      const model = options.planner || process.env.DUCK_META_PLANNER_MODEL || 'qwen3.5-0.8b';
+      const provider = options.provider || process.env.DUCK_META_PROVIDER || 'lmstudio';
       const planner = new MetaPlanner(pm, model, provider);
       const plan = await planner.plan({ id: randomUUID(), prompt: task, createdAt: Date.now() });
 
@@ -205,22 +206,30 @@ export function createMetaAgentCommand(): Command {
     .option('--dry-run', 'Show plan without executing')
     .option('--no-trace', 'Suppress step trace')
     .option('--no-learn', 'Disable learning')
-    .option('--planner <model>', 'Planner model (e.g. qwen3.5-0.8b for local free)')
-    .option('--critic <model>', 'Critic model')
-    .option('--healer <model>', 'Healer model')
-    .option('--provider <name>', 'Provider: lmstudio (local free), minimax (API), kimi (API)')
+    .option('--planner <model>', 'Planner model (default: qwen3.5-0.8b)')
+    .option('--critic <model>', 'Critic model (default: qwen3.5-2b-claude-4.6-opus-reasoning-distilled)')
+    .option('--healer <model>', 'Healer model (default: qwen3.5-2b-claude-4.6-opus-reasoning-distilled)')
+    .option('--provider <name>', 'Default provider: lmstudio (local free), minimax (API), kimi (API)')
+    .option('--planner-provider <name>', 'Planner provider override')
+    .option('--critic-provider <name>', 'Critic provider override')
+    .option('--healer-provider <name>', 'Healer provider override')
     .action(async (task: string, options: any) => {
       console.log(`\ndock-cli v3 Meta-Agent: "${task}"\n`);
-      const provider = options.provider || 'lmstudio';
-      const plannerModel = options.planner || 'qwen3.5-0.8b';
-      const criticModel = options.critic || plannerModel;
-      const healerModel = options.healer || plannerModel;
-      console.log(`[Config] Provider: ${provider}, Planner: ${plannerModel}, Critic: ${criticModel}, Healer: ${healerModel}\n`);
+      const provider = options.provider || process.env.DUCK_META_PROVIDER || 'lmstudio';
+      const plannerProvider = options.plannerProvider || process.env.DUCK_META_PLANNER_PROVIDER || provider;
+      const criticProvider = options.criticProvider || process.env.DUCK_META_CRITIC_PROVIDER || plannerProvider;
+      const healerProvider = options.healerProvider || process.env.DUCK_META_HEALER_PROVIDER || plannerProvider;
+      const plannerModel = options.planner || process.env.DUCK_META_PLANNER_MODEL || 'qwen3.5-0.8b';
+      const criticModel = options.critic || process.env.DUCK_META_CRITIC_MODEL || 'qwen3.5-2b-claude-4.6-opus-reasoning-distilled';
+      const healerModel = options.healer || process.env.DUCK_META_HEALER_MODEL || 'qwen3.5-2b-claude-4.6-opus-reasoning-distilled';
+      console.log(`[Config] Planner: ${plannerProvider}/${plannerModel}, Critic: ${criticProvider}/${criticModel}, Healer: ${healerProvider}/${healerModel}\n`);
 
       const pm = new ProviderManager();
       await pm.load();
       const agent = new MetaAgent(pm, {
-        plannerProvider: provider,
+        plannerProvider,
+        criticProvider,
+        healerProvider,
         plannerModel,
         criticModel,
         healerModel,
