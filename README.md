@@ -14,33 +14,105 @@ It is:
 - a **bridge layer** with its own MCP, ACP, WebSocket, and meta-agent flows
 - a tool/service that **other agents can call into** through the bridge
 
-### Core architecture
+### Architecture — Layers & Access Points
 
 ```text
-Telegram / CLI / Web UI
-        ↓
-   duck-cli (standalone agent)
-        ↓
- Bridge layer (MCP / ACP / WS / meta-agent)
-        ↓
- Other agents, tools, OpenClaw-compatible systems
+╔══════════════════════════════════════════════════════════════════════╗
+║                           ACCESS LAYER                                ║
+║                                                                       ║
+│   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐  ║
+│   │  Telegram   │    │    CLI      │    │   Web UI / Gateway      │  ║
+│   │  (PUBLIC)   │    │  (direct)   │    │   /v1/chat, /v1/status  │  ║
+│   └──────┬──────┘    └──────┬──────┘    └────────────┬────────────┘  ║
+║          │                  │                          │                ║
+║          └──────────────────┴──────────────────────────┘                ║
+║                              │                                         ║
+╚══════════════════════════════╪══════════════════════════════════════════╝
+                               ↓
+╔══════════════════════════════╪══════════════════════════════════════════╗
+║                    STANDALONE AGENT CORE                               ║
+║                                                                       ║
+│   ┌──────────────────────────────────────────────────────────────┐    ║
+│   │  Hybrid Orchestrator  ──►  AI Council (deliberation)        │    ║
+│   │  Task Router  ──►  Subconscious Whispers  ──►  KAIROS       │    ║
+│   │  13 Core Tools  ──►  Tool Registry  ──►  Execution Engine    │    ║
+│   │  Provider Manager  ──►  MiniMax / Kimi / LM Studio / OpenAI  │    ║
+│   └──────────────────────────────────────────────────────────────┘    ║
+║                              │                                         ║
+║          ┌───────────────────┴───────────────────┐                     ║
+║          ↓                                       ↓                      ║
+║   ┌─────────────┐                        ┌─────────────┐               ║
+║   │   PUBLIC   │                        │  INTERNAL   │               ║
+║   │   REPLIES  │                        │COORDINATION │               ║
+║   │ (Telegram) │                        │  (mesh, ACP,│               ║
+║   └─────────────┘                        │  meta-agent)│               ║
+║                                          └──────┬──────┘               ║
+╚═════════════════════════════════════════════════╪═══════════════════════╝
+                                                  ↓
+╔════════════════════════════════════════════════╪═══════════════════════╗
+║                        BRIDGE LAYER                                 ║
+║                                                                   ║
+│   ┌────────────────────────────────────────────────────────────┐   ║
+│   │                     BRIDGE SERVICE                         │   ║
+│   │                                                            │   ║
+│   │  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌──────────┐  │   ║
+│   │  │   MCP    │  │   ACP    │  │WebSocket  │  │  Meta-   │  │   ║
+│   │  │ Server   │  │  Server  │  │  Server   │  │  Agent   │  │   ║
+│   │  │ (port    │  │ (port    │  │ (port     │  │ Delegate │  │   ║
+│   │  │  3850)   │  │  18794)  │  │  18796)   │  │          │  │   ║
+│   │  └────┬─────┘  └────┬─────┘  └─────┬────┘  └────┬─────┘  │   ║
+│   │       │             │               │            │         │   ║
+│   │       └─────────────┴───────────────┴────────────┘         │   ║
+│   │                         │                                   │   ║
+│   │  Bridge Meta-Agent ──► Council / Internal Agents           │   ║
+│   │         │                       │                          │   ║
+│   │         └───────────────────────┘                          │   ║
+│   │               access mesh directly                         │   ║
+│   └────────────────────────────────────────────────────────────┘   ║
+║                              │                                     ║
+╚══════════════════════════════╪═════════════════════════════════════╝
+                               ↓
+╔══════════════════════════════╪═════════════════════════════════════╗
+║                  INTERNAL COMMUNICATION LAYER                    ║
+║                                                               ║
+│   ┌────────────────────────────────────────────────────────┐   ║
+│   │              Agent Mesh API / Native Mesh               │   ║
+│   │                                                          │   ║
+│   │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐    │   ║
+│   │  │   OpenClaw  │   │  duck-cli   │   │   Other    │    │   ║
+│   │  │   Gateway   │◄─►│  (itself)   │◄─►│   Agents   │    │   ║
+│   │  │  (MCP/ACP)  │   │             │   │  (CannaAI, │    │   ║
+│   │  └─────────────┘   └─────────────┘   │  Codex...)  │    │   ║
+│   │                                       └─────────────┘    │   ║
+│   │                                                          │   ║
+│   │  meshd (port 4000)  ──  peer discovery  ──  broadcast     │   ║
+│   └────────────────────────────────────────────────────────┘   ║
+╚═══════════════════════════════════════════════════════════════════╝
 ```
 
-### Native internal communication
+**Layer summary:**
 
-The internal background communication layer is intended to be **native**, not bolted on as an afterthought.
+| Layer | What it does | Who uses it |
+|-------|-------------|-------------|
+| **Access** | Telegram (public), CLI, Web UI | End users, you |
+| **Agent Core** | Orchestration, tools, providers, council, KAIROS | All requests |
+| **Public vs Internal** | Clean Telegram replies vs mesh/ACP coordination | Traffic routing |
+| **Bridge** | MCP (3850), ACP (18794), WS (18796), meta-agent | Other agents, tools |
+| **Mesh** | Peer discovery, broadcast, meshd (4000) | Internal agents only |
 
-That includes:
-- **Agent Mesh / agent-mesh-api** style background communication
-- bridge-level coordination between duck-cli and other agents
-- meta-agent delegation that can spawn real internal workers
-- separation between **public replies** (Telegram) and **internal coordination traffic**
+### Internal vs Public traffic
+
+The system maintains strict separation between two traffic types:
+
+**Public replies** → flow back through the Access layer to Telegram/CLI/Web UI as clean assistant messages. Tool execution noise, internal deliberation logs, and coordination chatter stay inside the stack.
+
+**Internal coordination** → flows through the Bridge layer (ACP/MCP/WebSocket/meta-agent) and Mesh layer. Bridge meta-agent and internal council/worker agents access the mesh directly to coordinate with OpenClaw, CannaAI, Codex, and other mesh peers — without ever surfacing in the public chat.
 
 ### Important design rule
 
 **Telegram is the main public access point for duck-cli.**
 
-That means duck-cli must return **clean assistant replies** to Telegram users, while the **bridge** stays available as the access layer for you and other agents.
+That means duck-cli must return **clean assistant replies** to Telegram users, while the **Bridge** stays available as the access layer for you and other agents. Internal coordination between mesh peers, bridge meta-agent delegation, and council deliberation never leaks into the public reply channel.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
