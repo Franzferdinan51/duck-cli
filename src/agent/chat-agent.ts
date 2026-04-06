@@ -148,6 +148,198 @@ async function sendWhisperAlert(alert: { type: string; message: string; confiden
   }
 }
 
+// ---------------------------------------------------------------------------
+// Mesh WebSocket Consumer — TRUE 2-WAY MESH
+// Enables duck-cli to RECEIVE messages from mesh (not just broadcast).
+// This completes the bidirectional channel after HTTP registration.
+// ---------------------------------------------------------------------------
+
+/**
+ * Connect WebSocket to agent-mesh-api for real-time message consumption.
+ * Call AFTER successful HTTP registration (registerWithMesh).
+ *
+ * This makes the chat-agent truly 2-way:
+ * - OUTBOUND: broadcasts, whisper alerts (existing)
+ * - INBOUND: incoming whispers, task delegations, system broadcasts (new)
+ */
+async function connectMeshWebSocket(): Promise<void> {
+  if (!meshRegistered || !registeredAgentId) {
+    console.log('[MeshWS] Not registered yet — skipping WebSocket connect');
+    return;
+  }
+
+  // Avoid duplicate connections
+  if (meshWs && meshWs.readyState === 1 /* OPEN */) {
+    return;
+  }
+
+  try {
+    const wsUrl = MESH_API_URL.replace('http', 'ws') + '/ws';
+    meshWs = new (require('ws'))(wsUrl + `?agentId=${registeredAgentId}`);
+
+    meshWs.on('open', () => {
+      console.log(`[MeshWS] ✅ Connected to mesh WebSocket`);
+    });
+
+    meshWs.on('message', (data: any) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        handleMeshMessage(msg);
+      } catch (e) {
+        console.log('[MeshWS] Failed to parse message:', e);
+      }
+    });
+
+    meshWs.on('close', () => {
+      console.log(`[MeshWS] ⚠️ WebSocket closed — will reconnect on next registration`);
+      meshWs = null;
+    });
+
+    meshWs.on('error', (err: any) => {
+      console.log(`[MeshWS] Error: ${err?.message || err}`);
+    });
+
+    console.log(`[MeshWS] Connecting to ${wsUrl}?agentId=${registeredAgentId}...`);
+  } catch (err) {
+    console.log(`[MeshWS] WebSocket not available (ws module may not be installed): ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/**
+ * Handle incoming mesh messages — routes by message type.
+ *
+ * INTERNAL messages (stay within duck-cli):
+ * - broadcast (system events) → log only
+ * - agent_joined / agent_left → log only
+ *
+ * EXTERNAL messages (route to user/OpenClaw):
+ * - whisper (high-confidence, confidence >= 0.7) → route to user
+ * - task-delegate → route to processMessage
+ *
+ * This separation keeps Telegram/public replies separate from
+ * internal bridge/meta/council traffic.
+ */
+function handleMeshMessage(msg: {
+  type?: string;
+  fromAgentId?: string;
+  content?: any;
+  event?: string;
+}): void {
+  const type = msg.type || msg.event;
+  const content = msg.content || msg;
+
+  switch (type) {
+    case 'whisper': {
+      // Whisper from Subconscious — route to user if high confidence
+      const whisper = content?.alert || content;
+      const confidence = whisper?.confidence ?? 0;
+      if (confidence >= 0.7) {
+        console.log(`[MeshWS] High-confidence whisper (${confidence}): ${whisper?.message}`);
+        routeWhisperToUser(whisper);
+      } else {
+        console.log(`[MeshWS] Low-confidence whisper (${confidence}): ${whisper?.message}`);
+      }
+      break;
+    }
+
+    case 'task-delegate': {
+      // Task delegation from another agent — process it
+      const task = content?.task || content;
+      const fromAgent = msg.fromAgentId || 'unknown';
+      console.log(`[MeshWS] Task delegate from ${fromAgent}: ${task?.substring(0, 80)}...`);
+      // Process as a new message (high complexity, go through full flow)
+      processMessage(`mesh-delegate-${fromAgent}`, task, undefined, undefined)
+        .then(result => {
+          console.log(`[MeshWS] Delegate task completed`);
+        })
+        .catch(err => {
+          console.error(`[MeshWS] Delegate task failed: ${err.message}`);
+        });
+      break;
+    }
+
+    case 'message_received': {
+      // Direct message from another agent — log it
+      const fromAgent = msg.fromAgentId || 'unknown';
+      console.log(`[MeshWS] Message from ${fromAgent}: ${JSON.stringify(content)?.substring(0, 100)}`);
+      break;
+    }
+
+    case 'agent_joined':
+    case 'agent_left':
+    case 'agent_updated': {
+      // System events — log for visibility, don't bother user
+      console.log(`[MeshWS] 🤝 ${type}: ${content?.name || msg.fromAgentId}`);
+      break;
+    }
+
+    case 'broadcast': {
+      // System broadcast — log for visibility
+      const fromAgent = msg.fromAgentId || 'system';
+      console.log(`[MeshWS] 📢 Broadcast from ${fromAgent}: ${JSON.stringify(content)?.substring(0, 100)}`);
+      break;
+    }
+
+    case 'health':
+    case 'catastrophe': {
+      // Health/catastrophe from mesh — forward to OpenClaw if configured
+      if (WHISPER_CALLBACK_URL) {
+        forwardToCallback(WHISPER_CALLBACK_URL, { type, content }).catch(() => {});
+      }
+      break;
+    }
+
+    default:
+      // Unknown message type — log but don't crash
+      console.log(`[MeshWS] Unknown message type "${type}": ${JSON.stringify(msg)?.substring(0, 100)}`);
+  }
+}
+
+/**
+ * Route high-confidence whisper to user.
+ * Sends to WHISPER_CALLBACK_URL if configured (e.g. OpenClaw gateway).
+ * Falls back to broadcasting to mesh so other agents can handle it.
+ */
+async function routeWhisperToUser(whisper: { type: string; message: string; confidence: number }): Promise<void> {
+  const payload = {
+    source: 'whisper',
+    whisper,
+    // Mark as internal meta/council traffic (not a direct user message)
+    _internal: true,
+  };
+
+  if (WHISPER_CALLBACK_URL) {
+    try {
+      await forwardToCallback(WHISPER_CALLBACK_URL, payload);
+      console.log(`[MeshWS] Whisper forwarded to callback: ${WHISPER_CALLBACK_URL}`);
+      return;
+    } catch (err) {
+      console.log(`[MeshWS] Whisper callback failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Fallback: broadcast to mesh so other agents can handle
+  await broadcastToMesh('whisper-to-user', payload);
+}
+
+/**
+ * Forward data to an external HTTP callback.
+ * Used for routing whispers and alerts to OpenClaw.
+ */
+async function forwardToCallback(url: string, data: any): Promise<void> {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Routing': 'duck-cli/whisper',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!resp.ok) {
+    throw new Error(`Callback ${resp.status}: ${await resp.text()}`);
+  }
+}
+
 // Provider config - loaded from environment
 const PROVIDER = process.env.DUCK_CHAT_PROVIDER || 'minimax';
 const MODEL = process.env.DUCK_CHAT_MODEL || getDefaultModel(PROVIDER);
@@ -851,6 +1043,7 @@ function startServer(port: number) {
     // Health check
     if (req.method === 'GET' && (pathname === '/health' || pathname === '/')) {
       const apiKey = getApiKey(PROVIDER);
+      const wsConnected = meshWs && meshWs.readyState === 1;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
@@ -861,6 +1054,7 @@ function startServer(port: number) {
         model: MODEL,
         apiKeyConfigured: !!apiKey,
         meshRegistered,
+        meshWsConnected: wsConnected,
         meshEnabled: MESH_ENABLED,
         endpoints: {
           'POST /chat': 'Send message',
@@ -877,6 +1071,7 @@ function startServer(port: number) {
           env_vars: 'DUCK_CHAT_PROVIDER, DUCK_CHAT_MODEL, DUCK_CHAT_MAX_CONTEXT',
           header_override: 'X-Provider, X-Model',
           runtime_switch: 'POST /providers/switch',
+          whisper_routing: 'WHISPER_CALLBACK_URL env var routes high-confidence whispers',
         },
       }));
       return;
@@ -932,13 +1127,24 @@ export async function startChatAgent(port: number = PORT) {
 
   process.on('SIGINT', () => {
     console.log('\n🦆 Shutting down...');
+    if (meshWs) {
+      meshWs.close();
+      meshWs = null;
+    }
     server.close();
     process.exit(0);
   });
   process.on('SIGTERM', () => {
+    if (meshWs) {
+      meshWs.close();
+      meshWs = null;
+    }
     server.close();
     process.exit(0);
   });
 }
 
 export { processMessage, scoreComplexity, chatComplete, getApiKey, getBaseUrl };
+
+// Additional exports for bridge integration
+export { connectMeshWebSocket, handleMeshMessage, routeWhisperToUser };
