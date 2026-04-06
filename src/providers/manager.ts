@@ -165,6 +165,53 @@ export class ProviderManager {
   }
 
   /**
+   * Route to a specific model (provider/model ID).
+   * Used by Meta-Agent for targeted model selection.
+   * Examples: 'lmstudio/qwen3.5-0.8b', 'minimax/MiniMax-M2.7'
+   */
+  async routeWithModel(modelId: string, prompt: string, messages?: any[]): Promise<{ text: string; provider: string; model: string }> {
+    // Parse provider from model ID or use default
+    const [provider, ...modelParts] = modelId.includes('/') ? modelId.split('/') : ['', modelId];
+    const model = modelParts.join('/'); // handles 'qwen/qwen3.5-9b' -> 'qwen3.5-9b' when provider='qwen'
+    const resolvedProvider = provider || this.detectProvider(model);
+    const resolvedModel = provider && !modelId.includes('/') ? model : (modelParts.length > 1 ? modelParts.join('/') : model);
+
+    const prov = this.providers.get(resolvedProvider);
+    if (!prov) {
+      throw new Error(`Provider '${resolvedProvider}' not available. Available: ${this.list().join(', ')}`);
+    }
+
+    const msgList = messages || [{ role: 'user', content: prompt }];
+    console.log(`[Router📡] Direct routing: ${resolvedProvider}/${resolvedModel}`);
+
+    // Add timeout wrapper (60 second max per call)
+    const timeoutMs = 90000;
+    const result = await Promise.race([
+      prov.complete({ model: resolvedModel, messages: msgList }),
+      new Promise<{ text?: string; toolCalls?: any[]; error?: string }>((_, reject) =>
+        setTimeout(() => reject({ error: 'Request timed out after 90s' }), timeoutMs)
+      )
+    ]).catch((e: any) => ({ error: e?.error || e?.message || 'Unknown error' })) as { text?: string; toolCalls?: any[]; error?: string };
+
+    if (result.error) throw new Error(`Model ${resolvedProvider}/${resolvedModel} failed: ${result.error}`);
+    return { text: result.text || '', provider: resolvedProvider, model: resolvedModel };
+  }
+
+  /**
+   * Detect which provider can serve a given model name
+   */
+  private detectProvider(model: string): string {
+    if (model.includes('gemma')) return 'lmstudio';
+    if (model.includes('qwen3.5') || model.includes('3.5') || model.includes('0.8b')) return 'lmstudio';
+    if (model.includes('jan')) return 'lmstudio';
+    if (model.includes('nvidia')) return 'openrouter';
+    if (model.includes('minimax') || model.includes('MiniMax')) return 'minimax';
+    if (model.includes('k2p5') || model.includes('kimi')) return 'kimi';
+    if (model.includes('claude') || model.includes('anthropic')) return 'anthropic';
+    return 'minimax'; // default
+  }
+
+  /**
    * Get BrowserOS for browser automation
    */
   getBrowserOS(): BrowserOSProvider | undefined {

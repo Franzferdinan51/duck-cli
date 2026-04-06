@@ -30,16 +30,22 @@ async function spawnAgentStub(task: string): Promise<string> {
 
 export function createMetaAgentCommand(): Command {
   const meta = new Command('meta')
-    .description('duck-cli v3 Meta-Agent (LLM-powered orchestration)');
+    .description('duck-cli v3 Meta-Agent (LLM-powered orchestration)')
+    .passThroughOptions();  // Allow unknown flags to pass through
 
   // duck meta plan <task> — preview plan without executing
   meta
     .command('plan <task>')
     .description('Preview what duck-cli v3 would do (no execution)')
     .option('--json', 'Output plan as JSON')
+    .option('--planner <model>', 'Planner model (e.g. qwen3.5-0.8b for local free)')
+    .option('--provider <name>', 'Provider: lmstudio (local), minimax, kimi')
     .action(async (task: string, options: any) => {
       const pm = new ProviderManager();
-      const planner = new MetaPlanner(pm);
+      await pm.load();
+      const model = options.planner || 'MiniMax-M2.7';
+      const provider = options.provider || 'minimax';
+      const planner = new MetaPlanner(pm, model, provider);
       const plan = await planner.plan({ id: randomUUID(), prompt: task, createdAt: Date.now() });
 
       if (options.json) {
@@ -56,13 +62,25 @@ export function createMetaAgentCommand(): Command {
     .option('--dry-run', 'Show plan without executing')
     .option('--no-trace', 'Suppress step trace')
     .option('--no-learn', 'Disable learning')
+    .option('--planner <model>', 'Planner model (e.g. qwen3.5-0.8b for local free)')
+    .option('--critic <model>', 'Critic model')
+    .option('--healer <model>', 'Healer model')
+    .option('--provider <name>', 'Provider: lmstudio (local free), minimax (API), kimi (API)')
     .action(async (task: string, options: any) => {
-      console.log(`\nduck-cli v3 Meta-Agent: "${task}"\n`);
+      console.log(`\ndock-cli v3 Meta-Agent: "${task}"\n`);
+      const provider = options.provider || 'minimax';
+      const plannerModel = options.planner || 'MiniMax-M2.7';
+      const criticModel = options.critic || plannerModel;
+      const healerModel = options.healer || plannerModel;
+      console.log(`[Config] Provider: ${provider}, Planner: ${plannerModel}, Critic: ${criticModel}, Healer: ${healerModel}\n`);
 
       const pm = new ProviderManager();
+      await pm.load();
       const agent = new MetaAgent(pm, {
-        plannerProvider: 'minimax',
-        plannerModel: 'MiniMax-M2.7',
+        plannerProvider: provider,
+        plannerModel,
+        criticModel,
+        healerModel,
         enableTrace: !options.trace,
         enableLearning: !options.learn,
         dryRun: options.dryRun,

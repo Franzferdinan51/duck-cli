@@ -19,9 +19,13 @@ Output JSON:
 
 export class MetaCritic {
   private pm: ProviderManager;
+  private model: string;
+  private provider: string;
 
-  constructor(pm: ProviderManager) {
+  constructor(pm: ProviderManager, model?: string, provider?: string) {
     this.pm = pm;
+    this.model = model || 'MiniMax-M2.7';
+    this.provider = provider || 'minimax';
   }
 
   async evaluate(taskPrompt: string, plan: Plan, stepIndex: number, result: StepResult): Promise<CriticFeedback> {

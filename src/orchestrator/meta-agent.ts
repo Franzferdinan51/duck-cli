@@ -44,6 +44,10 @@ export class MetaAgent {
       criticModel: config.criticModel || 'MiniMax-M2.7',
       healerModel: config.healerModel || 'MiniMax-M2.7',
       plannerProvider: config.plannerProvider || 'minimax',
+      classifierModel: config.classifierModel || 'MiniMax-M2.7',
+      classifierProvider: config.classifierProvider || 'minimax',
+      orchestratorModel: config.orchestratorModel || config.plannerModel || 'MiniMax-M2.7',
+      orchestratorProvider: config.orchestratorProvider || config.plannerProvider || 'minimax',
       maxRecoveryAttempts: config.maxRecoveryAttempts || 3,
       maxSteps: config.maxSteps || 20,
       enableLearning: config.enableLearning !== false,
@@ -52,9 +56,9 @@ export class MetaAgent {
       dryRun: config.dryRun || false,
     };
 
-    this.planner = new MetaPlanner(pm);
-    this.critic = new MetaCritic(pm);
-    this.healer = new MetaHealer(pm);
+    this.planner = new MetaPlanner(pm, this.config.plannerModel, this.config.plannerProvider);
+    this.critic = new MetaCritic(pm, this.config.criticModel, this.config.plannerProvider);
+    this.healer = new MetaHealer(pm, this.config.healerModel, this.config.plannerProvider);
     this.learner = new MetaLearner(this.config.experiencePath);
   }
 

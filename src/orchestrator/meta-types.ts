@@ -80,6 +80,10 @@ export interface MetaAgentConfig {
   plannerModel?: string;
   criticModel?: string;
   healerModel?: string;
+  classifierModel?: string;   // Model for task complexity classification (e.g. 'qwen3.5-0.8b' for local free)
+  orchestratorModel?: string;   // Model for orchestration decisions (defaults to plannerModel)
+  classifierProvider?: string;   // Provider for classifier (e.g. 'lmstudio' for local free)
+  orchestratorProvider?: string; // Provider for orchestrator
   plannerProvider?: string;
   maxRecoveryAttempts?: number;
   maxSteps?: number;

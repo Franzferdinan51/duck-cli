@@ -86,12 +86,23 @@ async function main() {
   // Strip leading -- for consistency with Go wrapper
   const cmd = command?.replace(/^--/, '') || '';
 
-  // Handle duck meta [subcommand] - Go passes "meta learnings" as single string
+  // Handle duck meta [subcommand] - Go passes command as 2nd argv element, args as rest
+  // cmd="meta" and args=["learnings"] OR cmd="meta learnings" (single string from runNodeDirect)
   if (cmd.startsWith("meta ") || cmd === "meta") {
     const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
     const metaCmd = createMetaAgentCommand();
-    const rawArgs = cmd === "meta" ? [] : cmd.substring(5).trim().split(' ');
+    // cmd="meta" → use args=["learnings"] from process.argv; cmd="meta learnings" → split it
+    const rawArgs = cmd === "meta" ? args : cmd.substring(5).trim().split(' ');
     const fullArgs = ['node', 'meta', ...rawArgs].filter((a: string) => a.length > 0);
+    await metaCmd.parseAsync(fullArgs);
+    return;
+  }
+
+  // Handle "meta learnings" (Go passes subcommand as 2nd argv, task as 3rd)
+  if (command === "meta" && args.length > 0) {
+    const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
+    const metaCmd = createMetaAgentCommand();
+    const fullArgs = ['node', 'meta', ...args].filter((a: string) => a.length > 0);
     await metaCmd.parseAsync(fullArgs);
     return;
   }
@@ -108,6 +119,20 @@ async function main() {
     case 'execute':
       await runTask(args.join(' '));
       break;
+
+    case 'providers': {
+      const { ProviderManager } = await import('../providers/manager.js');
+      const pm = new ProviderManager();
+      await pm.load();
+      const names = pm.list();
+      console.log('\n📡 Available Providers:\n');
+      for (const name of names) {
+        const prov = pm.get(name);
+        console.log(`  ✅ ${name}${prov ? '' : ' (unavailable)'}`);
+      }
+      console.log();
+      break;
+    }
 
     case 'help':
     case 'h':
@@ -307,7 +332,10 @@ async function main() {
     case 'agent:meta': {
       const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
       const metaCmd = createMetaAgentCommand();
-      await metaCmd.parseAsync(['node', 'meta', ...args]);
+      // Go passes: argv=["meta", "learnings"] → process.argv.slice(2)=["meta","learnings"]
+      // command="meta", args=["learnings"] — pass to Commander
+      const fullArgs = ['node', 'meta', ...args].filter(a => a.length > 0);
+      await metaCmd.parseAsync(fullArgs);
       break;
     }
 

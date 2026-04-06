@@ -253,6 +253,10 @@ export class AndroidTools {
     const localPath = join(this.screenshotDir, ts);
     const remotePath = `/sdcard/${ts}`;
 
+    // Wake screen if off (screencap produces tiny/blank file when screen is off)
+    await this.shell('input keyevent KEYCODE_WAKEUP');
+    await new Promise(r => setTimeout(r, 500));
+
     // Capture on device
     await this.shell(`screencap -p "${remotePath}"`);
 
@@ -262,15 +266,40 @@ export class AndroidTools {
     // Clean up remote
     await this.shell(`rm "${remotePath}"`);
 
-    const stats = existsSync(localPath) ? { size: 0 } : { size: 0 };
+    // Get file stats
+    let width = 0;
+    let height = 0;
     try {
-      const { size } = require("fs").statSync(localPath);
-    } catch {}
+      const fs = await import('fs');
+      const stat = fs.statSync(localPath);
+      if (stat.size < 1000) {
+        // Screenshot is too small — likely corrupted (e.g. screen off or permission issue)
+        console.warn(`[android] Screenshot only ${stat.size} bytes — screen may be off or permission denied`);
+      }
+      // Try to read PNG dimensions from header (bytes 16-24 = width, bytes 24-32 = height)
+      try {
+        const buffer = Buffer.alloc(32);
+        const fd = require('fs').openSync(localPath, 'r');
+        require('fs').readSync(fd, buffer, 0, 32, 16);
+        require('fs').closeSync(fd);
+        width = buffer.readUInt32BE(0);
+        height = buffer.readUInt32BE(4);
+      } catch {
+        // Fallback: use adb shell to get real resolution
+        try {
+          const { stdout } = await this.shell('dumpsys display | grep mBaseDisplayInfo');
+          const match = stdout.match(/width=(\d+).*height=(\d+)/);
+          if (match) { width = parseInt(match[1]); height = parseInt(match[2]); }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn(`[android] Could not get screenshot dimensions: ${e}`);
+    }
 
     return {
       path: localPath,
-      width: 0,
-      height: 0,
+      width,
+      height,
       timestamp: new Date().toISOString(),
     };
   }

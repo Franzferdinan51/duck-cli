@@ -34,9 +34,13 @@ Rules:
 
 export class MetaPlanner {
   private pm: ProviderManager;
+  private model: string;
+  private provider: string;
 
-  constructor(pm: ProviderManager) {
+  constructor(pm: ProviderManager, model?: string, provider?: string) {
     this.pm = pm;
+    this.model = model || 'MiniMax-M2.7';
+    this.provider = provider || 'minimax';
   }
 
   async plan(task: Task): Promise<Plan> {
@@ -45,7 +49,7 @@ export class MetaPlanner {
 
     let response: { text: string; provider: string; model: string };
     try {
-      response = await this.pm.route(fullPrompt);
+      response = await this.pm.routeWithModel(this.provider + '/' + this.model, fullPrompt);
     } catch (e) {
       console.log('[MetaPlanner] ⚠️  Route failed:', e);
       return this.fallbackPlan(task);
@@ -69,7 +73,7 @@ export class MetaPlanner {
 
     let response: { text: string; provider: string; model: string };
     try {
-      response = await this.pm.route(prompt);
+      response = await this.pm.routeWithModel(this.provider + '/' + this.model, prompt);
     } catch {
       return this.fallbackPlan(task);
     }

@@ -99,6 +99,7 @@ Features:
 		subconsciousCmd(),
 		cronCmd(),
 		buddyCmd(),
+		providersCmd(),
 		teamCmd(),
 		meshCmd(),
 
@@ -138,6 +139,20 @@ Features:
 }
 
 func checkNode() bool {
+	// Check common Node.js locations (LookPath alone may fail in minimal PATH from systemd/Telegram)
+	nodePaths := []string{
+		"/usr/local/bin/node",
+		"/usr/bin/node",
+		"/opt/homebrew/bin/node",
+		"/opt/bin/node",
+		filepath.Join(os.Getenv("HOME"), ".nvm/versions/node/", os.Getenv("NODE_VERSION"), "bin/node"),
+	}
+	for _, p := range nodePaths {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	// Also try LookPath as fallback
 	_, err := exec.LookPath("node")
 	return err == nil
 }
@@ -309,15 +324,34 @@ func metaCmd() *cobra.Command {
 		Short: "🦆 duck-cli v3 Meta-Agent (LLM-powered orchestration)",
 		Long:  "Plan, execute, and learn from tasks with the Meta-Agent loop.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Pass as two args: "meta" and then rest as single string
-			metaArgs := []string{"meta"}
+			// Pass args as: ["meta", "subcmd", "task part1 part2"]
+			// Node: argv[2]="meta", argv[3]="subcmd", argv[4]="task part1 part2"
+			// main(): command="meta", args=["subcmd", "task part1 part2"]
+			nodeArgs := []string{"meta"}
 			if len(args) > 0 {
-				metaArgs = append(metaArgs, strings.Join(args, " "))
+				if len(args) > 1 {
+					// First arg = subcommand, rest joined as single string for task
+					nodeArgs = append(nodeArgs, args[0], strings.Join(args[1:], " "))
+				} else {
+					nodeArgs = append(nodeArgs, args[0])
+				}
 			}
-			return runNodeDirect(strings.Join(metaArgs, " "), cmd)
+			return runNodeDirectMulti(nodeArgs, cmd)
 		},
 	}
 	return metaCmd
+}
+
+// providersCmd - duck providers [list]
+func providersCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "providers",
+		Short: "Show available AI providers",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("providers " + strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
 }
 
 // meshCmd - duck mesh [action]
@@ -929,6 +963,37 @@ func runNodeDirect(script string, cobraCmd *cobra.Command) error {
 		cmdDir = filepath.Dir(realDist)
 	}
 	nodeArgs := []string{filepath.Join(cmdDir, "dist", "cli", "main.js"), script}
+	nodeCmd := exec.Command("node", nodeArgs...)
+	nodeCmd.Stdout = os.Stdout
+	nodeCmd.Stderr = os.Stderr
+	nodeCmd.Stdin = os.Stdin
+	env := os.Environ()
+	nodeModulesPath := filepath.Join(cmdDir, "node_modules")
+	if _, err := os.Stat(nodeModulesPath); err == nil {
+		env = append(env, "NODE_PATH="+nodeModulesPath)
+	}
+	if flagProvider != "" { env = append(env, "DUCK_PROVIDER="+flagProvider) }
+	if flagModel != "" { env = append(env, "DUCK_MODEL="+flagModel) }
+	if flagPriority != "" { env = append(env, "DUCK_PRIORITY="+flagPriority) }
+	nodeCmd.Env = env
+	nodeCmd.Env = append(nodeCmd.Env, "DUCK_SOURCE_DIR="+cmdDir)
+	return nodeCmd.Run()
+}
+
+func runNodeDirectMulti(args []string, cobraCmd *cobra.Command) error {
+	// Pass args as individual argv elements so "echo hello" stays together.
+	// Node main() needs: argv[2]="meta", argv[3]="run", argv[4]="echo hello"
+	return runNodeDirectList(args, cobraCmd)
+}
+
+func runNodeDirectList(args []string, cobraCmd *cobra.Command) error {
+	exePath, _ := os.Executable()
+	cmdDir := filepath.Dir(exePath)
+	distPath := filepath.Join(cmdDir, "dist")
+	if realDist, err := filepath.EvalSymlinks(distPath); err == nil {
+		cmdDir = filepath.Dir(realDist)
+	}
+	nodeArgs := append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, args...)
 	nodeCmd := exec.Command("node", nodeArgs...)
 	nodeCmd.Stdout = os.Stdout
 	nodeCmd.Stderr = os.Stderr
