@@ -7,6 +7,7 @@ import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Agent } from '../agent/core.js';
 import { ToolRegistry } from '../tools/registry.js';
+import { logger } from './logger.js';
 
 // MCP JSON-RPC types
 export interface MCPRequest {
@@ -524,17 +525,41 @@ export class MCPServer {
         };
       }
 
-      const result = await handler(params);
-      return { jsonrpc: '2.0', id, result };
+      const startTime = Date.now();
+      const requestId = `${method}-${Date.now()}`;
+      
+      logger.info('mcp', 'handler', `Request: ${method}`, { requestId, params });
+      
+      try {
+        const result = await handler(params);
+        const duration = Date.now() - startTime;
+        
+        logger.info('mcp', 'handler', `Response: ${method} (${duration}ms)`, { requestId, duration, success: true });
+        
+        return { jsonrpc: '2.0', id, result };
+      } catch (error: any) {
+        const duration = Date.now() - startTime;
+        
+        logger.error('mcp', 'handler', `Error: ${method}`, error, { requestId, duration, params });
+        
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: {
+            code: MCPServer.ERR_INTERNAL_ERROR,
+            message: this.getErrorMessage(MCPServer.ERR_INTERNAL_ERROR, method, error.message),
+            data: { originalError: error.message, stack: error.stack?.split('\n')[1]?.trim() }
+          }
+        };
+      }
     } catch (error: any) {
-      console.error(`[MCP] Error handling ${method}:`, error.message);
+      logger.error('mcp', 'process', 'Unexpected error in request processing', error);
       return {
         jsonrpc: '2.0',
         id,
         error: {
           code: MCPServer.ERR_INTERNAL_ERROR,
-          message: this.getErrorMessage(MCPServer.ERR_INTERNAL_ERROR, method, error.message),
-          data: { originalError: error.message, stack: error.stack?.split('\n')[1]?.trim() }
+          message: this.getErrorMessage(MCPServer.ERR_INTERNAL_ERROR, method, error.message)
         }
       };
     }
