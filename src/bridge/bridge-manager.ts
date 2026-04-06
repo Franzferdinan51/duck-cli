@@ -15,6 +15,7 @@ import {
   AgentSession,
   BridgeEvent,
 } from "./types";
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 
 /**
  * Tool registration with handler
@@ -108,6 +109,7 @@ export class BridgeManager extends EventEmitter {
     this.acpBridge.on("error", (data: any) => {
       this.emit("error", data);
       this.emitEvent("error", data);
+      try { getFailureReporter().reportBridge('ACP bridge error', JSON.stringify(data)); } catch { /* non-fatal */ }
     });
 
     this.acpBridge.on("state_change", (data: any) => {
@@ -367,6 +369,7 @@ export class BridgeManager extends EventEmitter {
         this.updateRESTState({ lastHeartbeat: Date.now() });
       } catch (err) {
         console.error(`[BridgeManager] Heartbeat failed: ${err}`);
+        try { getFailureReporter().reportMesh('Heartbeat failed', String(err)); } catch { /* non-fatal */ }
       }
     }, this.config.heartbeatInterval);
   }
@@ -617,6 +620,7 @@ export class BridgeManager extends EventEmitter {
       console.warn(`[BridgeManager] 🚨 Catastrophe broadcast: ${message}`);
     } catch (e) {
       console.error('[BridgeManager] Catastrophe broadcast failed:', e instanceof Error ? e.message : e);
+      try { getFailureReporter().reportMesh('Catastrophe broadcast failed', String(e)); } catch { /* non-fatal */ }
     }
   }
 

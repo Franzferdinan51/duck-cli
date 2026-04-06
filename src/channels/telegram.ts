@@ -14,6 +14,7 @@ import https from 'https';
 import http from 'http';
 import { Agent } from '../agent/core.js';
 import { DEFAULT_TELEGRAM_WEBHOOK_PORT } from '../config/index.js';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 
 export interface TelegramConfig {
   botToken: string;
@@ -245,6 +246,7 @@ export class TelegramChannel {
             res.end('OK');
           } catch (e) {
             console.error('Webhook error:', e);
+            try { getFailureReporter().reportTelegram('Webhook error', String(e)); } catch { /* non-fatal */ }
             res.writeHead(500);
             res.end('Error');
           }
@@ -461,6 +463,7 @@ export class TelegramChannel {
       }
     } catch (e) {
       console.error('Polling error:', e);
+      try { getFailureReporter().reportTelegram('Polling error', String(e)); } catch { /* non-fatal */ }
     }
 
     // Continue polling
@@ -526,6 +529,7 @@ export class TelegramChannel {
           await handler(chatId, args);
         } catch (e: any) {
           await this.sendMessage(chatId, `❌ Command error: ${e.message}`);
+          try { getFailureReporter().reportTelegram(`Command error: ${e.message}`, e.stack, `chat:${chatId}`); } catch { /* non-fatal */ }
         }
         return;
       }

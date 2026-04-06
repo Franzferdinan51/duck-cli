@@ -14,6 +14,7 @@ import {
   FallbackChain,
 } from './tool.js';
 import { FallbackManager } from './fallback-manager.js';
+import { getFailureReporter } from './failure-reporter.js';
 
 export interface ExecutionOptions {
   timeout?: number;
@@ -217,6 +218,19 @@ export class ExecutionEngine {
       maxAttempts: retries.maxAttempts,
       error: lastError?.message,
     });
+
+    // Report to FailureReporter so failures feed into learning/healing pipeline
+    try {
+      const reporter = getFailureReporter();
+      reporter.reportTool(
+        tool.name,
+        lastError?.message ?? 'Unknown error',
+        context?.task?.description,
+        fallbackAttempted
+          ? `Fallback chain: [${fallbackChain.join(' → ')}]. Total attempts: ${totalAttempts}`
+          : `Retries: ${retryAttempts}/${retries.maxAttempts}`
+      );
+    } catch { /* non-fatal */ }
 
     return {
       success: false,

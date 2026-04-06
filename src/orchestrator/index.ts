@@ -314,3 +314,4 @@ export { MetaCritic } from './meta-critic.js';
 export { MetaHealer } from './meta-healer.js';
 export { MetaLearner } from './meta-learner.js';
 export { MetaAgent, MetaAgentResult } from './meta-agent.js';
+export { FailureReporter, getFailureReporter } from './failure-reporter.js';

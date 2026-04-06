@@ -103,6 +103,7 @@ Features:
 		cronCmd(),
 		buddyCmd(),
 		providersCmd(),
+		failuresCmd(),
 		teamCmd(),
 		meshCmd(),
 
@@ -338,6 +339,22 @@ func metaCmd() *cobra.Command {
 		},
 	}
 	return metaCmd
+}
+
+// failuresCmd - duck failures [stats|list|tools|providers]
+func failuresCmd() *cobra.Command {
+	failuresCmd := &cobra.Command{
+		Use:               "failures",
+		Short:             "View failure reports from self-healing pipeline",
+		DisableFlagParsing: true, // All args pass through to TypeScript
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeArgs := []string{"failures"}
+			nodeArgs = append(nodeArgs, args...)
+			// → nodeArgs = ["failures", "stats", ...]
+			return runNodeDirectMulti(nodeArgs, cmd)
+		},
+	}
+	return failuresCmd
 }
 
 // providersCmd - duck providers [list]

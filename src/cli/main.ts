@@ -400,9 +400,8 @@ async function main() {
       break;
 
     case 'failures': {
-      const { registerFailuresCommand } = await import('../commands/failures-cmd.js');
-      const failuresCmd = new Command();
-      registerFailuresCommand(failuresCmd);
+      const { createFailuresCommand } = await import('../commands/failures-cmd.js');
+      const failuresCmd = createFailuresCommand();
       const fullArgs = ['node', 'failures', ...args].filter(a => a.length > 0);
       await failuresCmd.parseAsync(fullArgs);
       break;

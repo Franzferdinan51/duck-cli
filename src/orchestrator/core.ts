@@ -20,6 +20,7 @@ import { ToolRegistry, createRegistry, MatchResult } from './tool-registry.js';
 import { FallbackManager, createFallbackManager } from './fallback-manager.js';
 import { ExecutionEngine, createExecutionEngine } from './execution-engine.js';
 import { TaskRouter, createRouter, RouterConfig, RouteResult } from './task-router.js';
+import { getFailureReporter } from './failure-reporter.js';
 
 export interface OrchestratorConfig {
   name?: string;
@@ -438,6 +439,13 @@ Confidence: ${(perception.confidence * 100).toFixed(1)}%
 
     // Check if this is an AllToolsFailedError
     if (error instanceof AllToolsFailedError) {
+      // Report each failed tool to FailureReporter
+      try {
+        const reporter = getFailureReporter();
+        for (const toolName of error.attemptedTools) {
+          reporter.reportTool(toolName, error.lastError.message, task.description, 'AllToolsFailed in orchestrator');
+        }
+      } catch { /* non-fatal */ }
       return {
         taskId: task.id,
         success: false,
@@ -506,6 +514,11 @@ Confidence: ${(perception.confidence * 100).toFixed(1)}%
       taskId: task.id,
       data: { error: err.message },
     });
+
+    // Report internal error to FailureReporter
+    try {
+      getFailureReporter().reportInternal(err.message, err.stack);
+    } catch { /* non-fatal */ }
 
     return {
       taskId: task.id,

@@ -5,6 +5,7 @@
 import { BrowserOSProvider } from './browseros';
 import { KimiProvider } from './kimi';
 import { OpenClawGatewayProvider } from './openclaw-gateway';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 
 export interface Provider {
   name: string;
@@ -219,10 +220,22 @@ export class ProviderManager {
           return { text: result.text, provider: target.provider, model: target.model! };
         }
         console.log(`[Router📡] ❌  ${label}: ${err || 'empty response'}`);
+        // Report provider failure to FailureReporter
+        try {
+          getFailureReporter().reportProvider(target.provider, err || 'empty response', `Model: ${target.model}`);
+        } catch { /* non-fatal */ }
       } catch (e: any) {
         console.log(`[Router📡] ❌  ${label}: ${e.message}`);
+        try {
+          getFailureReporter().reportProvider(target.provider, e.message, `Model: ${target.model}`);
+        } catch { /* non-fatal */ }
       }
     }
+
+    // Report total exhaustion to FailureReporter
+    try {
+      getFailureReporter().reportProvider('all', 'All router targets exhausted', `Targets: ${targets.map(t => t.label).join(', ')}`);
+    } catch { /* non-fatal */ }
 
     throw new Error('All router targets exhausted');
   }

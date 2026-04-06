@@ -5,6 +5,7 @@
 
 import { EventEmitter } from 'events';
 import { SubconsciousConfig, Whisper, CouncilDecision, SessionContext } from './types.js';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 
 interface CouncilBridgeConfig {
   enabled: boolean;
@@ -126,6 +127,10 @@ export class CouncilBridge extends EventEmitter {
     // All retries exhausted — emit error event, return fallback decision
     console.error(`[CouncilBridge] All ${maxRetries} attempts failed: ${lastError?.message}. Using fallback.`);
     this.emit('deliberation_failed', { topic, whisperType, error: lastError?.message });
+    // Report council failure to FailureReporter
+    try {
+      getFailureReporter().reportCouncil(lastError?.message || 'All council deliberation attempts failed', `Topic: ${topic}, WhisperType: ${whisperType}`);
+    } catch { /* non-fatal */ }
 
     // Return a low-confidence fallback so the caller always gets a decision
     const fallbackDecision: CouncilDecision = {

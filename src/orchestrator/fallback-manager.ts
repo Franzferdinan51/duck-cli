@@ -13,6 +13,7 @@ import {
   AllToolsFailedError,
   ExecutionContext,
 } from './tool.js';
+import { getFailureReporter } from './failure-reporter.js';
 
 export interface FallbackStrategy {
   name: string;
@@ -216,6 +217,19 @@ export class FallbackManager {
       toolName: chain.tools[chain.tools.length - 1]?.name ?? 'unknown',
       timestamp: Date.now(),
     });
+
+    // Report to FailureReporter when fallback chain is exhausted
+    try {
+      const reporter = getFailureReporter();
+      for (const t of chain.errors) {
+        reporter.reportTool(
+          t.toolName,
+          t.error.message,
+          context?.task?.description,
+          `Fallback exhausted after ${chain.tools.length} tools`
+        );
+      }
+    } catch { /* non-fatal */ }
 
     throw new AllToolsFailedError(
       lastError ?? new Error('Unknown error in fallback chain'),
