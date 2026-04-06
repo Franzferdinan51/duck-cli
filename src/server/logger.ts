@@ -8,6 +8,7 @@
  * - Protocol-specific logging
  * - Real-time log streaming
  * - Health status dashboard
+ * - Batched async file writes for performance
  */
 
 import http from 'http';
@@ -128,14 +129,25 @@ class BridgeLogger {
   private maxLogs = 1000;
   private maxErrors = 100;
 
+  // Batched async write properties
+  private logQueue: LogEntry[] = [];
+  private flushInterval = 100; // ms
+  private maxQueueSize = 50;
+  private flushTimer: NodeJS.Timeout | null = null;
+  private cleanupTimer: NodeJS.Timeout | null = null;
+
   constructor(logDir = '/tmp') {
     this.logFile = path.join(logDir, 'duck-bridge.log');
+    
+    // Start batch flush timer
+    this.flushTimer = setInterval(() => this.flush(), this.flushInterval);
+    
     this.startCleanup();
   }
 
   private startCleanup() {
     // Keep logs bounded
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       if (this.logs.length > this.maxLogs) {
         this.logs = this.logs.slice(-this.maxLogs / 2);
       }
@@ -153,6 +165,23 @@ class BridgeLogger {
       metadata.errorSeverity = errorDef.severity;
     }
     return code;
+  }
+
+  // Flush queued logs to disk (batched async write)
+  private flush() {
+    if (this.logQueue.length === 0) return;
+
+    const batch = this.logQueue.splice(0);
+    const content = batch.map(e => JSON.stringify(e)).join('\n') + '\n';
+
+    // Async write (non-blocking)
+    fs.appendFile(this.logFile, content, (err) => {
+      if (err) {
+        // Fallback to sync on error
+        console.error('[Logger] Batch write failed, using sync:', err.message);
+        fs.appendFileSync(this.logFile, content);
+      }
+    });
   }
 
   log(level: LogLevel, protocol: LogEntry['protocol'], component: string, message: string, metadata?: any, error?: Error) {
@@ -176,8 +205,19 @@ class BridgeLogger {
     // Store in memory
     this.logs.push(entry);
 
-    // Write to file
-    fs.appendFileSync(this.logFile, JSON.stringify(entry) + '\n');
+    // Console output (immediate)
+    this.consoleLog(entry);
+
+    // Broadcast to WebSocket (immediate)
+    this.broadcast(entry);
+
+    // Queue for batch file write
+    this.logQueue.push(entry);
+
+    // Auto-flush if queue is full
+    if (this.logQueue.length >= this.maxQueueSize) {
+      this.flush();
+    }
 
     // Update stats
     if (protocol !== 'system') {
@@ -201,12 +241,6 @@ class BridgeLogger {
         this.protocolStats[protocol].lastError = entry.timestamp;
       }
     }
-
-    // Broadcast to WebSocket subscribers
-    this.broadcast(entry);
-
-    // Console output (TTY vs JSON)
-    this.consoleLog(entry);
     
     // Colored stderr for errors
     this.consoleError(entry);
@@ -311,6 +345,22 @@ class BridgeLogger {
     this.log(LogLevel.FATAL, protocol, component, message, { ...metadata, error: err?.message }, err);
   }
 
+  // Graceful shutdown - flush remaining logs and clear timers
+  async shutdown() {
+    // Flush remaining logs
+    this.flush();
+
+    // Clear timers
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
   // ============ Query methods ============
 
   getHealth(): HealthStatus {
@@ -388,11 +438,7 @@ class BridgeLogger {
     if (unresolved !== undefined) {
       filtered = filtered.filter(e => e.resolved !== unresolved);
     }
-    // Include error code in output
-    return filtered.map(e => ({
-      ...e,
-      code: e.code
-    })).reverse();
+    return filtered.reverse();
   }
 
   resolveError(timestamp: string) {
@@ -553,7 +599,6 @@ class BridgeLogger {
   </div>
 </body>
 </html>`;
-  }
   }
 }
 
