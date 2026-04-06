@@ -2185,7 +2185,34 @@ ${marker}`;
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
         }
       }));
-      response += results.join('');
+      const toolSummary = results.join('');
+
+      // After tool execution, do a final synthesis pass so users get a clean
+      // assistant answer instead of raw tool payloads / TOOL_CALL traces.
+      try {
+        const cleanedDraft = response
+          .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .trim();
+        const synthesisPrompt = [
+          'Answer the user directly using the tool results below.',
+          'Do not emit TOOL_CALL blocks, internal logs, JSON dumps, or chain-of-thought.',
+          'Respond as a normal assistant with the final answer only.',
+          '',
+          `User request: ${safeMessage}`,
+          cleanedDraft ? `Initial draft: ${cleanedDraft}` : '',
+          `Tool results:${toolSummary}`,
+        ].filter(Boolean).join('\n');
+
+        const synthesized = await this.providers.route(synthesisPrompt);
+        const finalText = (synthesized?.text || '')
+          .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .trim();
+
+        response = finalText || (cleanedDraft + toolSummary);
+      } catch (e: any) {
+        console.log('[ToolSynth] Final synthesis failed, falling back to raw tool summary');
+        response = response.replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '').trim() + toolSummary;
+      }
 
       // DroidClaw-style: Check for stuck loops and inject recovery hints
       const hints = this.loopDetector.check();
