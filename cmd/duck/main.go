@@ -968,6 +968,8 @@ func runNodeDirect(script string, cobraCmd *cobra.Command) error {
 	nodeCmd.Stderr = os.Stderr
 	nodeCmd.Stdin = os.Stdin
 	env := os.Environ()
+	env = ensureNodePath(env)
+	env = ensureNodePath(env)
 	nodeModulesPath := filepath.Join(cmdDir, "node_modules")
 	if _, err := os.Stat(nodeModulesPath); err == nil {
 		env = append(env, "NODE_PATH="+nodeModulesPath)
@@ -999,6 +1001,8 @@ func runNodeDirectList(args []string, cobraCmd *cobra.Command) error {
 	nodeCmd.Stderr = os.Stderr
 	nodeCmd.Stdin = os.Stdin
 	env := os.Environ()
+	env = ensureNodePath(env)
+	env = ensureNodePath(env)
 	nodeModulesPath := filepath.Join(cmdDir, "node_modules")
 	if _, err := os.Stat(nodeModulesPath); err == nil {
 		env = append(env, "NODE_PATH="+nodeModulesPath)
@@ -1010,6 +1014,28 @@ func runNodeDirectList(args []string, cobraCmd *cobra.Command) error {
 	nodeCmd.Env = append(nodeCmd.Env, "DUCK_SOURCE_DIR="+cmdDir)
 	return nodeCmd.Run()
 }
+
+
+// ensureNodePath adds common Node.js paths to PATH so "node" resolves
+// even from minimal-PATH environments (systemd, Telegram subprocess, etc.)
+func ensureNodePath(env []string) []string {
+	if nodePath, err := exec.LookPath("node"); err == nil {
+		nodeDir := filepath.Dir(nodePath)
+		extraPaths := nodeDir + string(os.PathListSeparator) +
+			"/usr/local/bin" + string(os.PathListSeparator) +
+			"/usr/bin" + string(os.PathListSeparator) +
+			"/opt/homebrew/bin"
+		for i, e := range env {
+			if strings.HasPrefix(e, "PATH=") {
+				env[i] = "PATH=" + extraPaths + string(os.PathListSeparator) + strings.TrimPrefix(e, "PATH=")
+				return env
+			}
+		}
+		env = append(env, "PATH="+extraPaths)
+	}
+	return env
+}
+
 
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	exePath, _ := os.Executable()
@@ -1029,6 +1055,8 @@ func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	nodeCmd.Stdin = os.Stdin
 
 	env := os.Environ()
+	env = ensureNodePath(env)
+	env = ensureNodePath(env)
 	nodeModulesPath := filepath.Join(cmdDir, "node_modules")
 	if _, err := os.Stat(nodeModulesPath); err == nil {
 		env = append(env, "NODE_PATH="+nodeModulesPath)
