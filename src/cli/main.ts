@@ -39,6 +39,7 @@ function getAgentConfig() {
  * Full-featured AI agent with TUI shell
  */
 
+import { Command } from 'commander';
 import { Agent } from '../agent/core.js';
 import { TelegramChannel } from '../channels/telegram.js';
 import { SessionStore } from '../agent/session-store.js';
