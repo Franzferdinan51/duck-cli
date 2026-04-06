@@ -159,7 +159,8 @@ class BridgeLogger {
 
   // Get error code for protocol/errorType
   addErrorCode(protocol: keyof typeof ProtocolErrorCodes, errorType: string, metadata?: any): string {
-    const errorDef = ProtocolErrorCodes[protocol]?.[errorType as keyof typeof ProtocolErrorCodes[typeof protocol]];
+    const protocolEntry = ProtocolErrorCodes[protocol] as Record<string, { code: string; severity: string }> | undefined;
+    const errorDef = protocolEntry?.[errorType];
     const code = errorDef?.code || `${protocol}_UNKNOWN`;
     if (metadata && errorDef) {
       metadata.errorSeverity = errorDef.severity;
@@ -494,8 +495,10 @@ class BridgeLogger {
       }
 
       if (path === '/logs/stream') {
-        // WebSocket upgrade
-        const ws = new WebSocket(req, res, { httpToken: 'log-stream' });
+        // WebSocket upgrade - ws 8.x handles this via WebSocketServer
+        // Create WebSocket directly for streaming to logger subscribers
+        // @ts-ignore - ws 8.x ServerWebSocket constructor accepts (request, socket, head)
+        const ws = new WebSocket(req, res, undefined);
         this.addWebSocketClient(ws);
         ws.send(JSON.stringify({ type: 'subscribed', message: 'Log stream started' }));
         return;

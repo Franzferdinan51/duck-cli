@@ -271,11 +271,11 @@ Give me ONE brief insight or recommendation. Max 1 sentence. Be direct and actio
       const deepDream = await this.dreamDeep(summary);
       console.log(`[AISubconscious] Deep dream: ${deepDream.patterns.length} patterns, ${deepDream.insights.length} insights`);
       
-      // Merge results
+      // Merge results (deduplicate)
       finalDream = {
-        insights: [...new Set([...localDream.insights, ...deepDream.insights])],
-        patterns: [...new Set([...localDream.patterns, ...deepDream.patterns])],
-        recommendations: [...new Set([...localDream.recommendations, ...deepDream.recommendations])],
+        insights: Array.from(new Set([...localDream.insights, ...deepDream.insights])),
+        patterns: Array.from(new Set([...localDream.patterns, ...deepDream.patterns])),
+        recommendations: Array.from(new Set([...localDream.recommendations, ...deepDream.recommendations])),
         dreamNarrative: deepDream.dreamNarrative || localDream.dreamNarrative,
         errors: [...(localDream.errors || []), ...(deepDream.errors || [])]
       };

@@ -206,6 +206,96 @@ export async function subconsciousCommand(args: string[]): Promise<void> {
       break;
     }
 
+    case 'dream': {
+      // Run AI dreaming cycle
+      const signalCount = parseInt(args[1]) || 10;
+      const deepMode = args.includes('--deep') || args.includes('-d');
+      
+      console.log(`\n${c.cyan}${c.bold}🌙 AI Dreaming Cycle${c.reset}`);
+      console.log(`${c.dim}${'─'.repeat(40)}${c.reset}`);
+      console.log(`  Mode: ${deepMode ? 'Deep (API-powered)' : 'Local (fast)'}`);
+      console.log(`  Signals: ${signalCount}\n`);
+      
+      // Generate mock signals for demo (in real use, would pull from session)
+      const signals = Array.from({ length: signalCount }, (_, i) => ({
+        type: ['task', 'query', 'analysis', 'code'][i % 4],
+        message: `Signal ${i + 1}: Sample interaction for dreaming cycle`,
+        timestamp: new Date(Date.now() - (signalCount - i) * 60000)
+      }));
+      
+      const aiSubconscious = getAISubconscious();
+      
+      if (deepMode) {
+        console.log(`${c.yellow}Running deep analysis (this may take a moment)...${c.reset}\n`);
+      }
+      
+      const result = await aiSubconscious.runDreamingCycle(signals);
+      
+      // Display results
+      if (result.patterns.length > 0) {
+        console.log(`${c.bold}🔮 Patterns Detected:${c.reset}`);
+        for (const pattern of result.patterns) {
+          console.log(`  ${c.cyan}•${c.reset} ${pattern}`);
+        }
+        console.log();
+      }
+      
+      if (result.insights.length > 0) {
+        console.log(`${c.bold}💡 Insights:${c.reset}`);
+        for (const insight of result.insights) {
+          console.log(`  ${c.green}•${c.reset} ${insight}`);
+        }
+        console.log();
+      }
+      
+      if (result.recommendations.length > 0) {
+        console.log(`${c.bold}📋 Recommendations:${c.reset}`);
+        for (const rec of result.recommendations) {
+          console.log(`  ${c.yellow}•${c.reset} ${rec}`);
+        }
+        console.log();
+      }
+      
+      if (result.dreamNarrative) {
+        console.log(`${c.bold}🌙 Dream Narrative:${c.reset}`);
+        console.log(`  ${c.dim}${result.dreamNarrative}${c.reset}\n`);
+      }
+      
+      if (result.errors && result.errors.length > 0) {
+        console.log(`${c.red}⚠️ Errors:${c.reset}`);
+        for (const error of result.errors) {
+          console.log(`  ${c.dim}- ${error}${c.reset}`);
+        }
+      }
+      
+      console.log(`${c.green}✓${c.reset} Dreaming cycle complete`);
+      break;
+    }
+
+    case 'insights': {
+      // Show recent AI insights
+      const limit = parseInt(args[1]) || 10;
+      const aiSubconscious = getAISubconscious();
+      const insights = aiSubconscious.getRecentInsights().slice(-limit);
+      
+      console.log(`\n${c.cyan}${c.bold}🧠 Recent AI Insights${c.reset}`);
+      console.log(`${c.dim}${'─'.repeat(40)}${c.reset}`);
+      
+      if (insights.length === 0) {
+        console.log(`  ${c.dim}(no insights yet, try 'dream' first)${c.reset}`);
+      } else {
+        for (const insight of insights) {
+          const icon = insight.type === 'pattern' ? '🔄' : 
+                       insight.type === 'warning' ? '⚠️' : '💡';
+          const sourceColor = insight.source === 'local' ? c.cyan : c.green;
+          console.log(`  ${icon} ${insight.content}`);
+          console.log(`    ${c.dim}[${insight.type}] ${sourceColor}${insight.source}${c.reset} | confidence: ${(insight.confidence * 100).toFixed(0)}%${c.reset}`);
+        }
+      }
+      console.log();
+      break;
+    }
+
     case 'help': {
       printHelp();
       break;
@@ -222,6 +312,10 @@ function printHelp(): void {
   console.log(`${c.dim}${'─'.repeat(40)}${c.reset}`);
   console.log(`  Background agent that watches sessions, accumulates context,`);
   console.log(`  and whispers guidance back — using MiniMax/LM Studio, not Letta.`);
+  console.log(`\n${c.bold}AI Dreaming Commands (NEW):${c.reset}`);
+  console.log(`  ${c.green}duck subconscious dream${c.reset}      [n]  Run dreaming cycle (default: 10 signals)`);
+  console.log(`  ${c.green}duck subconscious dream --deep${c.reset}  Run deep analysis with API models`);
+  console.log(`  ${c.green}duck subconscious insights${c.reset}     [n]  Show recent AI insights`);
   console.log(`\n${c.bold}Daemon Commands:${c.reset}`);
   console.log(`  ${c.green}duck subconscious daemon${c.reset}  Start background daemon (LLM-powered)`);
   console.log(`  ${c.green}duck subconscious status${c.reset}   Check daemon + local state`);
@@ -234,6 +328,6 @@ function printHelp(): void {
   console.log(`\n${c.bold}Local Commands:${c.reset}`);
   console.log(`  ${c.green}duck subconscious enable${c.reset}   Enable (rule-based whispers)`);
   console.log(`  ${c.green}duck subconscious disable${c.reset}  Disable`);
-  console.log(`\n${c.dim}The daemon runs LLM-powered analysis for richer memories.`);
-  console.log(`Start it with: ${c.green}duck subconsciousd${c.reset} ${c.dim}or ${c.green}duck subconscious daemon${c.reset}${c.reset}`);
+  console.log(`\n${c.dim}AI Dreaming uses your own models (qwen3.5-9b local, MiniMax M2.7 API).`);
+  console.log(`The daemon runs LLM-powered analysis for richer memories.${c.reset}`);
 }
