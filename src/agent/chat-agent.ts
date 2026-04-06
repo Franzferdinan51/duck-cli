@@ -19,6 +19,8 @@ import { ChatSession, getOrCreateSession } from './chat-session.js';
 import { processWithCouncil } from '../council/chat-bridge.js';
 import { logger } from '../server/logger.js';
 import { SubconsciousClient } from '../subconscious/client.js';
+import { getClassifier, analyzeTask } from '../orchestrator/task-complexity.js';
+import { getRouter } from '../orchestrator/model-router.js';
 
 // ---------------------------------------------------------------------------
 // Config - Multi-provider setup
@@ -607,38 +609,45 @@ async function chatComplete(
 }
 
 // ---------------------------------------------------------------------------
-// Task complexity scoring (0-10)
+// Task complexity scoring using Hybrid Orchestrator
 // ---------------------------------------------------------------------------
 function scoreComplexity(message: string): number {
-  const lower = message.toLowerCase();
-  let score = 1;
+  try {
+    const classifier = getClassifier();
+    const analysis = classifier.analyze(message);
+    return analysis.score;
+  } catch (e) {
+    // Fallback to simple scoring if classifier fails
+    const lower = message.toLowerCase();
+    let score = 1;
 
-  const complexKeywords = [
-    'build', 'create', 'implement', 'design', 'architect',
-    'research', 'analyze', 'compare', 'evaluate', 'investigate',
-    'multiple', 'several', 'complex', 'difficult',
-    'database', 'api', 'server', 'deployment', 'infrastructure',
-    'debug', 'refactor', 'migrate', 'integrate',
-    'planning', 'strategy', 'decision',
-  ];
-  const simpleKeywords = [
-    'hi', 'hello', 'hey', 'thanks', 'thank you',
-    'what is', 'who is', 'how do i', 'quick', 'simple',
-    'weather', 'time', 'date', 'remind', 'joke',
-    'define', 'explain', 'tell me about',
-  ];
+    const complexKeywords = [
+      'build', 'create', 'implement', 'design', 'architect',
+      'research', 'analyze', 'compare', 'evaluate', 'investigate',
+      'multiple', 'several', 'complex', 'difficult',
+      'database', 'api', 'server', 'deployment', 'infrastructure',
+      'debug', 'refactor', 'migrate', 'integrate',
+      'planning', 'strategy', 'decision',
+    ];
+    const simpleKeywords = [
+      'hi', 'hello', 'hey', 'thanks', 'thank you',
+      'what is', 'who is', 'how do i', 'quick', 'simple',
+      'weather', 'time', 'date', 'remind', 'joke',
+      'define', 'explain', 'tell me about',
+    ];
 
-  for (const kw of complexKeywords) {
-    if (lower.includes(kw)) score += 1;
+    for (const kw of complexKeywords) {
+      if (lower.includes(kw)) score += 1;
+    }
+    for (const kw of simpleKeywords) {
+      if (lower.includes(kw)) score -= 0.5;
+    }
+
+    if (message.length > 500) score += 1;
+    if (message.length > 2000) score += 2;
+
+    return Math.max(1, Math.min(10, Math.round(score)));
   }
-  for (const kw of simpleKeywords) {
-    if (lower.includes(kw)) score -= 0.5;
-  }
-
-  if (message.length > 500) score += 1;
-  if (message.length > 2000) score += 2;
-
-  return Math.max(1, Math.min(10, Math.round(score)));
 }
 
 // ---------------------------------------------------------------------------
@@ -720,6 +729,10 @@ async function processMessage(
   const FAST_PATH_THRESHOLD = 2;
   const isFastPath = complexity <= FAST_PATH_THRESHOLD;
 
+  // === META-AGENT ORCHESTRATION THRESHOLD ===
+  // Lowered from 7 to 5 so more tasks get proper orchestration
+  const META_AGENT_THRESHOLD = 5;
+
   // === AI COUNCIL DELIBERATION (before execution) ===
   // Use MiniMax for council (or configured council provider)
   // Skip council for fast-path tasks (unless councilApiKey is explicitly required)
@@ -749,12 +762,12 @@ async function processMessage(
   }
 
   // Broadcast task-queued to mesh for complex tasks
-  if (complexity >= 7) {
+  if (complexity >= META_AGENT_THRESHOLD) {
     broadcastToMesh('task-queued', { prompt: message, complexity });
   }
 
   // Route complex tasks to MetaAgent
-  if (complexity >= 7 && apiKey) {
+  if (complexity >= META_AGENT_THRESHOLD && apiKey) {
     try {
       const result = await routeToMetaAgent(message);
       
@@ -779,7 +792,7 @@ async function processMessage(
   }
 
   // For complex tasks that fell back to direct (no apiKey), broadcast completion
-  if (complexity >= 7) {
+  if (complexity >= META_AGENT_THRESHOLD) {
     broadcastToMesh('task-completed', { prompt: message, complexity, routed: 'direct' });
   }
 
