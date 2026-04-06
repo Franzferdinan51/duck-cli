@@ -6,6 +6,7 @@
 import https from 'https';
 import http from 'http';
 import { Agent } from '../agent/core.js';
+import FormData from 'form-data';
 
 export interface TelegramConfig {
   botToken: string;
@@ -211,6 +212,158 @@ export class TelegramChannel {
         req.write(postData);
       }
       req.end();
+    });
+  }
+
+  // Form request for multipart uploads (photos, documents, voice)
+  private formRequest(method: string, formData: FormData): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const data = formData.getBuffer();
+      
+      const options: https.RequestOptions = {
+        hostname: 'api.telegram.org',
+        path: `/bot${this.botToken}${method}`,
+        method: 'POST',
+        headers: {
+          ...formData.getHeaders(),
+          'Content-Length': data.length
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        let responseData = '';
+        res.on('data', chunk => responseData += chunk);
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(responseData);
+            if (parsed.ok) {
+              resolve(parsed.result);
+            } else {
+              reject(new Error(parsed.description));
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(data);
+      req.end();
+    });
+  }
+
+  // ==================== GROUP CHAT FEATURES ====================
+
+  // Reply to a specific message
+  async replyTo(chatId: number, messageId: number, text: string): Promise<void> {
+    const escapedText = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    await this.request('/sendMessage', {
+      chat_id: chatId,
+      text: escapedText,
+      reply_to_message_id: messageId,
+      parse_mode: 'HTML'
+    });
+  }
+
+  // Get chat info
+  async getChat(chatId: number): Promise<any> {
+    return this.request('/getChat', { chat_id: chatId });
+  }
+
+  // Get chat administrators
+  async getChatMembers(chatId: number): Promise<any> {
+    return this.request('/getChatAdministrators', { chat_id: chatId });
+  }
+
+  // Leave a chat
+  async leaveChat(chatId: number): Promise<void> {
+    await this.request('/leaveChat', { chat_id: chatId });
+  }
+
+  // ==================== MEDIA SUPPORT ====================
+
+  // Send a photo
+  async sendPhoto(chatId: number, photo: string | Buffer, caption?: string): Promise<void> {
+    const formData = new FormData();
+    formData.append('chat_id', chatId.toString());
+    formData.append('photo', photo);
+    if (caption) {
+      const escapedCaption = caption
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      formData.append('caption', escapedCaption);
+      formData.append('parse_mode', 'HTML');
+    }
+    await this.formRequest('/sendPhoto', formData);
+  }
+
+  // Send a document
+  async sendDocument(chatId: number, document: string | Buffer, caption?: string): Promise<void> {
+    const formData = new FormData();
+    formData.append('chat_id', chatId.toString());
+    formData.append('document', document);
+    if (caption) {
+      const escapedCaption = caption
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      formData.append('caption', escapedCaption);
+      formData.append('parse_mode', 'HTML');
+    }
+    await this.formRequest('/sendDocument', formData);
+  }
+
+  // Send voice message
+  async sendVoice(chatId: number, voice: string | Buffer, caption?: string): Promise<void> {
+    const formData = new FormData();
+    formData.append('chat_id', chatId.toString());
+    formData.append('voice', voice);
+    if (caption) {
+      const escapedCaption = caption
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      formData.append('caption', escapedCaption);
+      formData.append('parse_mode', 'HTML');
+    }
+    await this.formRequest('/sendVoice', formData);
+  }
+
+  // ==================== MESSAGE ACTIONS ====================
+
+  // Send chat action (typing, upload_photo, record_video, upload_voice)
+  async sendAction(chatId: number, action: 'typing' | 'upload_photo' | 'record_video' | 'upload_voice' | 'record_audio' | 'upload_video' | 'upload_document' | 'find_location' | 'record_video_note' | 'upload_video_note'): Promise<void> {
+    await this.request('/sendChatAction', { chat_id: chatId, action });
+  }
+
+  // ==================== EDIT AND DELETE ====================
+
+  // Edit a message
+  async editMessage(chatId: number, messageId: number, text: string): Promise<void> {
+    const escapedText = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    await this.request('/editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: escapedText,
+      parse_mode: 'HTML'
+    });
+  }
+
+  // Delete a message
+  async deleteMessage(chatId: number, messageId: number): Promise<void> {
+    await this.request('/deleteMessage', {
+      chat_id: chatId,
+      message_id: messageId
     });
   }
 
