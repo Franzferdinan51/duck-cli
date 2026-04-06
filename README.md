@@ -49,13 +49,16 @@ Unlike a chatbot, duck-cli is built for **autonomous execution** — it has memo
 You: "build a REST API for my project"
   │
   ▼
-duck-cli:
-  1. Scores complexity → routes to best model
-  2. Plans approach (optionally triggers AI Council for complex decisions)
-  3. Executes with tools (shell, files, web, etc.)
-  4. Falls back if something fails
-  5. Learns from feedback
-  6. Reports result
+duck-cli Gateway (receives task)
+  │
+  ▼
+Bridge Agent (qwen3.5-0.8b local) — decides routing, connection health, protocol
+  │
+  ▼
+Orchestrator (MetaAgent v3) — Plan → Critic → Healer → Learner
+  │
+  ▼
+Tool Execution + Model Routing (MiniMax, LM Studio Gemma 4, Kimi)
 ```
 
 ---
@@ -70,14 +73,12 @@ Smart routing picks the right model automatically:
 ./duck -p kimi run "task"      # Force Kimi k2.5 (vision)
 ```
 
-| Priority | Provider | Model | Cost | Best For |
-|----------|----------|-------|------|----------|
-| 1st | **MiniMax** | M2.7 | API credits | Fast general tasks |
-| 2nd | **LM Studio** | Gemma 4 26B | Free (local) | High quality, no API cost |
-| 3rd | **LM Studio** | Gemma 4 e4b | Free (local) | Android + tool-calling |
-| 4th | **OpenRouter** | Various | Free tier | Budget |
-| 5th | **OpenClaw Gateway** | Kimi k2.5 | Free via gateway | Vision + coding |
-| 6th | **Kimi direct** | K2.5 | Pay-per-use | Vision |
+| Provider | Models Available | Cost | Best For |
+|----------|-----------------|------|----------|
+| **MiniMax** | MiniMax-M2.7, glm-5, glm-4.7, qwen3.5-plus | API credits | Fast general, coding, reasoning |
+| **LM Studio** | Gemma 4 26B, Gemma 4 e4b, qwen3.5-0.8b, qwen3.5-9b, qwen3.5-27b | Free (local) | Android, local free, fast tasks |
+| **Kimi** | k2p5, k2 | Pay-per-use | Vision, top-tier coding |
+| **OpenClaw Gateway** | Kimi k2.5 | Free via gateway | Vision + coding (no API key needed) |
 
 ---
 
@@ -123,11 +124,6 @@ Task → MetaPlanner (LLM) → Structured Plan
 ```
 
 
-**OpenRouter free models** also available:
-- `qwen/qwen3.6-plus-preview:free` — 1M context
-- `qwen/qwen3-coder:free` — 262K coding
-- `minimax/minimax-m2.5:free` — Duckets' default free tier
-
 ---
 
 ## 🏗️ Architecture
@@ -170,8 +166,8 @@ Task → MetaPlanner (LLM) → Structured Plan
 │  │  • Android task → Gemma 4 e4b (tool-calling specialist)        │  │
 │  │  • Vision task → Kimi k2.5 (top-tier vision)                   │  │
 │  │  • Coding task → MiniMax M2.7 (fast, good at code)            │  │
-│  │  • Reasoning → qwen3.5-plus or gpt-5.4                        │  │
-│  │  • Budget → OpenRouter free tier                                 │  │
+│  │  • Reasoning → qwen3.5-plus (MiniMax)                         │  │
+│  │  • Local free → qwen3.5-0.8b (LM Studio)                      │  │
 │  └──────────────────────────────┬───────────────────────────────────┘  │
 │                                  │                                        │
 │  ┌──────────────────────────────▼───────────────────────────────────┐  │
@@ -210,6 +206,13 @@ Task → MetaPlanner (LLM) → Structured Plan
 │  └──────────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────────────────────────┘
 ```
+
+**3 Meta Agents:**
+| Agent | Model | Purpose |
+|-------|-------|---------|
+| **Bridge Agent** | qwen3.5-0.8b (LM Studio) | Connection health, routing decisions, protocol negotiation |
+| **Orchestrator** | qwen3.5-0.8b or MiniMax-M2.7 | Plan→Critic→Healer→Learner loop |
+| **Subconscious** | Pattern matching (no model) | Whisper monitoring, alerts, autonomous responses |
 
 ---
 
