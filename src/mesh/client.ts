@@ -172,8 +172,22 @@ export class AgentMesh {
     ) || null;
   }
 
-  onMessage(handler: (msg: MeshMessage) => void): void {
+  onMessage(handler: (msg: MeshMessage) => void): () => void {
     this.messageHandlers.push(handler);
+    // Return unsubscribe function for cleanup
+    return () => {
+      const idx = this.messageHandlers.indexOf(handler);
+      if (idx !== -1) this.messageHandlers.splice(idx, 1);
+    };
+  }
+
+  removeMessageHandler(handler: (msg: MeshMessage) => void): void {
+    const idx = this.messageHandlers.indexOf(handler);
+    if (idx !== -1) this.messageHandlers.splice(idx, 1);
+  }
+
+  clearMessageHandlers(): void {
+    this.messageHandlers = [];
   }
 
   isConnected(): boolean {
@@ -185,11 +199,12 @@ export class AgentMesh {
   }
 
   async disconnect(): Promise<void> {
+    this.clearMessageHandlers();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
-      this.connected = false;
     }
+    this.connected = false;
   }
 }
 
