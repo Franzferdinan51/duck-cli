@@ -96,7 +96,7 @@ export class ProviderManager {
     
     // Smart default: prefer local (free) > API > paid
     // Use GEMMA_MODEL env var for LM Studio, or first available model
-    const lmModel = process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || 'google/gemma-4-e4b-it';
+    const lmModel = process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || 'google/gemma-4-26b-a4b';
     let targets = [
       { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (local, FREE)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
