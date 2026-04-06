@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { SQLiteStore, MemorySearch, ToolUsage, SessionSummary } from './sqlite-store.js';
 
@@ -48,6 +48,21 @@ export class MemorySystem {
   }
 
   private defaultSoul(): string {
+    // Try to load SOUL-template.md from prompts module
+    try {
+      const possiblePaths = [
+        join(dirname(require.resolve('./system.js')), '..', 'prompts', 'SOUL-template.md'),
+        join(homedir(), '.openclaw', 'workspace', 'duck-cli-src', 'src', 'prompts', 'SOUL-template.md'),
+      ];
+      for (const p of possiblePaths) {
+        if (existsSync(p)) {
+          return readFileSync(p, 'utf-8');
+        }
+      }
+    } catch (e) {
+      // Fall through to basic SOUL
+    }
+    // Fallback to basic SOUL
     return `# Duck Agent SOUL
 
 ## Identity

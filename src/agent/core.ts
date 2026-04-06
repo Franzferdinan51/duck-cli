@@ -43,6 +43,7 @@ import { scanForSecrets, redactFromResult, warnOnSecrets } from './secret-scanne
 import { captureDiffSnapshot, generateDiff, formatInlineDiff } from './inline-diff.js';
 import { CredentialPoolManager } from './credential-pool.js';
 import { MemoryManager } from './memory-provider.js';
+import { getTTS } from '../tools/tts.js';
 import { WhisperEngine, MemoryBridge } from '../subconscious/index.js';
 import type { Whisper } from '../subconscious/index.js';
 import { compileSystemPrompt, SystemPromptOptions } from '../prompts/index.js';
@@ -523,6 +524,25 @@ export class Agent extends EventEmitter {
         const toolStats = await this.memory.getToolStats();
         const failing = await this.memory.getFailingTools();
         return { ...stats, toolStats, failingTools: failing, approvalStats: this.guard.stats() };
+      }
+    });
+
+    // ─── Voice / TTS ────────────────────────────────────
+    this.registerTool({ name: 'speak', description: '🎤 Convert text to speech using MiniMax TTS. Use when user asks to "say X", "read this aloud", or when voice output is needed.',
+      schema: { text: { type: 'string', description: 'Text to convert to speech' }, voice: { type: 'string', optional: true, description: 'Voice: narrator, casual, sad, chinese, japanese, korean' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { text, voice } = args;
+        if (!text) return { error: 'No text provided', success: false };
+        try {
+          const tts = getTTS();
+          if (voice) tts.setVoice(voice);
+          const outPath = `/tmp/tts_${Date.now()}.mp3`;
+          const result = await tts.speak({ text, outputPath: outPath });
+          if (!result.success) return { error: result.error, success: false };
+          return { success: true, path: outPath, chars: result.chars, spoken: text, audio_marker: `[AUDIO:${outPath}]` };
+        } catch (err: any) {
+          return { error: err.message, success: false };
+        }
       }
     });
 
@@ -2124,8 +2144,12 @@ export class Agent extends EventEmitter {
   }
 
   private buildSystemPrompt(): string {
+    // Use KAIROS system prompt compilation from prompts module
+    const kairosPrompt = compileSystemPrompt();
+
+    // Build agent-specific capabilities and tools section
     const tools = this.tools.list().map(t => `- ${t.name}: ${t.description}`).join('\n');
-    const capabilities: string[] = ['Be helpful, practical, concise'];
+    const capabilities: string[] = [];
 
     if (this.config.planningEnabled) capabilities.push('Use plan_create for complex multi-step tasks');
     if (this.config.cronEnabled) capabilities.push('Use cron_create to schedule recurring tasks');
@@ -2134,83 +2158,36 @@ export class Agent extends EventEmitter {
     if (this.learningEnabled) capabilities.push('Use memory_remember to save important information');
     capabilities.push('Use learn_from_feedback after completing tasks');
 
-    // DroidClaw-inspired structured thinking + goal-oriented guidance
-    const thinkingGuide = `
-═══════════════════════════════════════════
-STRUCTURED THINKING (DroidClaw-style)
-═══════════════════════════════════════════
+    return `${kairosPrompt}
 
-For complex tasks, STRUCTURE your thinking:
+You are ${this.name}, an advanced AI assistant with autonomous planning, subagent orchestration, and self-improvement.
+
+# Available Tools
+${tools}
+
+# Agent Capabilities
+${capabilities.join('\n')}
+
+# Structured Thinking
 - THINK: Why? Current state and what needs to happen
 - PLAN: Clear 3-5 step plan to achieve the goal
 - DO: Execute tools — one purposeful action at a time
 - REVIEW: Did it work? What changed? What's next?
 
-When calling tools, include a brief thought:
-→ THOUGHT: "I need X because Y. Result will tell me Z."
-→ Then execute the tool.
+# Recovery Strategies (when stuck)
+1. DIAGNOSE: What specifically failed?
+2. ALTERNATIVE: Is there a DIFFERENT tool?
+3. SIMPLIFY: Break into smaller steps
+4. CHECK: Is target available?
+5. ASK: spawn a subagent for second opinion
+6. MOVE ON: Try a different approach
 
-═══════════════════════════════════════════
-GOAL-ORIENTED THINKING (KEY)
-═══════════════════════════════════════════
-
-Focus on WHAT to accomplish, not rigid step-following.
-If a step fails, ask: "What was the PURPOSE of this step?"
-Then find ANOTHER way to achieve that purpose.
-
-❌ BAD: "I tried 3 times to read the file but it failed."
-✅ GOOD: "The file doesn't exist. Use shell to find it, or try a different path."
-
-═══════════════════════════════════════════
-RECOVERY STRATEGIES (when stuck)
-═══════════════════════════════════════════
-
-1. DIAGNOSE: What specifically failed? (network, auth, syntax, permissions?)
-2. ALTERNATIVE: Is there a DIFFERENT tool that achieves the same goal?
-3. SIMPLIFY: Can I break this into smaller steps?
-4. CHECK: Is the target file/app/resource actually available?
-5. ASK: Use duck_council or spawn a subagent for a second opinion
-6. MOVE ON: If truly stuck, try a completely different approach
-
-═══════════════════════════════════════════
-TOOL USE BEST PRACTICES
-═══════════════════════════════════════════
-
+# Best Practices
 - NEVER retry the same failing tool more than once — try DIFFERENT approach
 - Silent successes: shell/file_write often succeed without output
 - Multi-step: use plan_create for clarity
 - Parallel: agent_spawn_team for independent tasks (faster)
-- Desktop: desktop_open / desktop_click / desktop_type / screen_read
-- Web: web_search or browser automation
-- Unsure: speculate tool tries multiple approaches automatically
-- Workflows: workflow_run for multi-step goal sequences
-
-═══════════════════════════════════════════
-DESKTOP AUTOMATION PATTERN (DroidClaw-style)
-═══════════════════════════════════════════
-
-For GUI automation, use the observe-then-act pattern:
-1. screen_read → "Describe what you see, focus on [buttons/fields]"
-2. desktop_click → coordinates from the analysis
-3. desktop_type → enter text after focusing a field
-4. screen_read → verify the result
-
-═══════════════════════════════════════════
-PATIENCE WITH LOADING
-═══════════════════════════════════════════
-
-- Network calls: expect 5-15 seconds
-- File operations: usually instant
-- If stuck after 2+ attempts, try a different approach`
-
-    return `You are ${this.name}, an advanced AI assistant with autonomous planning, subagent orchestration, and self-improvement.
-
-Capabilities:
-${tools}
-
-Guidelines:
-${capabilities.join('\n')}
-${thinkingGuide}`;
+`;
   }
 
   private parseToolCalls(text: string): Array<{ name: string; args: any }> {
