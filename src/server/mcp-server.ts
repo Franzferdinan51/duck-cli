@@ -388,6 +388,23 @@ export class MCPServer {
       this.notificationQueue.delete(clientId);
 
       req.on('close', () => this.sseClients.delete(clientObj));
+    } else if (url.pathname === '/mcp') {
+      // Default MCP endpoint - use streamable HTTP pattern
+      res.writeHead(200);
+      
+      let body = '';
+      req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const request = JSON.parse(body || '{}') as MCPRequest;
+          const response = await this.processRequest(request);
+          res.write(JSON.stringify(response));
+          res.end();
+        } catch (error: any) {
+          res.write(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32603, message: error.message } }));
+          res.end();
+        }
+      });
     } else {
       res.writeHead(404);
       res.end(JSON.stringify({ error: 'Not found' }));
@@ -651,12 +668,11 @@ export class MCPServer {
       if (req.method === 'POST' && url.pathname.startsWith('/mcp')) {
         await this.handleStreamableHTTP(req, res);
       } else if (req.method === 'GET' && url.pathname === '/tools') {
+        // Get tools from agent registry (this.tools is internal WS defs, not agent tools)
+        const agentTools = this.agentInitialized ? this.agent.getTools() : [];
+        const tools = agentTools.map(t => ({ name: t.name, description: t.description }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', server: 'duck-agent-mcp', version: '0.4.0' }));
-      } else if (req.method === 'GET' && url.pathname === '/tools') {
-        const tools = Array.from(this.tools.values()).map(t => ({ name: t.name, description: t.description }));
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ tools }));
+        res.end(JSON.stringify({ status: 'ok', server: 'duck-agent-mcp', version: '0.4.0', tools }));
       } else if (req.method === 'GET' && url.pathname === '/capabilities') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(this.getServerCapabilities()));
@@ -676,7 +692,7 @@ export class MCPServer {
         console.log(`   HTTP:     http://localhost:${this.port}/mcp`);
         console.log(`   SSE:      http://localhost:${this.port}/mcp/sse`);
         console.log(`   WebSocket: ws://localhost:${this.port}/ws`);
-        console.log(`   Tools:    ${this.tools.size} tools registered\n`);
+        console.log(`   Tools:    ${this.agentInitialized ? this.agent.getTools().length : 0} tools registered\n`);
 
         // Start Live Error Stream on port 3851
         this.errorStream = new LiveErrorStream(3851);
