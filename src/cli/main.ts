@@ -1008,16 +1008,40 @@ async function runTask(task: string) {
     console.log(`${c.yellow}Task: "${task}"${c.reset}\n`);
   }
 
+  // ─── Bot mode: suppress tool execution noise from stdout ───────────────────
+  // In DUCK_BOT_MODE=1, the Python Telegram bot captures ALL stdout.
+  // Tool call metadata, provider messages, and JSON results pollute the chat.
+  // Solution: replace console.log with a no-op during agent execution,
+  // restore only for the final formatted response.
+  let suppressLog: (() => void) | undefined;
+  if (botMode) {
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    // Suppress all console output during agent execution
+    console.log = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    suppressLog = () => {
+      console.log = originalLog;
+      console.warn = originalWarn;
+      console.error = originalError;
+    };
+  }
+
   const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
-  
+
   try {
     const result = await agent.chat(task);
+    // Restore console before final output
+    if (suppressLog) suppressLog();
     // Bot mode: only output the actual response, no logo/formatting
-    console.log(botMode ? formatResponse(result) : `\n${c.green}Result:${c.reset}\n${formatResponse(result)}`);
+    process.stdout.write(formatResponse(result) + '\n');
   } catch (e: any) {
+    if (suppressLog) suppressLog();
     if (botMode) {
-      console.log(`Error: ${e.message}`);
+      process.stdout.write(`Error: ${e.message}\n`);
     } else {
       console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
       if (process.env.DEBUG_STACK === '1' && e?.stack) {
