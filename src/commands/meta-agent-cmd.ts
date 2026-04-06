@@ -140,7 +140,7 @@ async function spawnAgentStub(task: string): Promise<string> {
 export function createMetaAgentCommand(): Command {
   const meta = new Command('meta')
     .description('duck-cli v3 Meta-Agent (LLM-powered orchestration)')
-    .passThroughOptions();  // Allow unknown flags to pass through
+    // NOTE: no passThroughOptions() here — subcommands define their own flags
 
   // duck meta plan <task> — preview plan without executing
   meta

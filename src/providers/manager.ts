@@ -30,7 +30,7 @@ export class ProviderManager {
 
     // Android tasks: tap, swipe, adb, android device control
     if (/android|tap on android|swipe|adb shell|android device|mobile app|phone screen|termux/i.test(p)) {
-      return { provider: 'lmstudio', model: 'google/gemma-4-e4b-it', reason: '📱 Android task → Gemma 4 (LM Studio, FREE)' };
+      return { provider: 'lmstudio', model: 'gemma-4-e4b-it', reason: '📱 Android task → Gemma 4 (LM Studio, FREE)' };
     }
 
     // Coding tasks: build, debug, code, fix bug, implement, refactor
@@ -40,7 +40,7 @@ export class ProviderManager {
 
     // Fast/simple tasks: quick, simple, fast, just, what is, lookup
     if (/^quick|^simple|^fast|^just |what is|lookup|check |list |show me |get |find /i.test(p)) {
-      return { provider: 'lmstudio', model: 'qwen/qwen3.5-0.8b', reason: '⚡ Fast task → Qwen 0.8B (LM Studio, FREE)' };
+      return { provider: 'lmstudio', model: 'qwen3.5-0.8b', reason: '⚡ Fast task → Qwen 0.8B (LM Studio, FREE)' };
     }
 
     // Reasoning/complex tasks
@@ -49,7 +49,7 @@ export class ProviderManager {
     }
 
     // Default: prefer free local model
-    return { provider: 'lmstudio', model: 'qwen/qwen3.5-9b', reason: '🦆 Default → Qwen 3.5-9B (LM Studio, FREE)' };
+    return { provider: 'lmstudio', model: 'qwen3.5-9b', reason: '🦆 Default → Qwen 3.5-9B (LM Studio, FREE)' };
   }
 
   async load(): Promise<void> {
@@ -245,7 +245,7 @@ export class ProviderManager {
       prov = this.providers.get(preferred)!;
       // Use a model this provider is likely to support
       if (preferred === 'openclaw') fallbackModel = 'kimi-k2.5';
-      else if (preferred === 'lmstudio') fallbackModel = 'qwen3.5-9b';
+      else if (preferred === 'lmstudio') fallbackModel = 'qwen3.5-9b'; // bare name for LM Studio
       else if (preferred === 'openrouter') fallbackModel = 'minimax/minimax-m2.5:free';
       else fallbackModel = resolvedModel;
       console.log(`[Router📡] ${resolvedProvider}/${resolvedModel} unavailable, falling back to ${preferred}/${fallbackModel}`);
@@ -460,13 +460,12 @@ class LMStudioProvider implements Provider {
    * references models as bare names like 'qwen3.5-9b'.
    */
   private normalizeModel(model?: string): string {
-    const raw = model || process.env.GEMMA_MODEL || 'google/gemma-4-26b-a4b';
-    // Already namespaced - use as-is
+    const raw = model || process.env.GEMMA_MODEL || 'gemma-4-26b-a4b';
+    // Already namespaced (e.g. 'qwen/qwen3.5-9b') - use as-is
     if (raw.includes('/')) return raw;
-    // Map bare model names to their LM Studio namespaced IDs
-    if (raw.startsWith('qwen3.5-') || raw.startsWith('qwen2.5-')) return `qwen/${raw}`;
-    if (raw.startsWith('gemma-4-') || raw.startsWith('gemma4-')) return `google/${raw}`;
-    // Unknown format - try as-is
+    // LM Studio uses bare names: qwen3.5-0.8b, gemma-4-e4b-it, qwen3.5-2b-claude-4.6-opus-reasoning-distilled
+    // OpenRouter uses namespaced: qwen/qwen3.5-9b, minimax/minimax-m2.5:free
+    // Return bare names (LM Studio format) - the provider route() handles conversion
     return raw;
   }
 

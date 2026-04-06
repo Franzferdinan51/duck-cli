@@ -323,22 +323,15 @@ func teamCmd() *cobra.Command {
 // metaCmd - duck meta [plan|run|learnings]
 func metaCmd() *cobra.Command {
 	metaCmd := &cobra.Command{
-		Use:   "meta",
-		Short: "🦆 duck-cli v3 Meta-Agent (LLM-powered orchestration)",
-		Long:  "Plan, execute, and learn from tasks with the Meta-Agent loop.",
+		Use:               "meta",
+		Short:             "🦆 duck-cli v3 Meta-Agent (LLM-powered orchestration)",
+		Long:              "Plan, execute, and learn from tasks with the Meta-Agent loop.",
+		DisableFlagParsing: true, // Flags are handled by TypeScript subcommands
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Pass args as: ["meta", "subcmd", "task part1 part2"]
-			// Node: argv[2]="meta", argv[3]="subcmd", argv[4]="task part1 part2"
-			// main(): command="meta", args=["subcmd", "task part1 part2"]
-			nodeArgs := []string{"meta"}
-			if len(args) > 0 {
-				if len(args) > 1 {
-					// First arg = subcommand, rest joined as single string for task
-					nodeArgs = append(nodeArgs, args[0], strings.Join(args[1:], " "))
-				} else {
-					nodeArgs = append(nodeArgs, args[0])
-				}
-			}
+			// Pass all args directly to TypeScript meta command
+			// e.g. "duck meta plan hello --planner qwen3.5-0.8b"
+			// → nodeArgs = ["meta", "plan", "hello", "--planner", "qwen3.5-0.8b"]
+			nodeArgs := append([]string{"meta"}, args...)
 			return runNodeDirectMulti(nodeArgs, cmd)
 		},
 	}
