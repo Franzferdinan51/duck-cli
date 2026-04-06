@@ -2,7 +2,7 @@
 
 > **Complete setup guide for running OpenClaw + duck-cli as a Solo AI Agent on Android Termux.**
 
-**Last Updated:** v0.6.1 — April 4, 2026
+**Last Updated:** v2.0.0 — April 4, 2026
 
 ---
 

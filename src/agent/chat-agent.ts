@@ -34,6 +34,10 @@ const AGENT_ID = 'ChatAgent';
 
 let meshRegistered = false;
 let registeredAgentId: string | null = null;
+let meshWs: any = null; // WebSocket for receiving mesh messages
+
+// Whisper routing: optional external webhook for high-confidence whispers
+const WHISPER_CALLBACK_URL = process.env.WHISPER_CALLBACK_URL; // e.g. OpenClaw gateway URL
 
 /**
  * Check if mesh is available (port 4000 open)
@@ -87,6 +91,8 @@ async function registerWithMesh(): Promise<void> {
       meshRegistered = true;
       registeredAgentId = data.agentId;
       console.log(`[Mesh] Registered as ${data.agentId}`);
+      // Now connect WebSocket to receive messages (true 2-way mesh)
+      connectMeshWebSocket();
     }
   } catch (err) {
     console.log(`[Mesh] Registration error: ${err.message}`);

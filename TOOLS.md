@@ -306,7 +306,7 @@ guard_log       // Show approval decision log
 guard_stats     // Show guard statistics
 ```
 
-## Orchestrator Tools (v0.6.0+)
+## Orchestrator Tools (v2.0.0)
 
 ### Complexity & Routing Tools
 ```typescript

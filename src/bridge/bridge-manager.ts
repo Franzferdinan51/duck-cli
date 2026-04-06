@@ -281,6 +281,22 @@ export class BridgeManager extends EventEmitter {
   }
 
   /**
+   * Reply to user through OpenClaw gateway.
+   * Internal duck-cli components (MetaAgent, Council, Subconscious) use this
+   * to send text replies back to the user via OpenClaw.
+   *
+   * This is the primary 2-way bridge hook for internal→external communication:
+   * - Telegram/public replies go through this to reach the user
+   * - Internal meta/council traffic stays internal unless routed through here
+   *
+   * @param text - The reply text to send to the user
+   * @param done - Whether this is the final reply (closes the session)
+   */
+  async replyToUser(text: string, done: boolean = false): Promise<void> {
+    await this.acpBridge.replyToUser(text, done);
+  }
+
+  /**
    * Create a new agent session
    */
   async createSession(task: string, agentId?: string): Promise<AgentSession> {

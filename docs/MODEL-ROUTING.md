@@ -2,7 +2,7 @@
 
 > **How duck-cli selects the best AI model for each task.**
 
-**Version:** v0.6.1 — April 4, 2026
+**Version:** v2.0.0 — April 4, 2026
 
 ---
 

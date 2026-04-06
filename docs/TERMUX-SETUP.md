@@ -2,7 +2,7 @@
 
 > Install and run duck-cli + OpenClaw on Android via Termux.
 
-**v0.6.1 Note:** For a complete **Solo Agent** setup (both OpenClaw AND duck-cli together with background services), see [SUPER-AGENT-SETUP.md](SUPER-AGENT-SETUP.md). This guide covers individual installations.
+**v2.0.0 Note:** For a complete **Solo Agent** setup (both OpenClaw AND duck-cli together with background services), see [SUPER-AGENT-SETUP.md](SUPER-AGENT-SETUP.md). This guide covers individual installations.
 
 ## Three Options
 

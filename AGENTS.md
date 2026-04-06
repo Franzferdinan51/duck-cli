@@ -358,9 +358,9 @@ Every tool execution is logged. Track success rates:
 
 ---
 
-## Hybrid Orchestrator v2 (v0.6.0+)
+## Hybrid Orchestrator v2 (v2.0.0+)
 
-duck-cli v0.6.0+ uses a **Hybrid Orchestrator** for intelligent task routing:
+duck-cli v2.0.0 uses a **Hybrid Orchestrator** for intelligent task routing:
 
 ### Task Complexity Scoring
 
@@ -402,7 +402,7 @@ See [docs/MODEL-ROUTING.md](docs/MODEL-ROUTING.md) and [docs/COUNCIL-INTEGRATION
 
 ## Metadata
 
-- **Version:** 0.6.1
+- **Version:** 2.0.0
 - **License:** MIT
 - **Status:** Active development
 - **Last updated:** 2026-04-04
