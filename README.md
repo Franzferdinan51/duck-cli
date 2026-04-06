@@ -1,8 +1,8 @@
 # 🦆 duck-cli v0.6.1
 
-> **Desktop AI Agent** — Smart multi-provider routing, AI Council deliberation, proactive KAIROS heartbeat, agent-mesh networking, and 50+ built-in commands. Runs on Mac/PC/Linux/Android.
+> **Standalone AI Agent** — Smart multi-provider routing, AI Council deliberation, proactive KAIROS heartbeat, agent-mesh networking, and 50+ built-in commands. Runs standalone on Mac/PC/Linux/Android — or connect it to OpenClaw/ACP to let OTHER agents use its tools.
 
-**OpenClaw v2026.4.5 compatible** — ACPX embedded runtime, 3-phase dreaming (light/deep/REM), subagent spawning.
+**OpenClaw compatible** — Can run standalone OR as an ACP/bridge endpoint that other agents invoke.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

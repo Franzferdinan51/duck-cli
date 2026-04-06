@@ -152,8 +152,8 @@ export function createMetaAgentCommand(): Command {
     .action(async (task: string, options: any) => {
       const pm = new ProviderManager();
       await pm.load();
-      const model = options.planner || 'MiniMax-M2.7';
-      const provider = options.provider || 'minimax';
+      const model = options.planner || 'qwen3.5-0.8b';
+      const provider = options.provider || 'lmstudio';
       const planner = new MetaPlanner(pm, model, provider);
       const plan = await planner.plan({ id: randomUUID(), prompt: task, createdAt: Date.now() });
 
@@ -177,8 +177,8 @@ export function createMetaAgentCommand(): Command {
     .option('--provider <name>', 'Provider: lmstudio (local free), minimax (API), kimi (API)')
     .action(async (task: string, options: any) => {
       console.log(`\ndock-cli v3 Meta-Agent: "${task}"\n`);
-      const provider = options.provider || 'minimax';
-      const plannerModel = options.planner || 'MiniMax-M2.7';
+      const provider = options.provider || 'lmstudio';
+      const plannerModel = options.planner || 'qwen3.5-0.8b';
       const criticModel = options.critic || plannerModel;
       const healerModel = options.healer || plannerModel;
       console.log(`[Config] Provider: ${provider}, Planner: ${plannerModel}, Critic: ${criticModel}, Healer: ${healerModel}\n`);
