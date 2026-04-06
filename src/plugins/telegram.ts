@@ -561,7 +561,14 @@ export async function telegramStart(): Promise<void> {
             // We have a draft — replace it with the final response
             if (displayText.length <= 4096) {
               // Final text fits in one message — edit in-place (clean single message)
-              await editMessage(replyMsgId, displayText || '🦆 Done.');
+              const finalText = displayText || '🦆 Done.';
+              if (finalText !== lastEditText) {
+                try {
+                  await editMessage(replyMsgId, finalText);
+                } catch (e: any) {
+                  console.warn(`⚠️ Final edit skipped: ${e?.message || e}`);
+                }
+              }
               console.log(`📤 Replied (1 message, edited in-place)`);
             } else {
               // Final text exceeds edit limit — delete draft, send as normal chunks
