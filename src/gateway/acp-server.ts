@@ -12,6 +12,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, Server as HTTPServer } from 'http';
 import { Agent } from '../agent/core.js';
 import { DEFAULT_ACP_PORT } from '../config/index.js';
+import { logger } from '../server/logger.js';
 
 export interface ACPServerConfig {
   port?: number;
@@ -112,12 +113,12 @@ export class ACPServer extends EventEmitter {
 
       this.wss.on('connection', (ws: WebSocket, req) => {
         const clientIp = req.socket.remoteAddress || 'unknown';
-        console.log(`[ACP Server] Client connected: ${clientIp}`);
+        logger.info('acp', 'ACPServer', `Client connected: ${clientIp}`, { clientIp });
         
         // Check IP allowlist
         if (this.config.allowedClients.length > 0 && 
             !this.config.allowedClients.includes(clientIp)) {
-          console.log(`[ACP Server] Rejected: ${clientIp} not in allowlist`);
+          logger.warn('acp', 'ACPServer', `Connection rejected — client not in allowlist: ${clientIp}`, { clientIp, code: 'WS_003' });
           ws.close(1008, 'Not allowed');
           return;
         }
@@ -127,18 +128,25 @@ export class ACPServer extends EventEmitter {
       });
 
       this.wss.on('error', (err) => {
-        console.error('[ACP Server] WebSocket error:', err.message);
+        logger.error('acp', 'ACPServer', `WebSocket server error: ${err.message}`, err, { code: 'WS_001' });
         this.emit('error', err);
       });
 
       this.server.on('error', reject);
 
       this.server.listen(this.port, this.config.host, () => {
+        // Keep banner for user-facing TTY output
         console.log(`\n🦆 Duck Agent ACP Server`);
         console.log(`   URL: ws://${this.config.host}:${this.port}/acp`);
         console.log(`   Agents: ${this.getCapabilities().agents.join(', ')}`);
         console.log(`   Max sessions: ${this.config.maxSessions}`);
         console.log(`   Ready for OpenClaw connections\n`);
+        logger.info('acp', 'ACPServer', `ACP Server listening on ${this.config.host}:${this.port}`, {
+          host: this.config.host,
+          port: this.port,
+          agents: this.getCapabilities().agents,
+          maxSessions: this.config.maxSessions,
+        });
         this.emit('ready');
         resolve();
       });
@@ -171,7 +179,7 @@ export class ACPServer extends EventEmitter {
               }
             }
           }));
-          console.log(`[ACP Server] ${clientId} initialized as ${clientInfo?.name || 'unknown'}`);
+          logger.info('acp', 'ACPServer', `${clientId} initialized as ${clientInfo?.name || 'unknown'}`, { clientId, clientName: clientInfo?.name });
           return;
         }
 
@@ -190,7 +198,7 @@ export class ACPServer extends EventEmitter {
           ws.send(JSON.stringify(response));
         }
       } catch (err: any) {
-        console.error('[ACP Server] Message error:', err.message);
+        logger.error('acp', 'ACPServer', `Message handling error from ${clientId}: ${err.message}`, err, { clientId, code: 'ACP_003' });
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
           id: null,
@@ -200,18 +208,18 @@ export class ACPServer extends EventEmitter {
     });
 
     ws.on('close', () => {
-      console.log(`[ACP Server] Client disconnected: ${clientId}`);
+      logger.info('acp', 'ACPServer', `Client disconnected: ${clientId}`, { clientId });
       // Clean up sessions
       for (const [id, session] of this.sessions) {
         if (session.clientId === clientId) {
           this.sessions.delete(id);
-          console.log(`[ACP Server] Cleaned up session: ${id}`);
+          logger.info('acp', 'ACPServer', `Cleaned up session: ${id}`, { sessionId: id, clientId });
         }
       }
     });
 
     ws.on('error', (err) => {
-      console.error(`[ACP Server] Client ${clientId} error:`, err.message);
+      logger.error('acp', 'ACPServer', `Client ${clientId} WebSocket error: ${err.message}`, err, { clientId, code: 'ACP_003' });
     });
   }
 
@@ -286,7 +294,7 @@ export class ACPServer extends EventEmitter {
     };
 
     this.sessions.set(sessionId, session);
-    console.log(`[ACP Server] Spawned ${agentId} session: ${sessionId}`);
+    logger.info('acp', 'ACPServer', `Spawned ${agentId} session: ${sessionId}`, { sessionId, agentId, mode: effectiveMode, hasTask: !!task });
 
     this.emit('session:created', session);
 
@@ -363,7 +371,7 @@ export class ACPServer extends EventEmitter {
       params: { sessionId }
     });
 
-    console.log(`[ACP Server] Cancelled session: ${sessionId}`);
+    logger.info('acp', 'ACPServer', `Cancelled session: ${sessionId}`, { sessionId, clientId: session.clientId });
 
     return {
       jsonrpc: '2.0',
@@ -389,7 +397,7 @@ export class ACPServer extends EventEmitter {
     // Add instruction as message
     session.messages.push({ role: 'user', content: instruction });
 
-    console.log(`[ACP Server] Steered session ${sessionId}: "${instruction.slice(0, 50)}..."`);
+    logger.info('acp', 'ACPServer', `Steered session ${sessionId}: "${instruction.slice(0, 50)}..."`, { sessionId, instructionLength: instruction.length });
 
     return {
       jsonrpc: '2.0',
@@ -623,7 +631,7 @@ export class ACPServer extends EventEmitter {
       this.server = null;
     }
 
-    console.log('[ACP Server] Stopped');
+    logger.info('acp', 'ACPServer', 'ACP Server stopped');
     this.emit('stopped');
   }
 }
