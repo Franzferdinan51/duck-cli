@@ -182,6 +182,13 @@ export class BridgeManager extends EventEmitter {
       this.acpBridge.cleanupSessions();
     }, 60000); // Every minute
 
+    // Start mesh health broadcasting if enabled
+    if (process.env.MESH_ENABLED === 'true') {
+      const meshUrl = process.env.MESH_URL || 'http://localhost:4000';
+      const meshKey = process.env.MESH_API_KEY || 'openclaw-mesh-default-key';
+      this.startMeshHealthBroadcast(meshUrl, meshKey);
+    }
+
     this.isInitialized = true;
     console.log("[BridgeManager] Initialization complete");
   }
@@ -502,5 +509,116 @@ export class BridgeManager extends EventEmitter {
    */
   getRESTBridge(): RESTBridge {
     return this.restBridge;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MESH INTEGRATION — Agent Mesh (coordination bus)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Register this agent with the agent-mesh coordination bus
+   * Mesh = slow/async coordination (health, catastrophes, events)
+   * NOT for fast task execution (use direct calls for that)
+   */
+  async registerWithMesh(meshUrl = 'http://localhost:4000', apiKey = 'openclaw-mesh-default-key'): Promise<boolean> {
+    try {
+      const resp = await fetch(`${meshUrl}/api/agents/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify({
+          name: this.config.agentName,
+          endpoint: this.config.gatewayUrl,
+          capabilities: ['health-monitor', 'routing', 'acp', 'mcp', 'catastrophe-handler'],
+        }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        console.log(`[BridgeManager] ✅ Registered with mesh as "${data.agentId}"`);
+        return true;
+      }
+      console.warn(`[BridgeManager] ⚠️ Mesh registration failed: ${data.message}`);
+      return false;
+    } catch (err) {
+      console.warn(`[BridgeManager] ⚠️ Mesh unavailable at ${meshUrl} — continuing without mesh`);
+      return false;
+    }
+  }
+
+  /**
+   * Broadcast health status to mesh (called every 30s)
+   */
+  async broadcastHealthToMesh(meshUrl = 'http://localhost:4000', apiKey = 'openclaw-mesh-default-key'): Promise<void> {
+    try {
+      await fetch(`${meshUrl}/api/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify({
+          type: 'broadcast',
+          fromAgentId: this.config.agentName,
+          content: {
+            event: 'health',
+            status: this.state,
+            agentId: this.config.agentId,
+            agentName: this.config.agentName,
+            capabilities: ['health-monitor', 'routing', 'acp', 'mcp', 'catastrophe-handler'],
+            timestamp: Date.now(),
+          },
+        }),
+      });
+    } catch {
+      // Silently fail — mesh is optional
+    }
+  }
+
+  /**
+   * Broadcast a catastrophe alert to mesh
+   */
+  async broadcastCatastropheToMesh(message: string, meshUrl = 'http://localhost:4000', apiKey = 'openclaw-mesh-default-key'): Promise<void> {
+    try {
+      await fetch(`${meshUrl}/api/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify({
+          type: 'broadcast',
+          fromAgentId: this.config.agentName,
+          content: {
+            event: 'catastrophe',
+            message,
+            agentId: this.config.agentId,
+            timestamp: Date.now(),
+          },
+        }),
+      });
+      console.warn(`[BridgeManager] 🚨 Catastrophe broadcast: ${message}`);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  /**
+   * Start mesh health broadcasting (every 30s)
+   * Call after initialize() if you want mesh integration
+   */
+  startMeshHealthBroadcast(meshUrl = 'http://localhost:4000', apiKey = 'openclaw-mesh-default-key'): void {
+    // Register first
+    this.registerWithMesh(meshUrl, apiKey).catch(() => {});
+
+    // Broadcast every 30s
+    const interval = setInterval(() => {
+      this.broadcastHealthToMesh(meshUrl, apiKey);
+    }, 30000);
+
+    // Emit so caller can track
+    this.emit('mesh_health_broadcast_started', { interval });
+    console.log('[BridgeManager] 🌐 Mesh health broadcast started (30s interval)');
   }
 }
