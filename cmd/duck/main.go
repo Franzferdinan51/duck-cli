@@ -57,8 +57,9 @@ func main() {
 		Use:   "duck",
 		Short: "🦆 The ultimate AI coding agent",
 		Long: `
-Duck CLI — Unified super agent combining OpenClaw infrastructure,
-Hermes-Agent self-improvement, NeMoClaw security, and Kimi k2p5.
+Duck CLI — Standalone AI super agent with optional OpenClaw bridge.
+Runs fully on its own (MiniMax, LM Studio, Kimi, OpenAI, OpenRouter).
+The bridge command connects to OpenClaw for multi-agent setups.
 
 Features:
   • Multi-provider AI (Kimi k2p5, MiniMax M2.7, OpenRouter, LM Studio, ChatGPT)
@@ -70,7 +71,8 @@ Features:
   • AI Council (45 councilors)
   • Agent Mesh networking
   • DEFCON security mode
-  • Desktop UI + Web UI`,
+  • Desktop UI + Web UI
+  • Optional OpenClaw bridge for multi-agent integration`,
 		Version: version,
 	}
 

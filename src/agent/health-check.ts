@@ -588,7 +588,7 @@ async function checkServices(): Promise<HealthCheckResult> {
     const { existsSync } = await import('fs');
 
     const services: { name: string; check: () => boolean }[] = [
-      { name: 'Gateway', check: () => existsSync('/tmp/openclaw-gateway.lock') || existsSync(`${process.env.HOME || '/root'}/.openclaw/gateway.lock`) },
+      { name: 'OpenClaw Gateway', check: () => existsSync('/tmp/openclaw-gateway.lock') || existsSync(`${process.env.HOME || '/root'}/.openclaw/gateway.lock`) },
       { name: 'LM Studio', check: () => {
         try {
           execSync('curl -s http://localhost:1234/v1/models --max-time 1 > /dev/null 2>&1', { stdio: 'ignore' });
