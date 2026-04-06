@@ -8,6 +8,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Agent } from '../agent/core.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { logger } from './logger.js';
+import { LiveErrorStream } from './live-error-stream.js';
 
 // MCP JSON-RPC types
 export interface MCPRequest {
@@ -71,6 +72,7 @@ export class MCPServer {
   private requestHandlers: Map<string, (params: any) => Promise<any>> = new Map();
   private toolInvocations: Map<string | number, { name: string; startTime: number }> = new Map();
   private nextId = 1;
+  private errorStream: LiveErrorStream | null = null;
 
   constructor(port: number = 3850) {
     this.port = port;
@@ -621,9 +623,34 @@ export class MCPServer {
 
       const url = new URL(req.url || '/', `http://localhost:${this.port}`);
 
+      // Logger HTTP endpoints
+      if (url.pathname === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(logger.getHealth(), null, 2));
+        return;
+      }
+      if (url.pathname === '/logs') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        const logs = logger.getLogs({ limit: parseInt(url.searchParams.get('limit') || '50') });
+        res.end(JSON.stringify(logs, null, 2));
+        return;
+      }
+      if (url.pathname === '/errors') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        const errors = logger.getErrors();
+        res.end(JSON.stringify(errors, null, 2));
+        return;
+      }
+
+      if (url.pathname === '/' || url.pathname === '/dashboard') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(logger.getDashboardHTML());
+        return;
+      }
+
       if (req.method === 'POST' && url.pathname.startsWith('/mcp')) {
         await this.handleStreamableHTTP(req, res);
-      } else if (req.method === 'GET' && url.pathname === '/health') {
+      } else if (req.method === 'GET' && url.pathname === '/tools') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'ok', server: 'duck-agent-mcp', version: '0.4.0' }));
       } else if (req.method === 'GET' && url.pathname === '/tools') {
@@ -650,6 +677,10 @@ export class MCPServer {
         console.log(`   SSE:      http://localhost:${this.port}/mcp/sse`);
         console.log(`   WebSocket: ws://localhost:${this.port}/ws`);
         console.log(`   Tools:    ${this.tools.size} tools registered\n`);
+
+        // Start Live Error Stream on port 3851
+        this.errorStream = new LiveErrorStream(3851);
+
         resolve();
       });
     });
@@ -789,6 +820,12 @@ export class MCPServer {
       client.res.end();
     }
     this.sseClients.clear();
+
+    // Stop Live Error Stream
+    if (this.errorStream) {
+      await this.errorStream.stop();
+      this.errorStream = null;
+    }
 
     // Stop servers
     if (this.wss) {

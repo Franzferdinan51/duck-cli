@@ -17,6 +17,7 @@ import http from 'http';
 import { Url } from 'url';
 import { ChatSession, getOrCreateSession } from './chat-session.js';
 import { processWithCouncil } from '../council/chat-bridge.js';
+import { logger } from '../server/logger.js';
 
 // ---------------------------------------------------------------------------
 // Config - Multi-provider setup
@@ -552,6 +553,23 @@ function startServer(port: number) {
       return;
     }
 
+    // Logger status endpoints
+    if (req.method === 'GET' && pathname === '/health') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(logger.getHealth()));
+      return;
+    }
+    if (req.method === 'GET' && pathname === '/logs') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(logger.getLogs({ limit: 50 })));
+      return;
+    }
+    if (req.method === 'GET' && pathname === '/errors') {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(logger.getErrors()));
+      return;
+    }
+
     // POST /chat
     if (req.method === 'POST' && pathname === '/chat') {
       let body = '';
@@ -564,6 +582,8 @@ function startServer(port: number) {
             res.end(JSON.stringify({ error: 'userId and message required' }));
             return;
           }
+
+          logger.info('rest', 'chat-agent', `Chat request from ${userId}: ${message.substring(0, 50)}...`);
 
           // Runtime override via header or body
           const overrideProvider = provider || req.headers['x-provider'];

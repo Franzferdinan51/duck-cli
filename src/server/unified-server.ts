@@ -10,6 +10,7 @@ import { MCPServer } from './mcp-server.js';
 import { ACPClient } from '../gateway/acp-client.js';
 import { WebSocketManager } from '../gateway/websocket-manager.js';
 import { Agent } from '../agent/core.js';
+import { logger } from './logger.js';
 
 export interface UnifiedServerConfig {
   mcpPort?: number;
@@ -197,6 +198,16 @@ export class UnifiedServer extends EventEmitter {
           if (url.pathname === '/health') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ status: 'ok', service: 'duck-agent-unified' }));
+          } else if (url.pathname === '/logger/health') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(logger.getHealth(), null, 2));
+          } else if (url.pathname === '/logger/logs') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            const logs = logger.getLogs({ limit: parseInt(url.searchParams.get('limit') || '50') });
+            res.end(JSON.stringify(logs, null, 2));
+          } else if (url.pathname === '/logger/errors') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(logger.getErrors(), null, 2));
           } else if (url.pathname === '/status') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(this.getStatus()));

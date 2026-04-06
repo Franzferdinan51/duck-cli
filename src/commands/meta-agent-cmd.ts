@@ -8,8 +8,10 @@ import { ProviderManager } from '../providers/manager.js';
 import { MetaAgent } from '../orchestrator/meta-agent.js';
 import { MetaPlanner } from '../orchestrator/meta-planner.js';
 import { MetaLearner } from '../orchestrator/meta-learner.js';
-
-
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname, join, resolve } from 'path';
+import { homedir } from 'os';
+import { execSync } from 'child_process';
 
 function randomUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
@@ -17,9 +19,116 @@ function randomUUID(): string {
     return (ch === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
   });
 }
-async function executeToolStub(tool: string, params: any): Promise<any> {
-  console.log(`[MetaCLI] Tool called: ${tool}`);
-  return { success: true, output: `stub: ${tool}` };
+
+/**
+ * Expand ~ to home directory
+ */
+function expandPath(p: string): string {
+  if (p.startsWith('~')) {
+    return join(homedir(), p.slice(1));
+  }
+  return p;
+}
+
+/**
+ * Create directory recursively (cross-platform)
+ */
+function mkdirp(dirPath: string): void {
+  const fullPath = expandPath(dirPath);
+  try {
+    mkdirSync(fullPath, { recursive: true });
+  } catch (e: any) {
+    if (e.code !== 'EEXIST') {
+      throw e;
+    }
+  }
+}
+
+/**
+ * Actual tool executor - replaces the stub!
+ */
+async function executeTool(tool: string, params: any): Promise<any> {
+  console.log(`[MetaCLI] 🔧 Executing tool: ${tool}`);
+  
+  try {
+    switch (tool) {
+      case 'file_write': {
+        const { path: filePath, content } = params;
+        if (!filePath) {
+          return { success: false, error: 'Missing required parameter: path' };
+        }
+        if (content === undefined) {
+          return { success: false, error: 'Missing required parameter: content' };
+        }
+        
+        // Resolve path and ensure directory exists
+        const resolvedPath = resolve(expandPath(filePath));
+        const dir = dirname(resolvedPath);
+        
+        if (!existsSync(dir)) {
+          mkdirp(dir);
+        }
+        
+        // Write the file
+        writeFileSync(resolvedPath, content, 'utf-8');
+        
+        // Verify the file was actually created
+        if (!existsSync(resolvedPath)) {
+          return { success: false, error: `File was not created at ${resolvedPath}` };
+        }
+        
+        console.log(`[MetaCLI] ✅ File written: ${resolvedPath} (${content.length} bytes)`);
+        return { success: true, path: resolvedPath, bytes: content.length };
+      }
+      
+      case 'file_read': {
+        const { path: filePath } = params;
+        if (!filePath) {
+          return { success: false, error: 'Missing required parameter: path' };
+        }
+        
+        const resolvedPath = resolve(expandPath(filePath));
+        
+        if (!existsSync(resolvedPath)) {
+          return { success: false, error: `File not found: ${resolvedPath}` };
+        }
+        
+        const content = readFileSync(resolvedPath, 'utf-8');
+        console.log(`[MetaCLI] ✅ File read: ${resolvedPath} (${content.length} bytes)`);
+        return { success: true, path: resolvedPath, content, bytes: content.length };
+      }
+      
+      case 'shell': {
+        const { command } = params;
+        if (!command) {
+          return { success: false, error: 'Missing required parameter: command' };
+        }
+        
+        console.log(`[MetaCLI] 🖥️  Running shell: ${command.substring(0, 100)}...`);
+        
+        try {
+          const output = execSync(command, {
+            encoding: 'utf-8',
+            timeout: 60000,
+            maxBuffer: 10 * 1024 * 1024,
+          });
+          console.log(`[MetaCLI] ✅ Shell completed`);
+          return { success: true, output };
+        } catch (e: any) {
+          const errorMsg = e.message || String(e);
+          console.log(`[MetaCLI] ❌ Shell error: ${errorMsg.substring(0, 100)}`);
+          return { success: false, error: errorMsg, output: e.stdout };
+        }
+      }
+      
+      default:
+        console.log(`[MetaCLI] ⚠️  Unknown tool: ${tool}`);
+        return { success: false, error: `Unknown tool: ${tool}` };
+    }
+  } catch (e: any) {
+    console.log(`[MetaCLI] ❌ Tool error: ${e.message}`);
+    return { success: false, error: e.message };
+  }
 }
 
 async function spawnAgentStub(task: string): Promise<string> {
@@ -84,7 +193,7 @@ export function createMetaAgentCommand(): Command {
         enableTrace: !options.trace,
         enableLearning: !options.learn,
         dryRun: options.dryRun,
-      }, executeToolStub, spawnAgentStub);
+      }, executeTool, spawnAgentStub);
 
       const result = await agent.execute({ id: randomUUID(), prompt: task, createdAt: Date.now() });
 

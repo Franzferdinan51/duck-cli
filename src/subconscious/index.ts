@@ -19,6 +19,10 @@ export { WhisperEngine } from './whisper-engine.js';
 export { CouncilBridge, getCouncilBridge } from './council-bridge.js';
 export { Subconscious, getSubconscious } from './subconscious.js';
 
+// AI-Powered Subconscious (NEW - uses duck-cli's own providers)
+export { AISubconscious, getAISubconscious } from './ai-subconscious.js';
+export type { DreamResult, Insight, DreamSignal } from './ai-subconscious.js';
+
 // Daemon client (communicates with subconsciousd)
 export { SubconsciousClient, getSubconsciousClient } from './client.js';
 export type { WhisperResponse, StoredMemory, CouncilMemory, TranscriptSegment } from './client.js';

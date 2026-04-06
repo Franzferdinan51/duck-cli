@@ -8,6 +8,7 @@
  */
 
 import { getSubconscious } from '../subconscious/index.js';
+import { getAISubconscious, AISubconscious } from '../subconscious/ai-subconscious.js';
 import { SubconsciousClient, getSubconsciousClient } from '../subconscious/client.js';
 
 const c = {
