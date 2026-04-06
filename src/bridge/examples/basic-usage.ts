@@ -1,8 +1,12 @@
 /**
  * Example: Basic Bridge Usage
- * 
- * This demonstrates how to use the duck-cli bridge to connect
- * to the OpenClaw gateway and expose tools.
+ *
+ * This demonstrates how to use the duck-cli bridge to expose
+ * duck-cli tools to OpenClaw agents via OpenClaw's ACP server.
+ *
+ * NOTE: The bridge is OPTIONAL. duck-cli runs standalone without it.
+ * This example shows the optional bridge use-case only.
+ * Port 18789 = OpenClaw ACP server (not duck-cli's own gateway on 18792).
  */
 
 import {

@@ -1,20 +1,26 @@
 /**
  * duck-cli Bridge Module
- * 
- * OpenClaw ↔ duck-cli API Bridge for communication between the two systems.
- * 
+ *
+ * Exposes duck-cli tools via ACP/MCP so external agents (including OpenClaw)
+ * can call them. This is duck-cli's OUTBOUND bridge — it does NOT require
+ * duck-cli to be tied into the user's OpenClaw instance.
+ *
+ * The bridge is OPTIONAL. duck-cli runs standalone without it.
+ * When enabled, it connects duck-cli TO OpenClaw (not the other way around).
+ *
  * @example
  * ```typescript
  * import { BridgeManager, createBridgeManager } from './bridge';
- * 
- * // Create bridge manager
+ *
+ * // Create bridge manager — connects duck-cli to OpenClaw's ACP server.
+ * // Port 18789 = OpenClaw ACP server. Omit gatewayUrl to run bridge-less.
  * const bridge = createBridgeManager({
  *   agentId: 'android-agent',
  *   agentName: 'Android Controller',
- *   gatewayUrl: 'ws://localhost:18789',
+ *   gatewayUrl: 'ws://localhost:18789', // OpenClaw ACP server (optional)
  * });
- * 
- * // Register tools
+ *
+ * // Register tools to expose to OpenClaw
  * bridge.registerTool({
  *   definition: {
  *     name: 'android_screenshot',
@@ -26,8 +32,8 @@
  *     return { success: true, result: screenshotBase64 };
  *   }
  * });
- * 
- * // Initialize and connect
+ *
+ * // Initialize and connect (bridge is optional — duck-cli works without it)
  * await bridge.initialize();
  * await bridge.connect();
  * ```
