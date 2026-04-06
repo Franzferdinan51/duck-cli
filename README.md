@@ -1,6 +1,6 @@
 # 🦆 duck-cli
 
-> **Desktop AI Agent** — Autonomous task execution on Mac/PC/Linux. Powered by a Meta-Agent Orchestrator v3 that combines LLM-powered planning (Planner→Critic→Healer→Learner), AI Council deliberation, KAIROS proactive heartbeat, subconscious whisper monitoring, and multi-provider LLM routing — all coordinated through 100+ built-in tools with safety guards, memory, and learning.
+> **🦸 Super Agent** — A rival to Claude Code, Letta Code, and OpenAI Codex. Desktop AI agent with LLM-powered Meta-Agent Orchestrator, AI Council deliberation, persistent memory, multi-provider routing (MiniMax/LM Studio/Kimi/GPT/OpenRouter), agent-mesh communication bus, and 102 built-in tools. Runs on Mac/PC/Linux/Android.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -33,6 +33,54 @@ npm install && npm run build
 
 # Telegram bot (standalone — connects to @AgentSmithsbot)
 ./duck telegram start
+```
+
+---
+
+## 🚀 Super Agent Setup
+
+**Full setup for maximum capability:**
+
+```bash
+# 1. Clone and build duck-cli
+git clone https://github.com/Franzferdinan51/duck-cli.git
+cd duck-cli && npm install && npm run build
+
+# 2. Clone agent-mesh-api (optional - for multi-agent communication)
+git clone https://github.com/Franzferdinan51/agent-mesh-api.git ~/agent-mesh-api
+cd ~/agent-mesh-api && npm install
+
+# 3. Start mesh server (optional)
+./duck mesh start
+./duck mesh register
+
+# 4. Start Chat Agent (conversational layer)
+./duck chat-agent start --port 18797
+
+# 5. Start Telegram bot (connects Chat Agent to Telegram)
+./duck telegram start
+```
+
+**Or run everything together:**
+```bash
+# Terminal 1: Mesh server
+./duck mesh start
+
+# Terminal 2: Chat Agent
+./duck chat-agent start --port 18797
+
+# Terminal 3: Telegram bot
+./duck telegram start
+```
+
+**Environment variables for Chat Agent:**
+```bash
+export MINIMAX_API_KEY=your_key          # Required for AI responses
+export DUCK_CHAT_PROVIDER=minimax        # minimax | lmstudio | kimi | openai | openrouter
+export DUCK_CHAT_MODEL=MiniMax-M2.7     # Model per provider
+export MESH_DIR=~/agent-mesh-api         # Where mesh server is installed
+export MESH_API_KEY=openclaw-mesh-default-key
+export DUCK_MEMORY_BACKEND=local         # local (no Letta)
 ```
 
 ---
@@ -87,7 +135,9 @@ Smart routing picks the right model automatically:
 
 ## 🤖 Meta-Agent (v3)
 
-The v3 orchestrator is **LLM-powered** — the orchestrator itself reasons about how to approach tasks:
+The v3 orchestrator is **LLM-powered** — the orchestrator itself reasons about how to approach tasks.
+
+> 📖 **Full system prompt:** See [`docs/META-AGENT-SYSTEM-PROMPT.md`](docs/META-AGENT-SYSTEM-PROMPT.md) for instructions on how to contact other agents (Chat Agent, Bridge, Subconscious, AI Council) and providers (MiniMax, LM Studio, Kimi, OpenAI, OpenRouter).
 
 ```bash
 ./duck meta plan "build a REST API"   # Preview plan (Planner LLM)
@@ -229,6 +279,17 @@ curl -X POST localhost:18797/chat \
                                                │ APPROVE / REJECT / MODIFY
                                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
+│                     🌉 BRIDGE AGENT (qwen3.5-0.8b)                    │
+│            Connection health, routing, protocol negotiation              │
+│              Intercepts ALL tasks after AI Council approval             │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+           Simple task                  Complex task
+                    │                         │
+                    ▼                         ▼
+┌─────────────────────────────────────────────────────────────────────────┐
 │                   META-AGENT ORCHESTRATOR v3                          │
 │              (LLM-powered: Planner → Critic → Healer → Learner)            │
 │                                                                          │
@@ -301,6 +362,16 @@ curl -X POST localhost:18797/chat \
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │              AGENT MESH (port 4000) - Optional                     │  │
+│  │                                                                   │  │
+│  │  Inter-agent communication bus:                                  │  │
+│  │  ./duck mesh start      — Start mesh server                      │  │
+│  │  ./duck mesh status     — Check mesh health                      │  │
+│  │  ./duck mesh register   — Register with mesh                     │  │
+│  │  ./duck mesh stop       — Stop mesh server                       │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
 **3 Meta Agents:**
 | Agent | Model | Purpose |
 |-------|-------|---------|
