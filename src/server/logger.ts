@@ -23,12 +23,48 @@ export enum LogLevel {
   FATAL = 4
 }
 
+// Protocol-specific error codes (AI Council recommended)
+export const ProtocolErrorCodes = {
+  MCP: {
+    INVALID_REQUEST: { code: 'MCP_001', severity: 'ERROR' },
+    TOOL_NOT_FOUND: { code: 'MCP_002', severity: 'ERROR' },
+    TOOL_EXECUTION_FAILED: { code: 'MCP_003', severity: 'ERROR' },
+    PROTOCOL_VIOLATION: { code: 'MCP_004', severity: 'WARN' },
+    TIMEOUT: { code: 'MCP_005', severity: 'WARN' },
+  },
+  ACP: {
+    AGENT_CRASHED: { code: 'ACP_001', severity: 'FATAL' },
+    TIMEOUT: { code: 'ACP_002', severity: 'WARN' },
+    COMMUNICATION_ERROR: { code: 'ACP_003', severity: 'ERROR' },
+    AGENT_DISCONNECTED: { code: 'ACP_004', severity: 'WARN' },
+  },
+  WEBSOCKET: {
+    CONNECTION_FAILED: { code: 'WS_001', severity: 'ERROR' },
+    MESSAGE_PARSE_ERROR: { code: 'WS_002', severity: 'ERROR' },
+    AUTHENTICATION_FAILED: { code: 'WS_003', severity: 'FATAL' },
+    CLIENT_DISCONNECTED: { code: 'WS_004', severity: 'INFO' },
+  },
+  REST: {
+    ENDPOINT_NOT_FOUND: { code: 'REST_001', severity: 'WARN' },
+    INVALID_JSON: { code: 'REST_002', severity: 'ERROR' },
+    RATE_LIMITED: { code: 'REST_003', severity: 'WARN' },
+  },
+  SYSTEM: {
+    SERVER_START: { code: 'SYS_001', severity: 'INFO' },
+    SERVER_STOP: { code: 'SYS_002', severity: 'INFO' },
+    CONFIG_ERROR: { code: 'SYS_003', severity: 'FATAL' },
+    OUT_OF_MEMORY: { code: 'SYS_004', severity: 'FATAL' },
+  }
+} as const;
+
 export interface LogEntry {
   timestamp: string;
   level: string;
   protocol: 'mcp' | 'acp' | 'websocket' | 'rest' | 'system' | 'agent';
   component: string;
   message: string;
+  code?: string;  // Protocol error code
+  errorType?: string;  // Type of error from ProtocolErrorCodes
   error?: {
     name: string;
     message: string;
@@ -72,6 +108,7 @@ interface ErrorEntry {
   protocol: string;
   component: string;
   message: string;
+  code?: string;  // Protocol error code
   stack?: string;
   resolved: boolean;
 }
@@ -157,38 +194,76 @@ class BridgeLogger {
     // Broadcast to WebSocket subscribers
     this.broadcast(entry);
 
-    // Console output (colored)
+    // Console output (TTY vs JSON)
     this.consoleLog(entry);
+    
+    // Colored stderr for errors
+    this.consoleError(entry);
   }
 
   private consoleLog(entry: LogEntry) {
-    const color = {
-      DEBUG: '\x1b[36m',   // Cyan
-      INFO: '\x1b[32m',   // Green
-      WARN: '\x1b[33m',   // Yellow
-      ERROR: '\x1b[31m',  // Red
-      FATAL: '\x1b[35m'  // Magenta
-    }[entry.level] || '\x1b[0m';
-
-    const protocolColor = {
-      mcp: '\x1b[34m',      // Blue
-      acp: '\x1b[35m',     // Magenta
-      websocket: '\x1b[36m', // Cyan
-      rest: '\x1b[33m',     // Yellow
-      system: '\x1b[37m',   // White
-      agent: '\x1b[32m'    // Green
-    }[entry.protocol] || '\x1b[0m';
-
-    const reset = '\x1b[0m';
-    console.log(
-      `${color}[${entry.level}]${reset} ` +
-      `${protocolColor}[${entry.protocol}]${reset} ` +
-      `${entry.component}: ${entry.message}` +
-      (entry.error ? ` ${color}ERROR: ${entry.error.message}${reset}` : '')
-    );
+    const isTTY = process.stdout.isTTY;
+    
+    if (isTTY) {
+      // Color codes
+      const levelColors: Record<string, string> = {
+        DEBUG: '\x1b[90m',   // Bright black (gray)
+        INFO: '\x1b[36m',    // Cyan
+        WARN: '\x1b[33m',    // Yellow
+        ERROR: '\x1b[31m',   // Red
+        FATAL: '\x1b[35m',   // Magenta
+      };
+      
+      const protocolColors: Record<string, string> = {
+        mcp: '\x1b[34m',       // Blue
+        acp: '\x1b[35m',      // Magenta
+        websocket: '\x1b[36m', // Cyan
+        rest: '\x1b[33m',      // Yellow
+        system: '\x1b[37m',    // White
+        agent: '\x1b[32m',     // Green
+      };
+      
+      const reset = '\x1b[0m';
+      const level = levelColors[entry.level] || reset;
+      const proto = protocolColors[entry.protocol] || reset;
+      
+      // Format: [LEVEL] [PROTOCOL] component: message
+      const timestamp = entry.timestamp.split('T')[1].split('.')[0];
+      const header = `${level}[${entry.level}]${reset} ${proto}[${entry.protocol}]${reset}`;
+      const msg = `${entry.component}: ${entry.message}`;
+      
+      // Add error indicator for errors
+      const errorSuffix = entry.error ? ` ${level}✗ ${entry.error.message}${reset}` : '';
+      
+      console.log(`${timestamp} ${header} ${msg}${errorSuffix}`);
+    } else {
+      // JSON for piping/redirects
+      console.log(JSON.stringify(entry));
+    }
   }
 
-  private broadcast(entry: LogEntry) {
+  private consoleError(entry: LogEntry) {
+    if (entry.level === 'ERROR' || entry.level === 'FATAL') {
+      const isTTY = process.stderr.isTTY;
+      if (isTTY) {
+        const levelColors: Record<string, string> = {
+          ERROR: '\x1b[31m',
+          FATAL: '\x1b[35m',
+        };
+        const reset = '\x1b[0m';
+        const color = levelColors[entry.level] || reset;
+        console.error(`${color}[${entry.level}]${reset} ${entry.component}: ${entry.message}`);
+        if (entry.error?.stack) {
+          console.error(entry.error.stack);
+        }
+      } else {
+        console.error(JSON.stringify(entry));
+      }
+    }
+  }
+
+  // Broadcast to WebSocket subscribers (public for LiveErrorStream integration)
+  broadcast(entry: LogEntry): void {
     const data = JSON.stringify({ type: 'log', entry });
     for (const ws of this.wsClients) {
       if (ws.readyState === WebSocket.OPEN) {
@@ -380,9 +455,9 @@ class BridgeLogger {
     }
   }
 
-  private getDashboardHTML(): string {
+  getDashboardHTML(): string {
     const health = this.getHealth();
-    const recentLogs = this.getLogs({ limit: 20 });
+    const recentLogs = this.getLogs({ limit: 30 });
     const recentErrors = this.getErrors(undefined, true).slice(0, 10);
 
     return `<!DOCTYPE html>
@@ -391,79 +466,79 @@ class BridgeLogger {
   <title>Duck Bridge Dashboard</title>
   <meta http-equiv="refresh" content="5">
   <style>
-    body { font-family: monospace; background: #1a1a2e; color: #eee; padding: 20px; }
-    h1 { color: #00ff88; }
-    .card { background: #16213e; border-radius: 8px; padding: 15px; margin: 10px 0; }
-    .protocol { display: inline-block; padding: 5px 10px; border-radius: 4px; margin: 5px; }
-    .healthy { background: #00ff88; color: #000; }
-    .degraded { background: #ffaa00; color: #000; }
-    .down { background: #ff4444; color: #fff; }
-    .error { background: #ff4444; padding: 10px; border-radius: 4px; margin: 5px 0; }
-    .log { font-size: 12px; border-bottom: 1px solid #333; padding: 5px; }
-    .DEBUG { color: #888; }
-    .INFO { color: #00ff88; }
-    .WARN { color: #ffaa00; }
-    .ERROR { color: #ff4444; }
-    .FATAL { color: #ff00ff; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #333; }
-    th { color: #00ff88; }
+    * { box-sizing: border-box; }
+    body { font-family: 'SF Mono', Monaco, monospace; background: #0d1117; color: #c9d1d9; padding: 20px; margin: 0; }
+    h1 { color: #58a6ff; font-size: 24px; margin-bottom: 20px; }
+    h2 { color: #8b949e; font-size: 14px; text-transform: uppercase; margin-top: 30px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 15px; }
+    .status { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    .healthy { background: #238636; color: #fff; }
+    .degraded { background: #d29922; color: #fff; }
+    .down { background: #da3633; color: #fff; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #30363d; }
+    th { color: #58a6ff; }
+    .log-entry { padding: 8px; border-bottom: 1px solid #21262d; font-size: 12px; }
+    .DEBUG { color: #6e7681; }
+    .INFO { color: #58a6ff; }
+    .WARN { color: #d29922; }
+    .ERROR { color: #da3633; }
+    .FATAL { color: #f85149; background: #490202; }
+    .protocol { color: #a371f7; }
+    .uptime { font-size: 12px; color: #8b949e; }
+    .api { margin-top: 20px; padding: 15px; background: #161b22; border-radius: 6px; }
+    code { background: #21262d; padding: 2px 6px; border-radius: 3px; color: #79c0ff; }
   </style>
 </head>
 <body>
   <h1>🦆 Duck Bridge Dashboard</h1>
-  <p>Uptime: ${Math.floor(health.uptime / 1000 / 60)} minutes | Logs: ${health.logs.total} | Errors: ${health.errors.total}</p>
+  <p class="uptime">Uptime: ${Math.floor(health.uptime / 1000 / 60)}min | Logs: ${health.logs.total} | Errors: ${health.errors.total}</p>
 
+  <h2>Protocol Health</h2>
+  <div class="grid">
+    ${Object.entries(health.protocols).map(([name, p]) => `
+      <div class="card">
+        <h3>${name.toUpperCase()}</h3>
+        <span class="status ${p.status}">${p.status}</span>
+        <p>Requests: ${p.requests} | Errors: ${p.errors}</p>
+        <p class="uptime">Last: ${p.lastRequest ? new Date(p.lastRequest).toLocaleTimeString() : 'Never'}</p>
+      </div>
+    `).join('')}
+  </div>
+
+  <h2>Recent Errors (${recentErrors.length})</h2>
   <div class="card">
-    <h2>Protocol Health</h2>
-    <table>
-      <tr><th>Protocol</th><th>Status</th><th>Requests</th><th>Errors</th><th>Last Request</th><th>Last Error</th></tr>
-      ${Object.entries(health.protocols).map(([name, p]) => `
-        <tr>
-          <td>${name.toUpperCase()}</td>
-          <td><span class="protocol ${p.status}">${p.status}</span></td>
-          <td>${p.requests}</td>
-          <td>${p.errors}</td>
-          <td>${p.lastRequest ? new Date(p.lastRequest).toLocaleTimeString() : 'Never'}</td>
-          <td>${p.lastError ? new Date(p.lastError).toLocaleTimeString() : 'None'}</td>
-        </tr>
+    ${recentErrors.length === 0 ? '<p>No unresolved errors!</p>' :
+      recentErrors.map(e => `
+        <div class="log-entry ERROR">
+          <span class="protocol">[${e.protocol}]</span> ${e.component}: ${e.message}
+          <br><small>${new Date(e.timestamp).toLocaleString()}</small>
+        </div>
       `).join('')}
-    </table>
   </div>
 
+  <h2>Recent Logs</h2>
   <div class="card">
-    <h2>Recent Errors (${recentErrors.length})</h2>
-    ${recentErrors.length === 0 ? '<p>No unresolved errors!</p>' : recentErrors.map(e => `
-      <div class="error">
-        <strong>[${e.protocol}] ${e.component}</strong>: ${e.message}
-        <br><small>${new Date(e.timestamp).toLocaleString()}</small>
-        ${e.stack ? `<pre style="font-size:10px;overflow:auto">${e.stack}</pre>` : ''}
+    ${recentLogs.slice(-20).reverse().map(l => `
+      <div class="log-entry ${l.level}">
+        [${l.timestamp.split('T')[1].split('.')[0]}] <span class="protocol">${l.level}</span> <span class="protocol">[${l.protocol}]</span> ${l.component}: ${l.message}
       </div>
     `).join('')}
   </div>
 
-  <div class="card">
-    <h2>Recent Logs (${recentLogs.length})</h2>
-    ${recentLogs.reverse().map(l => `
-      <div class="log ${l.level}">
-        [${l.timestamp.split('T')[1].split('.')[0]}] ${l.level} [${l.protocol}] ${l.component}: ${l.message}
-        ${l.error ? `<br>ERROR: ${l.error.message}` : ''}
-      </div>
-    `).join('')}
-  </div>
-
-  <div class="card">
+  <div class="api">
     <h2>API Endpoints</h2>
     <ul>
       <li><code>GET /health</code> - Full health status</li>
       <li><code>GET /logs?protocol=mcp&level=3&limit=50</code> - Query logs</li>
-      <li><code>GET /errors?protocol=mcp&unresolved=true</code> - Query errors</li>
-      <li><code>POST /resolve-error</code> - Mark error resolved (body: {"timestamp": "..."})</li>
-      <li><code>WS /logs/stream</code> - Real-time log stream</li>
+      <li><code>GET /errors?unresolved=true</code> - Error list</li>
+      <li><code>WS /logs/stream</code> - Real-time WebSocket stream</li>
     </ul>
   </div>
 </body>
 </html>`;
+  }
   }
 }
 
