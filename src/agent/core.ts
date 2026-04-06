@@ -767,7 +767,58 @@ ${marker}`;
     // ─── Web ──────────────────────────────────────────────
     this.registerTool({ name: 'web_search', description: 'Search the web', 
       schema: { query: { type: 'string' } }, dangerous: false,
-      handler: async (args: any) => `Searching web for: ${args.query}`
+      handler: async (args: any) => {
+        const query = String(args.query || '').trim();
+        if (!query) return { error: 'Missing query' };
+
+        try {
+          const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+          const res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            }
+          });
+          if (!res.ok) return { error: `Search HTTP ${res.status}` };
+          const html = await res.text();
+
+          const results: Array<{ title: string; url: string; snippet?: string }> = [];
+          const blocks = html.split('<div class="result results_links');
+          for (const block of blocks.slice(1)) {
+            const titleMatch = block.match(/class="result__a"[^>]*>([\s\S]*?)<\/a>/i);
+            const hrefMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/i);
+            const snippetMatch = block.match(/class="result__snippet">([\s\S]*?)<\/a>|class="result__snippet">([\s\S]*?)<\/div>/i);
+            const clean = (s: string) => s
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (titleMatch && hrefMatch) {
+              results.push({
+                title: clean(titleMatch[1]),
+                url: hrefMatch[1],
+                snippet: snippetMatch ? clean(snippetMatch[1] || snippetMatch[2] || '') : ''
+              });
+            }
+            if (results.length >= 5) break;
+          }
+
+          if (results.length === 0) {
+            return { query, results: [], note: 'No results found' };
+          }
+
+          return {
+            query,
+            results,
+            summary: results.map((r, i) => `${i + 1}. ${r.title} — ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`).join('\n')
+          };
+        } catch (e: any) {
+          return { error: `Web search failed: ${e.message}` };
+        }
+      }
     });
 
     // ─── Learning ──────────────────────────────────────────
