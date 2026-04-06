@@ -18,6 +18,7 @@ import { Url } from 'url';
 import { ChatSession, getOrCreateSession } from './chat-session.js';
 import { processWithCouncil } from '../council/chat-bridge.js';
 import { logger } from '../server/logger.js';
+import { SubconsciousClient } from '../subconscious/client.js';
 
 // ---------------------------------------------------------------------------
 // Config - Multi-provider setup
@@ -38,6 +39,59 @@ let meshWs: any = null; // WebSocket for receiving mesh messages
 
 // Whisper routing: optional external webhook for high-confidence whispers
 const WHISPER_CALLBACK_URL = process.env.WHISPER_CALLBACK_URL; // e.g. OpenClaw gateway URL
+
+// ---------------------------------------------------------------------------
+// Sub-Conscious Integration (optional)
+// ---------------------------------------------------------------------------
+const SUBCONSCIOUS_ENABLED = process.env.SUBCONSCIOUS_ENABLED !== 'false'; // enabled by default
+let subconsciousClient: SubconsciousClient | null = null;
+
+/**
+ * Get or create Sub-Conscious client
+ */
+function getSubconsciousClient(): SubconsciousClient | null {
+  if (!SUBCONSCIOUS_ENABLED) return null;
+  if (!subconsciousClient) {
+    try {
+      subconsciousClient = new SubconsciousClient();
+    } catch (e) {
+      console.warn('[ChatAgent] Failed to create Sub-Conscious client:', e);
+      return null;
+    }
+  }
+  return subconsciousClient;
+}
+
+/**
+ * Send session transcript to Sub-Conscious daemon for persistence
+ */
+async function persistSessionToSubconscious(sessionId: string, session: ChatSession): Promise<void> {
+  const client = getSubconsciousClient();
+  if (!client) return;
+
+  try {
+    // Check if daemon is running
+    const isRunning = await client.ping().catch(() => false);
+    if (!isRunning) {
+      console.log('[ChatAgent] Sub-Conscious daemon not running, skipping persistence');
+      return;
+    }
+
+    // Convert session messages to transcript format
+    const transcript = session.getMessages().map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: new Date(m.timestamp).toISOString(),
+    }));
+
+    // Send to daemon for async analysis
+    await client.sendSession(sessionId, transcript, process.cwd());
+    console.log(`[ChatAgent] Session ${sessionId} sent to Sub-Conscious for analysis`);
+  } catch (e) {
+    // Non-fatal: don't break chat if subconscious fails
+    console.warn('[ChatAgent] Failed to persist session to Sub-Conscious:', e);
+  }
+}
 
 /**
  * Check if mesh is available (port 4000 open)
@@ -708,6 +762,10 @@ async function processMessage(
       broadcastToMesh('task-completed', { prompt: message, complexity, routed: 'meta' });
       
       session.addAssistant(result);
+      
+      // Persist session to Sub-Conscious for long-term memory
+      await persistSessionToSubconscious(userId, session);
+      
       return { 
         response: result, 
         routed: 'meta',
@@ -740,6 +798,10 @@ async function processMessage(
   try {
     const result = await chatComplete(effectiveProvider, effectiveModel, context, apiKey);
     session.addAssistant(result.content);
+    
+    // Persist session to Sub-Conscious for long-term memory
+    await persistSessionToSubconscious(userId, session);
+    
     return { 
       response: result.content, 
       routed: 'direct',
@@ -771,6 +833,10 @@ async function processMessage(
     console.error(`[ChatAgent] ${effectiveProvider} error [rate_limit=${isRateLimit} server=${isServerError} auth=${isAuthError}]:`, err);
     const fullErrorMsg = `🦆 Oops, something went wrong with ${effectiveProvider}: ${err.message}${action}`;
     session.addAssistant(fullErrorMsg);
+    
+    // Persist session to Sub-Conscious even on error (for debugging)
+    await persistSessionToSubconscious(userId, session);
+    
     return { response: fullErrorMsg, routed: 'direct', provider: effectiveProvider, model: effectiveModel };
   }
 }
