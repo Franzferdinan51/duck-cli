@@ -99,7 +99,6 @@ export class ProviderManager {
     const lmModel = process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || 'google/gemma-4-26b-a4b';
     let targets = [
       { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (Gemma 4 26B, local FREE)' },
-      { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (Gemma 4 26B, local FREE)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
       { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'OpenClaw Gateway (Kimi k2.5)' },
       { provider: 'kimi',      model: 'k2p5',                label: 'Kimi K2.5 (direct)' },
@@ -324,9 +323,18 @@ class MiniMaxProvider implements Provider {
           body
         });
 
+        // Handle rate limiting (HTTP 429) - check before parsing
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After');
+          const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
+          console.warn(`[MiniMax] ⚠️  Rate limited (429), ${waitMs ? `waiting ${waitMs}ms` : 'will retry with backoff'}`);
+          return { error: '__RETRY__', retry: true };
+        }
+
         if (!res.ok) {
           const data: any = await res.json().catch(() => ({}));
-          return { error: `HTTP ${res.status}: ${data.error?.message || res.statusText}` };
+          const isRetryable = res.status >= 500 || res.status === 408;
+          return { error: `HTTP ${res.status}: ${data.error?.message || res.statusText}`, retry: isRetryable };
         }
 
         const data: any = await res.json();
@@ -336,7 +344,7 @@ class MiniMaxProvider implements Provider {
                            error.message?.includes('timeout') ||
                            error.message?.includes('ECONNRESET') ||
                            error.message?.includes('ETIMEDOUT');
-        return { error: isRetryable ? '__RETRY__' : error.message };
+        return { error: error.message, retry: isRetryable };
       }
     };
 
@@ -349,20 +357,20 @@ class MiniMaxProvider implements Provider {
       }
 
       const result = await makeRequest();
-      if (result.text !== undefined || !result.error || result.error === '__RETRY__' && attempt === this.retryDelays.length) {
-        if (result.text !== undefined) {
-          return { text: result.text };
-        }
-        if (result.error && result.error !== '__RETRY__') {
-          return { error: result.error };
-        }
+      if (result.text !== undefined) {
+        return { text: result.text };
       }
-      if (result.error && result.error !== '__RETRY__') {
+      // Don't retry on non-retryable errors (e.g., 401 auth failure)
+      if (result.error && !result.retry) {
         return { error: result.error };
+      }
+      // Give up after all retries exhausted
+      if (attempt === this.retryDelays.length) {
+        return { error: result.error || 'MiniMax request failed after retries' };
       }
     }
 
-    return { error: 'Failed after retries' };
+    return { error: 'MiniMax request failed after retries' };
   }
 }
 
@@ -449,97 +457,243 @@ class LMStudioProvider implements Provider {
 
 class AnthropicProvider implements Provider {
   name = 'anthropic';
-  constructor(private apiKey: string) {}
+  private retryDelays = [500, 1000, 2000, 4000];
 
-  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string }> {
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: opts.model || 'claude-3-5-haiku-4-20250514',
-          max_tokens: 1024,
-          messages: opts.messages
-        })
-      });
-
-      const data: any = await res.json();
-      return { text: data.content?.[0]?.text };
-    } catch (error) {
-      return { text: undefined };
+  constructor(private apiKey: string) {
+    if (!apiKey || apiKey.length < 10) {
+      console.warn('[Anthropic] ⚠️  API key appears invalid (too short)');
     }
+  }
+
+  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; error?: string }> {
+    const makeRequest = async (): Promise<{ text?: string; error?: string; retry?: boolean }> => {
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: opts.model || 'claude-3-5-haiku-4-20250514',
+            max_tokens: 1024,
+            messages: opts.messages
+          })
+        });
+
+        // Handle rate limiting (HTTP 429)
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('retry-after');
+          const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
+          console.warn(`[Anthropic] ⚠️  Rate limited (429), ${waitMs ? `waiting ${waitMs}ms` : 'will retry with backoff'}`);
+          return { error: '__RETRY__', retry: true };
+        }
+
+        if (!res.ok) {
+          const err = await res.text();
+          // 401 = bad key, don't retry
+          if (res.status === 401) {
+            return { error: `Anthropic auth failed (401): check your ANTHROPIC_API_KEY` };
+          }
+          // Server errors are retryable
+          const isRetryable = res.status >= 500 || res.status === 408;
+          return { error: `Anthropic API ${res.status}: ${err}`, retry: isRetryable };
+        }
+
+        const data: any = await res.json();
+        return { text: data.content?.[0]?.text };
+      } catch (e: any) {
+        const isRetryable = e.message?.includes('Connection') ||
+                           e.message?.includes('timeout') ||
+                           e.message?.includes('ECONNRESET') ||
+                           e.message?.includes('ETIMEDOUT');
+        return { error: e.message, retry: isRetryable };
+      }
+    };
+
+    for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = this.retryDelays[attempt - 1];
+        console.log(`[Anthropic] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      const result = await makeRequest();
+      if (result.text !== undefined) return { text: result.text };
+      if (result.error && !result.retry) return { error: result.error };
+      if (attempt === this.retryDelays.length) {
+        return { error: result.error || 'Anthropic request failed after retries' };
+      }
+    }
+    return { error: 'Anthropic request failed after retries' };
   }
 }
 
 class OpenAIProvider implements Provider {
   name = 'openai';
-  constructor(private apiKey: string) {}
+  private retryDelays = [500, 1000, 2000, 4000];
 
-  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string }> {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
-        },
-        body: JSON.stringify({
-          model: opts.model || 'gpt-4o-mini',
-          messages: opts.messages
-        })
-      });
-
-      const data: any = await res.json();
-      return { text: data.choices?.[0]?.message?.content };
-    } catch (error) {
-      return { text: undefined };
+  constructor(private apiKey: string) {
+    if (!apiKey || apiKey.length < 10) {
+      console.warn('[OpenAI] ⚠️  API key appears invalid (too short)');
     }
+  }
+
+  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; error?: string }> {
+    const makeRequest = async (): Promise<{ text?: string; error?: string; retry?: boolean }> => {
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          },
+          body: JSON.stringify({
+            model: opts.model || 'gpt-4o-mini',
+            messages: opts.messages
+          })
+        });
+
+        // Handle rate limiting (HTTP 429)
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After');
+          const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
+          console.warn(`[OpenAI] ⚠️  Rate limited (429), ${waitMs ? `waiting ${waitMs}ms` : 'will retry with backoff'}`);
+          return { error: '__RETRY__', retry: true };
+        }
+
+        if (!res.ok) {
+          const err = await res.text();
+          // 401 = bad key, don't retry
+          if (res.status === 401) {
+            return { error: `OpenAI auth failed (401): check your OPENAI_API_KEY` };
+          }
+          // Server errors are retryable
+          const isRetryable = res.status >= 500 || res.status === 408;
+          return { error: `OpenAI API ${res.status}: ${err}`, retry: isRetryable };
+        }
+
+        const data: any = await res.json();
+        return { text: data.choices?.[0]?.message?.content };
+      } catch (e: any) {
+        const isRetryable = e.message?.includes('Connection') ||
+                           e.message?.includes('timeout') ||
+                           e.message?.includes('ECONNRESET') ||
+                           e.message?.includes('ETIMEDOUT');
+        return { error: e.message, retry: isRetryable };
+      }
+    };
+
+    for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = this.retryDelays[attempt - 1];
+        console.log(`[OpenAI] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      const result = await makeRequest();
+      if (result.text !== undefined) return { text: result.text };
+      if (result.error && !result.retry) return { error: result.error };
+      if (attempt === this.retryDelays.length) {
+        return { error: result.error || 'OpenAI request failed after retries' };
+      }
+    }
+    return { error: 'OpenAI request failed after retries' };
   }
 }
 
 // OpenRouter - Duckets' personal free tier ($0.20/month cap, free models only)
 class OpenRouterProvider implements Provider {
   name = 'openrouter';
-  constructor(private apiKey: string) {}
+  private retryDelays = [500, 1000, 2000, 4000];
 
-  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
-    try {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-          'HTTP-Referer': 'https://duck-agent.dev',
-          'X-Title': 'Duck Agent'
-        },
-        body: JSON.stringify({
-          model: opts.model || 'minimax/minimax-m2.5:free',  // Duckets' favorite free model
-          messages: opts.messages
-        })
-      });
-
-      const data: any = await res.json();
-      if (data.error) {
-        console.error('[OpenRouter] Error:', data.error.message);
-        return { text: undefined };
-      }
-      const message = data.choices?.[0]?.message;
-      return {
-        text: message?.content,
-        toolCalls: message?.tool_calls?.map((tc: any) => ({
-          id: tc.id,
-          name: tc.function?.name,
-          input: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {}
-        }))
-      };
-    } catch (error) {
-      console.error('[OpenRouter] Fetch error:', error);
-      return { text: undefined };
+  constructor(private apiKey: string) {
+    if (!apiKey || apiKey.length < 10) {
+      console.warn('[OpenRouter] ⚠️  API key appears invalid (too short)');
     }
+  }
+
+  async complete(opts: { model?: string; messages: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }> {
+    const makeRequest = async (): Promise<{ text?: string; toolCalls?: any[]; error?: string; retry?: boolean }> => {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+            'HTTP-Referer': 'https://duck-agent.dev',
+            'X-Title': 'Duck Agent'
+          },
+          body: JSON.stringify({
+            model: opts.model || 'qwen/qwen3.6-plus-preview:free',  // Duckets' favorite free model
+            messages: opts.messages
+          })
+        });
+
+        // Handle rate limiting (HTTP 429)
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('retry-after');
+          const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
+          console.warn(`[OpenRouter] ⚠️  Rate limited (429), ${waitMs ? `waiting ${waitMs}ms` : 'will retry with backoff'}`);
+          return { error: '__RETRY__', retry: true };
+        }
+
+        if (!res.ok) {
+          const err = await res.text();
+          // 401 = bad key, don't retry
+          if (res.status === 401) {
+            return { error: `OpenRouter auth failed (401): check your OPENROUTER_API_KEY` };
+          }
+          // Server errors are retryable
+          const isRetryable = res.status >= 500 || res.status === 408;
+          return { error: `OpenRouter API ${res.status}: ${err}`, retry: isRetryable };
+        }
+
+        const data: any = await res.json();
+        if (data.error) {
+          // OpenRouter returns errors in data.error object
+          const isRateLimit = data.error?.code === 'rate_limit_exceeded' ||
+                             data.error?.message?.includes('rate limit');
+          return { error: data.error?.message || JSON.stringify(data.error), retry: isRateLimit };
+        }
+        const message = data.choices?.[0]?.message;
+        return {
+          text: message?.content,
+          toolCalls: message?.tool_calls?.map((tc: any) => ({
+            id: tc.id,
+            name: tc.function?.name,
+            input: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {}
+          }))
+        };
+      } catch (e: any) {
+        const isRetryable = e.message?.includes('Connection') ||
+                           e.message?.includes('timeout') ||
+                           e.message?.includes('ECONNRESET') ||
+                           e.message?.includes('ETIMEDOUT');
+        return { error: e.message, retry: isRetryable };
+      }
+    };
+
+    for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = this.retryDelays[attempt - 1];
+        console.log(`[OpenRouter] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      const result = await makeRequest();
+      if (result.text !== undefined || result.toolCalls !== undefined) {
+        return { text: result.text, toolCalls: result.toolCalls };
+      }
+      if (result.error && !result.retry) {
+        return { error: result.error };
+      }
+      if (attempt === this.retryDelays.length) {
+        return { error: result.error || 'OpenRouter request failed after retries' };
+      }
+    }
+    return { error: 'OpenRouter request failed after retries' };
   }
 }
 

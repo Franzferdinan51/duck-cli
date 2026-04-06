@@ -25,6 +25,7 @@ export class WebSocketBridge extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private lastPongTime: number = 0;
+  private explicitlyDisconnected: boolean = false;
   private messageQueue: ACPMessage[] = [];
   private handlers: Map<string, (msg: ACPMessage) => void> = new Map();
   private connectResolve: ((value: void) => void) | null = null;
@@ -73,6 +74,8 @@ export class WebSocketBridge extends EventEmitter {
           this.setState("connected");
           this.emitEvent("connected", {});
           this.startHeartbeat();
+          // Reset explicit disconnect flag on successful connect
+          this.explicitlyDisconnected = false;
           this.flushMessageQueue();
           this.connectResolve?.();
           this.connectResolve = null;
@@ -90,10 +93,12 @@ export class WebSocketBridge extends EventEmitter {
           this.setState("disconnected");
           this.emitEvent("disconnected", { code, reason: reason.toString(), wasConnected });
 
-          // Auto-reconnect if was previously connected
-          if (wasConnected && this.config.reconnectInterval) {
+          // Auto-reconnect if was previously connected AND not explicitly disconnected
+          if (wasConnected && !this.explicitlyDisconnected && this.config.reconnectInterval) {
             this.scheduleReconnect();
           }
+          // Reset explicit disconnect flag
+          this.explicitlyDisconnected = false;
         });
 
         this.ws.on("error", (err: Error) => {
@@ -282,6 +287,7 @@ export class WebSocketBridge extends EventEmitter {
     console.log(`[WS Bridge] Disconnecting: ${reason || "no reason"}`);
     
     // Don't auto-reconnect if we explicitly disconnected
+    this.explicitlyDisconnected = true;
     this.clearReconnect();
     
     if (this.ws) {
