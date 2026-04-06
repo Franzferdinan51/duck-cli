@@ -289,7 +289,7 @@ class MiniMaxProvider implements Provider {
   constructor(private apiKey: string) {}
 
   async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }> {
-    const makeRequest = async (): Promise<{ text?: string; error?: string }> => {
+    const makeRequest = async (): Promise<{ text?: string; error?: string; retry?: boolean }> => {
       try {
         // MiniMax only supports ONE system message - merge multiple into one
         let systemParts: string[] = [];
