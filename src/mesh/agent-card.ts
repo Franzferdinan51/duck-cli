@@ -23,7 +23,9 @@ export class AgentCardManager {
       if (fs.existsSync(CARD_FILE)) {
         return JSON.parse(fs.readFileSync(CARD_FILE, 'utf-8'));
       }
-    } catch {}
+    } catch (error) {
+      console.error('[AgentCard] Failed to load card, using defaults:', error);
+    }
 
     // Create default card
     return {
@@ -73,7 +75,9 @@ export class AgentCardManager {
           }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.error('[AgentCard] Failed to detect skills:', error);
+    }
 
     return skills;
   }

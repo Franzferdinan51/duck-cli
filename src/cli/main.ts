@@ -40,6 +40,7 @@ function getAgentConfig() {
  */
 
 import { Agent } from '../agent/core.js';
+import { TelegramChannel } from '../channels/telegram.js';
 import { SessionStore } from '../agent/session-store.js';
 import { AndroidTools, getAndroidTools } from '../agent/android-tools.js';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
@@ -213,6 +214,39 @@ async function main() {
       {
         const { telegramCommand } = await import('../plugins/telegram.js');
         await telegramCommand(args);
+      }
+      break;
+
+    case 'telegram-bot':
+      {
+        const token = args[0];
+        if (!token) {
+          console.error('\x1b[31m❌ Bot token required: duck telegram-bot <bot_token>\x1b[0m');
+          console.log('Usage: duck telegram-bot <bot_token> [--webhook <url>] [--users <user_ids>] [--groups <group_ids>]');
+          process.exit(1);
+        }
+
+        const telegramConfig: any = {
+          botToken: token,
+          allowedUsers: args.includes('--users')
+            ? args[args.indexOf('--users') + 1]?.split(',').map((s: string) => parseInt(s))
+            : undefined,
+          groupIds: args.includes('--groups')
+            ? args[args.indexOf('--groups') + 1]?.split(',').map((s: string) => parseInt(s))
+            : undefined
+        };
+
+        const agent = new Agent({ name: 'Duck Telegram Bot' });
+        await agent.initialize();
+
+        const telegram = new TelegramChannel(agent, telegramConfig);
+        await telegram.start();
+        console.log('\x1b[36m📱 Telegram bot running! Press Ctrl+C to stop.\x1b[0m');
+
+        process.on('SIGINT', () => {
+          telegram.stop();
+          process.exit(0);
+        });
       }
       break;
 

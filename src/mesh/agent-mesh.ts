@@ -281,12 +281,29 @@ export class AgentMeshClient extends EventEmitter {
     this.stopHeartbeat();
     this.stopReconnect();
 
+    // Clear message handlers
+    this.messageHandlers.clear();
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
 
     this.connected = false;
+  }
+
+  /**
+   * Setup graceful shutdown handlers
+   */
+  setupShutdownHandlers(): void {
+    const cleanup = () => {
+      console.log('[Mesh] Shutting down...');
+      this.disconnect();
+    };
+
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('exit', cleanup);
   }
 
   private handleEvent(event: { type: string; data?: any; agentId?: string }): void {
