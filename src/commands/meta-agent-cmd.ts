@@ -8,6 +8,7 @@ import { ProviderManager } from '../providers/manager.js';
 import { MetaAgent } from '../orchestrator/meta-agent.js';
 import { MetaPlanner } from '../orchestrator/meta-planner.js';
 import { MetaLearner } from '../orchestrator/meta-learner.js';
+import { SubagentManager } from '../agent/subagent-manager.js';
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { homedir } from 'os';
@@ -133,7 +134,8 @@ async function executeTool(tool: string, params: any): Promise<any> {
 
 async function spawnAgentStub(task: string): Promise<string> {
   const { SubagentManager } = await import('../agent/subagent-manager.js');
-  const manager = new SubagentManager();
+  // Use shared singleton so agents persist across calls
+  const manager = getSharedSubagentManager();
   const agent = manager.spawn(task, {
     role: 'general',
     timeout: 300000,
@@ -141,17 +143,32 @@ async function spawnAgentStub(task: string): Promise<string> {
     provider: process.env.DUCK_PROVIDER || 'lmstudio',
   });
 
+  // Fire-and-forget with logging — return ID immediately so MetaAgent can proceed
   manager.start(agent.id, {
     role: 'general',
     timeout: 300000,
     model: process.env.DUCK_MODEL || 'qwen3.5-0.8b',
     provider: process.env.DUCK_PROVIDER || 'lmstudio',
+  }).then((result: any) => {
+    console.log(`[MetaCLI] Subagent ${agent.id} completed`);
   }).catch((err: any) => {
-    console.error(`[MetaCLI] Failed to start subagent ${agent.id}: ${err?.message || err}`);
+    console.error(`[MetaCLI] Subagent ${agent.id} failed: ${err?.message || err}`);
   });
 
-  console.log(`[MetaCLI] Spawned real subagent ${agent.id}: "${task}"`);
+  console.log(`[MetaCLI] Spawned subagent ${agent.id}: "${task.substring(0, 60)}"`);
   return agent.id;
+}
+
+/**
+ * Get or create the shared SubagentManager singleton.
+ * This ensures subagents persist across MetaAgent calls.
+ */
+let _sharedSubagentManager: SubagentManager | null = null;
+function getSharedSubagentManager(): SubagentManager {
+  if (!_sharedSubagentManager) {
+    _sharedSubagentManager = new SubagentManager();
+  }
+  return _sharedSubagentManager;
 }
 
 export function createMetaAgentCommand(): Command {
