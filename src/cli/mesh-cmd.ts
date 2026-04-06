@@ -348,6 +348,236 @@ export async function meshCommand(args: string[]): Promise<void> {
     }
 
     // -----------------------------------------------------------------------
+    // duck mesh list - List all registered agents on the mesh
+    // -----------------------------------------------------------------------
+    case 'list': {
+      const port = parseInt(actionArgs[0] || String(MESH_PORT));
+      const portOpen = await isPortOpen(port);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running on port ${port}${c.reset}`);
+        console.log(`   Start it first: ${c.bold}duck mesh start${c.reset}`);
+        return;
+      }
+
+      console.log(`${c.cyan}Discovering agents on mesh...${c.reset}\n`);
+
+      try {
+        const resp = await fetch(`${MESH_URL}/api/agents`, {
+          headers: { 'X-API-Key': MESH_API_KEY },
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (resp.ok) {
+          const data = await resp.json() as any;
+          const agents = Array.isArray(data) ? data : (data.agents || []);
+          if (agents.length === 0) {
+            console.log(`${c.yellow}No agents registered yet.${c.reset}`);
+            console.log(`   Run ${c.bold}duck mesh register${c.reset} to register this agent.`);
+          } else {
+            console.log(`${c.green}Registered agents (${agents.length}):${c.reset}`);
+            for (const agent of agents) {
+              console.log(`   ${c.bold}${agent.name}${c.reset} (${agent.id})`);
+              console.log(`      Endpoint: ${agent.endpoint}`);
+              console.log(`      Last seen: ${agent.last_seen || 'unknown'}`);
+              if (agent.capabilities?.length) {
+                console.log(`      Capabilities: ${agent.capabilities.join(', ')}`);
+              }
+              console.log();
+            }
+          }
+        } else {
+          console.log(`${c.red}❌ Failed to list agents: ${resp.status}${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.red}❌ Error: ${e.message}${c.reset}`);
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // duck mesh send <agentId> <message> - Send message to specific agent
+    // -----------------------------------------------------------------------
+    case 'send': {
+      const agentId = actionArgs[0];
+      const message = actionArgs.slice(1).join(' ');
+
+      if (!agentId || !message) {
+        console.log(`${c.yellow}Usage: duck mesh send <agent-id> <message>${c.reset}`);
+        console.log(`   Example: duck mesh send abc123 "Hello agent!"`);
+        return;
+      }
+
+      const portOpen = await isPortOpen(MESH_PORT);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running${c.reset}`);
+        return;
+      }
+
+      console.log(`${c.cyan}Sending message to ${agentId}...${c.reset}`);
+
+      try {
+        const resp = await fetch(`${MESH_URL}/api/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': MESH_API_KEY,
+          },
+          body: JSON.stringify({
+            type: 'direct',
+            from: process.env.DUCK_AGENT_NAME || 'DuckCLI',
+            to: agentId,
+            content: message,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        const data = await resp.json() as any;
+        if (resp.ok || data.success) {
+          console.log(`${c.green}✅ Message sent!${c.reset}`);
+        } else {
+          console.log(`${c.red}❌ Failed: ${data.message || JSON.stringify(data)}${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.red}❌ Error: ${e.message}${c.reset}`);
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // duck mesh broadcast <message> - Broadcast to all agents
+    // -----------------------------------------------------------------------
+    case 'broadcast': {
+      const message = actionArgs.join(' ');
+
+      if (!message) {
+        console.log(`${c.yellow}Usage: duck mesh broadcast <message>${c.reset}`);
+        console.log(`   Example: duck mesh broadcast "System update available!"`);
+        return;
+      }
+
+      const portOpen = await isPortOpen(MESH_PORT);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running${c.reset}`);
+        return;
+      }
+
+      console.log(`${c.cyan}Broadcasting to all agents...${c.reset}`);
+
+      try {
+        const resp = await fetch(`${MESH_URL}/api/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': MESH_API_KEY,
+          },
+          body: JSON.stringify({
+            type: 'broadcast',
+            from: process.env.DUCK_AGENT_NAME || 'DuckCLI',
+            to: '*',
+            content: message,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        const data = await resp.json() as any;
+        if (resp.ok || data.success) {
+          console.log(`${c.green}✅ Broadcast sent!${c.reset}`);
+          if (data.recipients !== undefined) {
+            console.log(`   Recipients: ${data.recipients}`);
+          }
+        } else {
+          console.log(`${c.red}❌ Failed: ${data.message || JSON.stringify(data)}${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.red}❌ Error: ${e.message}${c.reset}`);
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // duck mesh inbox - Check inbox/messages for this agent
+    // -----------------------------------------------------------------------
+    case 'inbox': {
+      const agentId = actionArgs[0] || process.env.DUCK_AGENT_NAME || 'DuckCLI';
+
+      const portOpen = await isPortOpen(MESH_PORT);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running${c.reset}`);
+        return;
+      }
+
+      console.log(`${c.cyan}Checking inbox for ${agentId}...${c.reset}\n`);
+
+      try {
+        // Try the inbox endpoint first
+        const resp = await fetch(`${MESH_URL}/api/inbox/${encodeURIComponent(agentId)}`, {
+          headers: { 'X-API-Key': MESH_API_KEY },
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (resp.ok) {
+          const data = await resp.json() as any;
+          const messages = data.messages || [];
+          if (messages.length === 0) {
+            console.log(`${c.yellow}No messages in inbox.${c.reset}`);
+          } else {
+            console.log(`${c.green}Messages (${messages.length}):${c.reset}`);
+            for (const msg of messages) {
+              console.log(`   ${c.bold}From:${c.reset} ${msg.fromAgentId || msg.from || 'unknown'}`);
+              console.log(`   ${c.bold}Time:${c.reset} ${new Date(msg.timestamp || Date.now()).toLocaleString()}`);
+              console.log(`   ${c.bold}Content:${c.reset} ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`);
+              console.log();
+            }
+          }
+        } else if (resp.status === 404) {
+          console.log(`${c.yellow}No messages in inbox yet.${c.reset}`);
+          console.log(`   ${c.dim}Inbox feature requires agent-mesh-api v2.1+${c.reset}`);
+        } else {
+          console.log(`${c.yellow}Inbox not available (${resp.status}).${c.reset}`);
+          console.log(`   ${c.dim}Use ${c.bold}duck mesh broadcast${c.reset}${c.dim} to send messages to all agents.${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.yellow}Inbox check failed: ${e.message}${c.reset}`);
+        console.log(`   ${c.dim}Use ${c.bold}duck mesh broadcast${c.reset}${c.dim} to send messages.${c.reset}`);
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // duck mesh health - Mesh health dashboard
+    // -----------------------------------------------------------------------
+    case 'health': {
+      const portOpen = await isPortOpen(MESH_PORT);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running${c.reset}`);
+        return;
+      }
+
+      console.log(`${c.cyan}Mesh health check...${c.reset}\n`);
+
+      try {
+        const resp = await fetch(`${MESH_URL}/health`, {
+          headers: { 'X-API-Key': MESH_API_KEY },
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (resp.ok) {
+          const data = await resp.json() as any;
+          console.log(`${c.green}✅ Mesh server healthy${c.reset}`);
+          console.log(`   Service: ${data.service || 'agent-mesh-api'}`);
+          console.log(`   Uptime: ${data.uptime ? Math.round(data.uptime / 1000) + 's' : 'unknown'}`);
+          console.log(`   Agents: ${data.agents?.length || data.totalAgents || '?'}`);
+          console.log(`   Messages: ${data.totalMessages || data.messages || '?'}`);
+        } else {
+          console.log(`${c.red}❌ Health check failed: ${resp.status}${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.red}❌ Error: ${e.message}${c.reset}`);
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
     // Unknown action - show help
     // -----------------------------------------------------------------------
     default: {
