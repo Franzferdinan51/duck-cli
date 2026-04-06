@@ -1,17 +1,27 @@
 /**
  * 🦆 Duck Agent - Telegram Channel
  * Connect Duck Agent to Telegram for messaging
+ * 
+ * Enhanced with:
+ * - Webhook support
+ * - Command handlers
+ * - Inline keyboards
+ * - Conversation state
+ * - Rich formatting (HTML)
  */
 
 import https from 'https';
 import http from 'http';
 import { Agent } from '../agent/core.js';
-import FormData from 'form-data';
 
 export interface TelegramConfig {
   botToken: string;
   allowedUsers?: string[];
   groupIds?: string[];
+  webhook?: {
+    url: string;
+    secretToken?: string;
+  };
 }
 
 export interface TelegramMessage {
@@ -22,6 +32,33 @@ export interface TelegramMessage {
   date: number;
 }
 
+export interface TelegramUpdate {
+  update_id: number;
+  message?: TelegramMessage;
+  callback_query?: {
+    id: string;
+    from: { id: number; is_bot: boolean; first_name: string };
+    chat: { id: number; type: string };
+    message?: TelegramMessage;
+    data: string;
+  };
+}
+
+export interface InlineKeyboardButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+}
+
+export interface ConversationState {
+  state: string;
+  data: Record<string, any>;
+  lastMessage: number;
+}
+
+type CommandHandler = (chatId: number, args: string[]) => Promise<void>;
+type CallbackHandler = (chatId: number, data: string) => Promise<void>;
+
 export class TelegramChannel {
   private agent: Agent;
   private botToken: string;
@@ -30,6 +67,61 @@ export class TelegramChannel {
   private offset: number = 0;
   private polling: boolean = false;
   private longPollTimeout: NodeJS.Timeout | null = null;
+  private useWebhook: boolean = false;
+  private webhookSecret?: string;
+
+  // Command handlers
+  private commands: Map<string, CommandHandler> = new Map();
+  
+  // Callback query handlers
+  private callbackHandlers: Map<string, CallbackHandler> = new Map();
+  private defaultCallbackHandler?: CallbackHandler;
+
+  // Conversation states
+  private conversations: Map<number, ConversationState> = new Map();
+  private conversationTimeout: number = 300000; // 5 minutes
+
+  // Default command handlers
+  private registerDefaultCommands(): void {
+    this.onCommand('start', async (chatId) => {
+      await this.sendFormatted(chatId, 
+        '👋 <b>Welcome to Duck Agent!</b>\n\n' +
+        'I\'m your AI assistant. Here are some commands:\n\n' +
+        '• /help - Show all commands\n' +
+        '• /status - Check bot status\n' +
+        '• /cancel - Cancel current conversation'
+      );
+    });
+
+    this.onCommand('help', async (chatId) => {
+      await this.sendFormatted(chatId,
+        '📚 <b>Available Commands:</b>\n\n' +
+        '• /start - Start the bot\n' +
+        '• /help - Show this help\n' +
+        '• /status - Check bot status\n' +
+        '• /cancel - Cancel current conversation\n\n' +
+        'Just type any message to chat with me!'
+      );
+    });
+
+    this.onCommand('status', async (chatId) => {
+      await this.sendFormatted(chatId,
+        '✅ <b>Bot Status:</b>\n\n' +
+        `• Mode: ${this.useWebhook ? 'Webhook' : 'Polling'}\n` +
+        `• Conversations: ${this.conversations.size} active\n` +
+        `• Commands registered: ${this.commands.size}`
+      );
+    });
+
+    this.onCommand('cancel', async (chatId) => {
+      if (this.conversations.has(chatId)) {
+        this.conversations.delete(chatId);
+        await this.sendMessage(chatId, '❌ Conversation cancelled.');
+      } else {
+        await this.sendMessage(chatId, 'No active conversation to cancel.');
+      }
+    });
+  }
 
   constructor(agent: Agent, config: TelegramConfig) {
     this.agent = agent;
@@ -41,6 +133,14 @@ export class TelegramChannel {
     if (config.groupIds) {
       config.groupIds.forEach(id => this.groupIds.add(typeof id === 'string' ? parseInt(id) : id));
     }
+    
+    if (config.webhook) {
+      this.useWebhook = true;
+      this.webhookSecret = config.webhook.secretToken;
+    }
+
+    // Register default commands
+    this.registerDefaultCommands();
   }
 
   async start(): Promise<void> {
@@ -50,11 +150,20 @@ export class TelegramChannel {
     const me = await this.getMe();
     console.log(`✅ Logged in as @${me.username}`);
     
-    // Start polling
-    this.polling = true;
-    this.poll();
+    if (this.useWebhook) {
+      // Set up webhook
+      const webhookUrl = (this.agent as any).config?.telegram?.webhook?.url;
+      if (webhookUrl) {
+        await this.setWebhook(webhookUrl);
+        console.log(`🔗 Webhook set to ${webhookUrl}`);
+      }
+    } else {
+      // Start polling
+      this.polling = true;
+      this.poll();
+    }
     
-    console.log('📱 Telegram bot is running!');
+    console.log(`📱 Telegram bot is running (${this.useWebhook ? 'Webhook' : 'Polling'})!`);
   }
 
   stop(): void {
@@ -65,6 +174,266 @@ export class TelegramChannel {
     console.log('📱 Telegram bot stopped');
   }
 
+  // ============== WEBHOOK METHODS ==============
+
+  /**
+   * Set webhook URL for receiving updates
+   */
+  async setWebhook(url: string): Promise<void> {
+    await this.request('/setWebhook', { 
+      url, 
+      drop_pending_updates: true,
+      secret_token: this.webhookSecret
+    });
+  }
+
+  /**
+   * Delete webhook and revert to polling
+   */
+  async deleteWebhook(): Promise<void> {
+    await this.request('/deleteWebhook', { drop_pending_updates: true });
+  }
+
+  /**
+   * Get current webhook info
+   */
+  async getWebhookInfo(): Promise<any> {
+    return this.request('/getWebhookInfo');
+  }
+
+  /**
+   * Handle incoming webhook update (call this from your webhook server)
+   */
+  async handleWebhookUpdate(update: TelegramUpdate): Promise<void> {
+    if (update.message) {
+      await this.handleMessage(update.message);
+    } else if (update.callback_query) {
+      await this.handleCallbackQuery(update.callback_query);
+    }
+  }
+
+  /**
+   * Create a webhook server (Express example)
+   */
+  createWebhookServer(port: number = 8443): http.Server {
+    const server = http.createServer(async (req, res) => {
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+          // Verify secret token if set
+          if (this.webhookSecret) {
+            const token = req.headers['x-telegram-bot-api-secret-token'];
+            if (token !== this.webhookSecret) {
+              res.writeHead(401);
+              res.end('Unauthorized');
+              return;
+            }
+          }
+
+          try {
+            const update: TelegramUpdate = JSON.parse(body);
+            await this.handleWebhookUpdate(update);
+            res.writeHead(200);
+            res.end('OK');
+          } catch (e) {
+            console.error('Webhook error:', e);
+            res.writeHead(500);
+            res.end('Error');
+          }
+        });
+      } else {
+        res.writeHead(200);
+        res.end('Telegram Webhook Server Running');
+      }
+    });
+
+    server.listen(port, () => {
+      console.log(`🔗 Webhook server listening on port ${port}`);
+    });
+
+    return server;
+  }
+
+  // ============== COMMAND HANDLERS ==============
+
+  /**
+   * Register a command handler
+   * @param command Command name (without /)
+   * @param handler Function to handle the command
+   */
+  onCommand(command: string, handler: CommandHandler): void {
+    this.commands.set(command.toLowerCase(), handler);
+  }
+
+  /**
+   * Register a callback query handler
+   * @param pattern Pattern to match (prefix)
+   * @param handler Function to handle the callback
+   */
+  onCallback(pattern: string, handler: CallbackHandler): void {
+    this.callbackHandlers.set(pattern, handler);
+  }
+
+  /**
+   * Register a default callback handler (for unmatched callbacks)
+   */
+  onAnyCallback(handler: CallbackHandler): void {
+    this.defaultCallbackHandler = handler;
+  }
+
+  // ============== INLINE KEYBOARD METHODS ==============
+
+  /**
+   * Send message with inline keyboard
+   */
+  async sendWithKeyboard(
+    chatId: number, 
+    text: string, 
+    keyboard: InlineKeyboardButton[][]
+  ): Promise<void> {
+    const escapedText = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    await this.request('/sendMessage', {
+      chat_id: chatId,
+      text: escapedText,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: keyboard
+      }
+    });
+  }
+
+  /**
+   * Send a message with keyboard and force reply
+   */
+  async sendWithReplyKeyboard(
+    chatId: number,
+    text: string,
+    keyboard: InlineKeyboardButton[][],
+    placeholder?: string
+  ): Promise<void> {
+    const escapedText = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    await this.request('/sendMessage', {
+      chat_id: chatId,
+      text: escapedText,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: keyboard,
+        input_field_placeholder: placeholder
+      }
+    });
+  }
+
+  /**
+   * Answer a callback query
+   */
+  async answerCallbackQuery(callbackId: string, text?: string): Promise<void> {
+    await this.request('/answerCallbackQuery', {
+      callback_query_id: callbackId,
+      text,
+      show_alert: !!text
+    });
+  }
+
+  // ============== CONVERSATION STATE METHODS ==============
+
+  /**
+   * Start a conversation with a user
+   */
+  startConversation(chatId: number, state: string, initialData: Record<string, any> = {}): void {
+    this.conversations.set(chatId, {
+      state,
+      data: initialData,
+      lastMessage: Date.now()
+    });
+  }
+
+  /**
+   * Update conversation state
+   */
+  updateConversation(chatId: number, state?: string, data?: Record<string, any>): void {
+    const conversation = this.conversations.get(chatId);
+    if (conversation) {
+      if (state) conversation.state = state;
+      if (data) conversation.data = { ...conversation.data, ...data };
+      conversation.lastMessage = Date.now();
+    }
+  }
+
+  /**
+   * Get conversation state
+   */
+  getConversation(chatId: number): ConversationState | undefined {
+    const conversation = this.conversations.get(chatId);
+    if (conversation && Date.now() - conversation.lastMessage > this.conversationTimeout) {
+      this.conversations.delete(chatId);
+      return undefined;
+    }
+    return conversation;
+  }
+
+  /**
+   * End a conversation
+   */
+  endConversation(chatId: number): void {
+    this.conversations.delete(chatId);
+  }
+
+  /**
+   * Set conversation timeout (default 5 minutes)
+   */
+  setConversationTimeout(timeoutMs: number): void {
+    this.conversationTimeout = timeoutMs;
+  }
+
+  // ============== RICH FORMATTING METHODS ==============
+
+  /**
+   * Send HTML formatted message
+   */
+  async sendFormatted(chatId: number, html: string): Promise<void> {
+    // Only escape text nodes, not HTML tags
+    const escapedHtml = this.escapeHtml(html);
+    
+    await this.request('/sendMessage', {
+      chat_id: chatId,
+      text: escapedHtml,
+      parse_mode: 'HTML'
+    });
+  }
+
+  /**
+   * Escape HTML special characters (but preserve existing tags)
+   */
+  private escapeHtml(text: string): string {
+    // Don't escape content inside HTML tags
+    return text
+      .replace(/&(?!(amp|lt|gt|quot|apos|nbsp);)/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  /**
+   * Send message with MarkdownV2 formatting
+   */
+  async sendMarkdown(chatId: number, text: string): Promise<void> {
+    await this.request('/sendMessage', {
+      chat_id: chatId,
+      text,
+      parse_mode: 'MarkdownV2'
+    });
+  }
+
+  // ============== POLLING METHODS ==============
+
   private async poll(): Promise<void> {
     if (!this.polling) return;
 
@@ -74,6 +443,8 @@ export class TelegramChannel {
       for (const update of updates) {
         if (update.message) {
           await this.handleMessage(update.message);
+        } else if (update.callback_query) {
+          await this.handleCallbackQuery(update.callback_query);
         }
       }
 
@@ -91,8 +462,8 @@ export class TelegramChannel {
     }
   }
 
-  private async getUpdates(): Promise<any[]> {
-    const url = `https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=30&allowed_updates=message`;
+  private async getUpdates(): Promise<TelegramUpdate[]> {
+    const url = `https://api.telegram.org/bot${this.botToken}/getUpdates?offset=${this.offset}&timeout=30&allowed_updates=message,callback_query`;
     
     return new Promise((resolve, reject) => {
       https.get(url, (res) => {
@@ -119,20 +490,59 @@ export class TelegramChannel {
     return data;
   }
 
+  // ============== MESSAGE HANDLERS ==============
+
   private async handleMessage(message: TelegramMessage): Promise<void> {
     const chatId = message.chat.id;
     const text = message.text || '';
+    const userId = message.from?.id;
 
     // Check permissions
-    if (!this.isAllowed(chatId, message.from?.id)) {
+    if (!this.isAllowed(chatId, userId)) {
       await this.sendMessage(chatId, '❌ You are not authorized to use this bot.');
       return;
     }
 
-    // Ignore commands without text
+    // Ignore non-text messages
     if (!text) return;
 
-    // Process message
+    // Check for commands
+    if (text.startsWith('/')) {
+      const parts = text.slice(1).split(' ');
+      const command = parts[0].toLowerCase();
+      const args = parts.slice(1);
+
+      // Check if command exists
+      if (this.commands.has(command)) {
+        const handler = this.commands.get(command)!;
+        try {
+          await handler(chatId, args);
+        } catch (e: any) {
+          await this.sendMessage(chatId, `❌ Command error: ${e.message}`);
+        }
+        return;
+      }
+
+      // Unknown command - just process as regular message
+      console.log(`📱 Telegram: Unknown command ${command}`);
+    }
+
+    // Check for active conversation
+    const conversation = this.getConversation(chatId);
+    if (conversation) {
+      console.log(`📱 Telegram conversation [${conversation.state}]: ${message.from?.first_name}: ${text}`);
+      // Conversation handlers would be registered externally
+      // For now, pass to agent
+      try {
+        const response = await this.agent.chat(text, { conversation });
+        await this.sendMessage(chatId, response);
+      } catch (e: any) {
+        await this.sendMessage(chatId, `❌ Error: ${e.message}`);
+      }
+      return;
+    }
+
+    // Regular message - process with agent
     console.log(`📱 Telegram: ${message.from?.first_name}: ${text}`);
 
     try {
@@ -140,6 +550,53 @@ export class TelegramChannel {
       await this.sendMessage(chatId, response);
     } catch (e: any) {
       await this.sendMessage(chatId, `❌ Error: ${e.message}`);
+    }
+  }
+
+  private async handleCallbackQuery(callbackQuery: TelegramUpdate['callback_query']): Promise<void> {
+    if (!callbackQuery) return;
+
+    const chatId = callbackQuery.message?.chat.id;
+    const data = callbackQuery.data;
+    const callbackId = callbackQuery.id;
+
+    if (!chatId || !data) return;
+
+    // Check permissions
+    if (!this.isAllowed(chatId, callbackQuery.from.id)) {
+      await this.answerCallbackQuery(callbackId, '❌ You are not authorized.');
+      return;
+    }
+
+    // Find matching handler
+    let handler: CallbackHandler | undefined;
+    let matchedPattern: string | undefined;
+
+    for (const [pattern, h] of this.callbackHandlers) {
+      if (data.startsWith(pattern)) {
+        handler = h;
+        matchedPattern = pattern;
+        break;
+      }
+    }
+
+    if (handler) {
+      try {
+        const callbackData = matchedPattern ? data.slice(matchedPattern.length) : data;
+        await handler(chatId, callbackData);
+        await this.answerCallbackQuery(callbackId);
+      } catch (e: any) {
+        await this.answerCallbackQuery(callbackId, `❌ Error: ${e.message}`);
+      }
+    } else if (this.defaultCallbackHandler) {
+      try {
+        await this.defaultCallbackHandler(chatId, data);
+        await this.answerCallbackQuery(callbackId);
+      } catch (e: any) {
+        await this.answerCallbackQuery(callbackId, `❌ Error: ${e.message}`);
+      }
+    } else {
+      await this.answerCallbackQuery(callbackId, 'Unknown action');
     }
   }
 
@@ -162,6 +619,8 @@ export class TelegramChannel {
     return false;
   }
 
+  // ============== SEND METHODS ==============
+
   async sendMessage(chatId: number, text: string): Promise<void> {
     const escapedText = text
       .replace(/&/g, '&amp;')
@@ -172,6 +631,30 @@ export class TelegramChannel {
       chat_id: chatId,
       text: escapedText,
       parse_mode: 'HTML'
+    });
+  }
+
+  /**
+   * Send a photo with optional caption
+   */
+  async sendPhoto(chatId: number, photo: string, caption?: string): Promise<void> {
+    await this.request('/sendPhoto', {
+      chat_id: chatId,
+      photo,
+      caption: caption,
+      parse_mode: caption ? 'HTML' : undefined
+    });
+  }
+
+  /**
+   * Send a document with optional caption
+   */
+  async sendDocument(chatId: number, document: string, caption?: string): Promise<void> {
+    await this.request('/sendDocument', {
+      chat_id: chatId,
+      document,
+      caption: caption,
+      parse_mode: caption ? 'HTML' : undefined
     });
   }
 
@@ -212,158 +695,6 @@ export class TelegramChannel {
         req.write(postData);
       }
       req.end();
-    });
-  }
-
-  // Form request for multipart uploads (photos, documents, voice)
-  private formRequest(method: string, formData: FormData): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const data = formData.getBuffer();
-      
-      const options: https.RequestOptions = {
-        hostname: 'api.telegram.org',
-        path: `/bot${this.botToken}${method}`,
-        method: 'POST',
-        headers: {
-          ...formData.getHeaders(),
-          'Content-Length': data.length
-        }
-      };
-
-      const req = https.request(options, (res) => {
-        let responseData = '';
-        res.on('data', chunk => responseData += chunk);
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(responseData);
-            if (parsed.ok) {
-              resolve(parsed.result);
-            } else {
-              reject(new Error(parsed.description));
-            }
-          } catch (e) {
-            reject(e);
-          }
-        });
-      });
-
-      req.on('error', reject);
-      req.write(data);
-      req.end();
-    });
-  }
-
-  // ==================== GROUP CHAT FEATURES ====================
-
-  // Reply to a specific message
-  async replyTo(chatId: number, messageId: number, text: string): Promise<void> {
-    const escapedText = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    await this.request('/sendMessage', {
-      chat_id: chatId,
-      text: escapedText,
-      reply_to_message_id: messageId,
-      parse_mode: 'HTML'
-    });
-  }
-
-  // Get chat info
-  async getChat(chatId: number): Promise<any> {
-    return this.request('/getChat', { chat_id: chatId });
-  }
-
-  // Get chat administrators
-  async getChatMembers(chatId: number): Promise<any> {
-    return this.request('/getChatAdministrators', { chat_id: chatId });
-  }
-
-  // Leave a chat
-  async leaveChat(chatId: number): Promise<void> {
-    await this.request('/leaveChat', { chat_id: chatId });
-  }
-
-  // ==================== MEDIA SUPPORT ====================
-
-  // Send a photo
-  async sendPhoto(chatId: number, photo: string | Buffer, caption?: string): Promise<void> {
-    const formData = new FormData();
-    formData.append('chat_id', chatId.toString());
-    formData.append('photo', photo);
-    if (caption) {
-      const escapedCaption = caption
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      formData.append('caption', escapedCaption);
-      formData.append('parse_mode', 'HTML');
-    }
-    await this.formRequest('/sendPhoto', formData);
-  }
-
-  // Send a document
-  async sendDocument(chatId: number, document: string | Buffer, caption?: string): Promise<void> {
-    const formData = new FormData();
-    formData.append('chat_id', chatId.toString());
-    formData.append('document', document);
-    if (caption) {
-      const escapedCaption = caption
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      formData.append('caption', escapedCaption);
-      formData.append('parse_mode', 'HTML');
-    }
-    await this.formRequest('/sendDocument', formData);
-  }
-
-  // Send voice message
-  async sendVoice(chatId: number, voice: string | Buffer, caption?: string): Promise<void> {
-    const formData = new FormData();
-    formData.append('chat_id', chatId.toString());
-    formData.append('voice', voice);
-    if (caption) {
-      const escapedCaption = caption
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      formData.append('caption', escapedCaption);
-      formData.append('parse_mode', 'HTML');
-    }
-    await this.formRequest('/sendVoice', formData);
-  }
-
-  // ==================== MESSAGE ACTIONS ====================
-
-  // Send chat action (typing, upload_photo, record_video, upload_voice)
-  async sendAction(chatId: number, action: 'typing' | 'upload_photo' | 'record_video' | 'upload_voice' | 'record_audio' | 'upload_video' | 'upload_document' | 'find_location' | 'record_video_note' | 'upload_video_note'): Promise<void> {
-    await this.request('/sendChatAction', { chat_id: chatId, action });
-  }
-
-  // ==================== EDIT AND DELETE ====================
-
-  // Edit a message
-  async editMessage(chatId: number, messageId: number, text: string): Promise<void> {
-    const escapedText = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    await this.request('/editMessageText', {
-      chat_id: chatId,
-      message_id: messageId,
-      text: escapedText,
-      parse_mode: 'HTML'
-    });
-  }
-
-  // Delete a message
-  async deleteMessage(chatId: number, messageId: number): Promise<void> {
-    await this.request('/deleteMessage', {
-      chat_id: chatId,
-      message_id: messageId
     });
   }
 
