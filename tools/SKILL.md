@@ -2,11 +2,6 @@
 
 ## External Integrations
 
-### Claude Code (`@anthropic-ai/claude-code`)
-- **Purpose:** Premium code editing, multi-file refactoring, git workflows
-- **Install:** `npm install -g @anthropic-ai/claude-code`
-- **Use:** `duck claude "fix this bug"`
-
 ### AI Council (`ai-council`)
 - **Purpose:** Multi-agent deliberation and voting
 - **Start:** `./start-ai-council.sh`

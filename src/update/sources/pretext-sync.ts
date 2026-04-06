@@ -21,13 +21,23 @@ export class PretextSync extends BaseSyncModule {
   async prepareSync(): Promise<void> {
     const gitDir = join(this.workDir, '.git');
     if (!existsSync(gitDir)) {
-      console.log(`  📦 Cloning ${this.repo}...`);
-      execSync(`git clone --branch ${PRETEXT_BRANCH} ${PRETEXT_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      try {
+        console.log(`  📦 Cloning ${this.repo}...`);
+        execSync(`git clone --branch ${PRETEXT_BRANCH} ${PRETEXT_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Clone failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     } else {
       try { execSync(`git remote get-url ${this.remoteName}`, { cwd: this.workDir, stdio: 'pipe' }); }
       catch { execSync(`git remote add ${this.remoteName} ${PRETEXT_REPO}`, { cwd: this.workDir, stdio: 'pipe' }); }
-      execSync(`git fetch ${this.remoteName} ${PRETEXT_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
-      execSync(`git pull ${this.remoteName} ${PRETEXT_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      try {
+        execSync(`git fetch ${this.remoteName} ${PRETEXT_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+        execSync(`git pull ${this.remoteName} ${PRETEXT_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Git fetch/pull failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     }
     this.status.configured = true;
     this.status.available = true;
@@ -63,7 +73,9 @@ export class PretextSync extends BaseSyncModule {
         const state = JSON.parse(readFileSync(stateFile, 'utf-8'));
         return state.commit;
       }
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Failed to read last known commit:`, e instanceof Error ? e.message : e);
+    }
     return null;
   }
 
@@ -71,7 +83,9 @@ export class PretextSync extends BaseSyncModule {
     try {
       const stateFile = join(this.homeDir, '.duck', 'pretext-commit.json');
       writeFileSync(stateFile, JSON.stringify({ commit, updated: new Date().toISOString() }));
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Failed to save last known commit:`, e instanceof Error ? e.message : e);
+    }
   }
 
   async applyChanges(changes: Change[]): Promise<void> {

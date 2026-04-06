@@ -33,14 +33,24 @@ export class OpenClawSync extends BaseSyncModule {
 
     if (!existsSync(gitDir)) {
       console.log(`  📦 Cloning ${this.repo}...`);
-      execSync(`git clone --branch ${OPENCLAW_BRANCH} ${OPENCLAW_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      try {
+        execSync(`git clone --branch ${OPENCLAW_BRANCH} ${OPENCLAW_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Git clone failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     } else {
       try {
         execSync(`git remote get-url ${this.remoteName}`, { cwd: this.workDir, stdio: 'pipe' });
       } catch {
         execSync(`git remote add ${this.remoteName} ${OPENCLAW_REPO}`, { cwd: this.workDir, stdio: 'pipe' });
       }
-      execSync(`git fetch ${this.remoteName} ${OPENCLAW_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      try {
+        execSync(`git fetch ${this.remoteName} ${OPENCLAW_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Git fetch failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     }
 
     this.status.configured = true;

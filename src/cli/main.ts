@@ -1661,6 +1661,13 @@ async function androidCommand(args: string[]) {
       console.log(ok ? `${c2.green}✓ Key pressed${c2.reset}` : `${c2.red}✗ Key failed${c2.reset}`);
       break;
     }
+    case 'screen': {
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const text = await android.readScreen();
+      console.log(text || '(no text on screen)');
+      break;
+    }
     case 'dump': {
       await android.refreshDevices();
       if (payload.serial) android.setDevice(payload.serial);

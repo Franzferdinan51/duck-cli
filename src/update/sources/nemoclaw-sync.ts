@@ -28,12 +28,22 @@ export class NeMoClawSync extends BaseSyncModule {
   async prepareSync(): Promise<void> {
     const gitDir = join(this.workDir, '.git');
     if (!existsSync(gitDir)) {
-      console.log(`  📦 Cloning ${this.repo}...`);
-      execSync(`git clone --branch ${NEMO_BRANCH} ${NEMO_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      try {
+        console.log(`  📦 Cloning ${this.repo}...`);
+        execSync(`git clone --branch ${NEMO_BRANCH} ${NEMO_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Clone failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     } else {
       try { execSync(`git remote get-url ${this.remoteName}`, { cwd: this.workDir, stdio: 'pipe' }); }
       catch { execSync(`git remote add ${this.remoteName} ${NEMO_REPO}`, { cwd: this.workDir, stdio: 'pipe' }); }
-      execSync(`git fetch ${this.remoteName} ${NEMO_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      try {
+        execSync(`git fetch ${this.remoteName} ${NEMO_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Git fetch failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     }
     this.status.configured = true;
     this.status.available = true;

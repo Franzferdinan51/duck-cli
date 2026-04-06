@@ -28,13 +28,23 @@ export class AICouncilSync extends BaseSyncModule {
   async prepareSync(): Promise<void> {
     const gitDir = join(this.workDir, '.git');
     if (!existsSync(gitDir)) {
-      console.log(`  📦 Cloning ${this.repo}...`);
-      execSync(`git clone --branch ${COUNCIL_BRANCH} ${COUNCIL_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      try {
+        console.log(`  📦 Cloning ${this.repo}...`);
+        execSync(`git clone --branch ${COUNCIL_BRANCH} ${COUNCIL_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Clone failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     } else {
       try { execSync(`git remote get-url ${this.remoteName}`, { cwd: this.workDir, stdio: 'pipe' }); }
       catch { execSync(`git remote add ${this.remoteName} ${COUNCIL_REPO}`, { cwd: this.workDir, stdio: 'pipe' }); }
-      execSync(`git fetch ${this.remoteName} ${COUNCIL_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
-      execSync(`git pull ${this.remoteName} ${COUNCIL_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      try {
+        execSync(`git fetch ${this.remoteName} ${COUNCIL_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+        execSync(`git pull ${this.remoteName} ${COUNCIL_BRANCH}`, { cwd: this.workDir, stdio: 'pipe' });
+      } catch (e) {
+        this.status.errors.push(`Git fetch/pull failed: ${e instanceof Error ? e.message : e}`);
+        throw e;
+      }
     }
     this.status.configured = true;
     this.status.available = true;

@@ -67,7 +67,9 @@ export abstract class BaseSyncModule implements SyncModule {
     try {
       mkdirSync(this.syncBackupsDir, { recursive: true });
       mkdirSync(dirname(this.statePath), { recursive: true });
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Failed to create directories:`, e instanceof Error ? e.message : e);
+    }
   }
 
   protected loadState(): void {
@@ -79,7 +81,9 @@ export abstract class BaseSyncModule implements SyncModule {
           this.lastSync = sourceState.lastSync ? new Date(sourceState.lastSync) : null;
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Failed to load state:`, e instanceof Error ? e.message : e);
+    }
   }
 
   protected saveState(result: Partial<SyncResult>, errors: string[] = []): void {
@@ -89,7 +93,8 @@ export abstract class BaseSyncModule implements SyncModule {
         state = existsSync(this.statePath)
           ? JSON.parse(readFileSync(this.statePath, 'utf-8'))
           : { sources: {}, global: { lastGlobalSync: null, totalSyncs: 0, successfulSyncs: 0, failedSyncs: 0 } };
-      } catch {
+      } catch (e) {
+        console.warn(`[Sync:${this.name}] Corrupted state file, resetting:`, e instanceof Error ? e.message : e);
         state = { sources: {}, global: { lastGlobalSync: null, totalSyncs: 0, successfulSyncs: 0, failedSyncs: 0 } };
       }
 
@@ -112,7 +117,9 @@ export abstract class BaseSyncModule implements SyncModule {
       }
 
       writeFileSync(this.statePath, JSON.stringify(state, null, 2));
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Failed to save state:`, e instanceof Error ? e.message : e);
+    }
   }
 
   protected getCurrentCommit(): string | null {
@@ -120,7 +127,9 @@ export abstract class BaseSyncModule implements SyncModule {
       if (existsSync(join(this.workDir, '.git'))) {
         return execSync('git rev-parse HEAD', { cwd: this.workDir, encoding: 'utf-8' }).trim().slice(0, 8);
       }
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Failed to get current commit:`, e instanceof Error ? e.message : e);
+    }
     return null;
   }
 
@@ -230,7 +239,9 @@ export abstract class BaseSyncModule implements SyncModule {
           execSync(`cp -r "${src}" "${backupPath}/"`, { stdio: 'pipe' });
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error(`[Sync:${this.name}] Backup failed:`, e instanceof Error ? e.message : e);
+    }
 
     return backupPath;
   }

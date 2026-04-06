@@ -25,9 +25,14 @@ export class DroidClawSync extends BaseSyncModule {
   syncMethod: 'clone' = 'clone';
 
   async prepareSync(): Promise<void> {
-    if (existsSync(this.workDir)) execSync(`rm -rf "${this.workDir}"`, { stdio: 'pipe' });
-    console.log(`  📦 Cloning ${this.repo}...`);
-    execSync(`git clone --branch ${DROID_BRANCH} ${DROID_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+    try {
+      if (existsSync(this.workDir)) execSync(`rm -rf "${this.workDir}"`, { stdio: 'pipe' });
+      console.log(`  📦 Cloning ${this.repo}...`);
+      execSync(`git clone --branch ${DROID_BRANCH} ${DROID_REPO} "${this.workDir}"`, { stdio: 'pipe' });
+    } catch (e) {
+      this.status.errors.push(`Clone failed: ${e instanceof Error ? e.message : e}`);
+      throw e;
+    }
     this.status.configured = true;
     this.status.available = true;
   }

@@ -126,8 +126,11 @@ export class AgentMeshClient extends EventEmitter {
   private async request<T = any>(
     method: string,
     path: string,
-    body?: object
+    body?: object,
+    timeoutMs: number = 30000
   ): Promise<T | null> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(`${this.serverUrl}${path}`, {
         method,
@@ -136,11 +139,14 @@ export class AgentMeshClient extends EventEmitter {
           'X-API-Key': this.apiKey,
         },
         body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json();
       return data;
     } catch (error) {
+      clearTimeout(timeout);
       this.emitError('http_error', error);
       return null;
     }
@@ -301,9 +307,9 @@ export class AgentMeshClient extends EventEmitter {
       this.disconnect();
     };
 
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
-    process.on('exit', cleanup);
+    // Use once to auto-remove after first trigger (exit handler auto-removes)
+    process.once('SIGINT', cleanup);
+    process.once('SIGTERM', cleanup);
   }
 
   private handleEvent(event: { type: string; data?: any; agentId?: string }): void {
@@ -645,12 +651,17 @@ export class AgentMeshClient extends EventEmitter {
    */
   async ping(): Promise<boolean> {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(`${this.serverUrl}/api/health/dashboard`, {
         method: 'GET',
         headers: { 'X-API-Key': this.apiKey },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       return response.ok;
-    } catch {
+    } catch (error) {
+      this.emitError('ping_failed', error);
       return false;
     }
   }

@@ -154,13 +154,18 @@ export class AgentMesh {
 
   async listAgents(): Promise<MeshAgent[]> {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(`${this.serverUrl}/api/agents`, {
-        headers: { 'X-API-Key': this.apiKey }
+        headers: { 'X-API-Key': this.apiKey },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json() as any;
       return data.agents || [];
-    } catch {
+    } catch (e) {
+      console.error('[MeshClient] listAgents failed:', e instanceof Error ? e.message : e);
       return [];
     }
   }

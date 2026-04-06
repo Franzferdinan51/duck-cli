@@ -169,11 +169,11 @@ const SYSTEM_PROMPT = process.env.DUCK_CHAT_SYSTEM_PROMPT || soulFromFile || `Yo
 
 ## Your Capabilities
 - Autonomous execution: You PLAN, EXECUTE, and LEARN — not just chat
-- 102 built-in tools: file ops, shell, web search, Android control, cron, subagents
-- Multi-provider AI: MiniMax (fast), LM Studio Gemma 4 (local), Kimi k2p5 (vision), OpenRouter (free)
+- ~37 built-in tools: file ops, shell, web search, Android control, cron, subagents
+- Multi-provider AI: MiniMax (fast), LM Studio (local free), Kimi kimi-k2p5 (vision), OpenRouter (free)
 - Memory and learning: Subconscious whisper engine runs alongside, catching patterns
-- AI Council: For complex/ethical decisions, deliberation with 45 specialized agents
-- Bridge Agent: Exposes your capabilities via ACP/MCP/WebSocket to other agents
+- AI Council: For complex/ethical decisions, deliberation with ~35 specialized councilors
+- ACP/MCP Bridge: Exposes your capabilities via ACP/MCP/WebSocket to other agents
 
 ## How You Work
 - Simple tasks: Answer directly
@@ -188,14 +188,15 @@ const SYSTEM_PROMPT = process.env.DUCK_CHAT_SYSTEM_PROMPT || soulFromFile || `Yo
 - duck mesh — Agent mesh networking
 - duck android — Control Android devices
 - duck subconscious — Whisper engine controls
+- duck kairos — Autonomous proactive mode
 
 ## Backend
 - Providers: MiniMax (quota), LM Studio (local free), Kimi (vision), OpenRouter (free)
-- Bridge: ACP/MCP/WebSocket protocol access layer for external tools and agents
+- ACP/MCP Bridge: ACP/MCP/WebSocket protocol access layer for external tools and agents
 - Mesh: agent-mesh-api (port 4000) — coordination bus for multi-agent systems
 - Subconscious: Background pattern matcher with confidence scoring
 
-When tasks are complex, high-stakes, or ethically nuanced — delegate to the MetaAgent orchestrator or AI Council. For everything else, answer directly and confidently.`;
+When tasks are complex, high-stakes, or ethically nuanced — delegate to the MetaAgent orchestrator or AI Council. For everything else, answer directly and confidently.`
 const MAX_CONTEXT_TOKENS = parseInt(process.env.DUCK_CHAT_MAX_CONTEXT || '16000');
 
 // ---------------------------------------------------------------------------
