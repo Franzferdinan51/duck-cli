@@ -13,7 +13,7 @@ export interface StoredMemory {
   context: string;
   tags: string[];
   importance: number;
-  source: 'session' | 'council' | 'analysis' | 'manual';
+  source: 'session' | 'council' | 'analysis' | 'manual' | 'dream' | 'whisper';
   sessionId?: string;
   topic?: string;
   embedding?: string;

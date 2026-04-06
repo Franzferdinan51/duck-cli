@@ -154,6 +154,24 @@ export class SubconsciousClient extends EventEmitter {
   }
 
   /**
+   * Save KAIROS dream consolidation insights
+   */
+  async saveDream(params: {
+    sessionId: string;
+    startedAt: number;
+    endedAt?: number;
+    topics: string[];
+    insights: string[];
+    actionSummary?: string;
+    patternsSeen?: string[];
+  }): Promise<{ status: string; memoryId: string; insightsCount: number }> {
+    return this.request('/dream', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+  }
+
+  /**
    * Get daemon stats
    */
   async getStats(): Promise<{ 

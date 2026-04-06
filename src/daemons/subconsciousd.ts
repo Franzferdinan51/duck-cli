@@ -35,6 +35,16 @@ interface CouncilPayload {
   deliberation: string;
 }
 
+interface DreamPayload {
+  sessionId: string;
+  startedAt: number;
+  endedAt?: number;
+  topics: string[];
+  insights: string[];
+  actionSummary?: string;
+  patternsSeen?: string[];
+}
+
 /**
  * Start the Sub-Conscious daemon
  */
@@ -135,7 +145,7 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
             context: `Generated from: ${req2.message || 'current context'}`,
             tags: ['whisper', 'subconscious', ...(req2.recentTopics || [])],
             importance: 0.5,
-            source: 'manual' as const,  // whisper-generated, saved as manual memory
+            source: 'whisper' as const,
             topic: req2.recentTopics?.[0] || 'general',
             createdAt: new Date().toISOString(),
             accessedAt: new Date().toISOString(),
@@ -202,6 +212,32 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'saved', insight, tags }));
+        return;
+      }
+
+      // Route: POST /dream - Store KAIROS dream insights
+      if (path === '/dream' && method === 'POST') {
+        const payload = JSON.parse(body) as DreamPayload;
+        const duration = payload.endedAt ? payload.endedAt - payload.startedAt : 0;
+        const content = `KAIROS Dream Consolidation\n\nInsights:\n${payload.insights.map(i => '- ' + i).join('\n')}\n\nTopics: ${payload.topics.join(', ')}\nDuration: ${Math.round(duration / 1000)}s`;
+
+        const memory: StoredMemory = {
+          id: `dream_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          content,
+          context: `Patterns: ${(payload.patternsSeen || []).join(', ')}. Action summary: ${payload.actionSummary || 'N/A'}`,
+          tags: ['dream', 'kairos', 'consolidation', ...(payload.topics || [])],
+          importance: 0.6,
+          source: 'dream' as const,
+          topic: payload.topics?.[0] || 'general',
+          createdAt: new Date(payload.startedAt).toISOString(),
+          accessedAt: new Date().toISOString(),
+          accessCount: 0,
+        };
+        await store.save(memory);
+        console.log(`[Sub-Conscious Daemon] Dream saved: ${payload.insights.length} insights`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'saved', memoryId: memory.id, insightsCount: payload.insights.length }));
         return;
       }
 

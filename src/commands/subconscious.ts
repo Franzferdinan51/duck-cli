@@ -269,6 +269,24 @@ export async function subconsciousCommand(args: string[]): Promise<void> {
         }
       }
       
+      // Save dream results to daemon
+      if (result.insights.length > 0) {
+        try {
+          await client.saveDream({
+            sessionId: `dream_${Date.now()}`,
+            startedAt: Date.now() - signalCount * 60000,
+            endedAt: Date.now(),
+            topics: result.patterns,
+            insights: [...result.insights, ...result.recommendations],
+            actionSummary: `Ran ${signalCount} signal dreaming cycle in ${deepMode ? 'deep' : 'local'} mode`,
+            patternsSeen: result.patterns,
+          });
+          console.log(`${c.cyan}💾 Dream saved to Sub-Conscious daemon${c.reset}`);
+        } catch (e: any) {
+          console.log(`${c.dim}💾 (daemon not running, dream not persisted)${c.reset}`);
+        }
+      }
+
       console.log(`${c.green}✓${c.reset} Dreaming cycle complete`);
       break;
     }

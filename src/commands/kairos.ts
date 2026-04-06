@@ -8,7 +8,8 @@ import {
   startKAIROS, 
   stopKAIROS,
   KAIROS,
-  KAIROSTick 
+  KAIROSTick,
+  KAIROSDream 
 } from '../kairos/orchestrator.js';
 import { 
   ThinkingModule, 
@@ -23,6 +24,7 @@ import {
   getToolRegistry, 
   BUILTIN_TOOLS 
 } from '../kairos/tools.js';
+import { getSubconsciousClient } from '../subconscious/client.js';
 
 export function createKairosCommand(): Command {
   const kairos = new Command('kairos')
@@ -45,9 +47,35 @@ export function createKairosCommand(): Command {
       console.log(`   Tick: ${options.tick}ms`);
       console.log('');
       
+      // Subconscious daemon client for dream saving
+      const subconscious = getSubconsciousClient();
+
       // Log events
       k.on('tick', (tick: KAIROSTick, state: any) => {
         console.log(`[${tick.localTime}] tick - idle:${state.isIdle} asleep:${state.isAsleep}`);
+      });
+
+      // Wire dream_complete → subconscious daemon (KAIROS + Subconscious integration)
+      k.on('dream_complete', async (dream: KAIROSDream) => {
+        console.log(`\n💤 KAIROS Dream complete: ${dream.insights.length} insights\n`);
+        try {
+          const patternsSeen = Array.from((k as any).patterns?.keys() || []).slice(-10) as string[];
+          const actionSummary = ((k as any).actionHistory?.slice(-50) || [])
+            .map((a: any) => a.type)
+            .reduce((acc: any, t: string) => { acc[t] = (acc[t] || 0) + 1; return acc; }, {} as Record<string, number>);
+          await subconscious.saveDream({
+            sessionId: `kairos_${Date.now()}`,
+            startedAt: dream.startedAt,
+            endedAt: dream.endedAt,
+            topics: dream.topics,
+            insights: dream.insights,
+            actionSummary: JSON.stringify(actionSummary),
+            patternsSeen,
+          });
+          console.log(`💤 Dream insights saved to Sub-Conscious\n`);
+        } catch (e: any) {
+          console.log(`⚠️  Dream save failed (daemon may not be running): ${e.message}`);
+        }
       });
     });
 
@@ -79,6 +107,59 @@ export function createKairosCommand(): Command {
       if (dream) {
         console.log(`  Dreaming: Yes (started ${new Date(dream.startedAt).toLocaleTimeString()})`);
       }
+      console.log('');
+    });
+
+  // Dream - manually trigger dream consolidation
+  kairos
+    .command('dream')
+    .description('Manually trigger KAIROS dream consolidation')
+    .option('-s, --save', 'Save dream insights to Sub-Conscious daemon', false)
+    .action(async (options) => {
+      const k = getKAIROS();
+      const state = k.getState();
+
+      console.log('\n💤 KAIROS Dream\n');
+
+      // Manually set asleep to trigger dream
+      (k as any).state.isAsleep = true;
+      (k as any).state.dreamEnabled = true;
+
+      // Trigger a tick to run the dream
+      await (k as any).tick();
+
+      const dream = k.getCurrentDream();
+      if (dream) {
+        console.log(`  Started: ${new Date(dream.startedAt).toLocaleTimeString()}`);
+        console.log(`  Insights: ${dream.insights.length}`);
+        if (dream.insights.length > 0) {
+          console.log('\n  Insights:');
+          for (const insight of dream.insights) {
+            console.log(`    - ${insight}`);
+          }
+        }
+
+        if (options.save) {
+          const subconscious = getSubconsciousClient();
+          try {
+            const patternsSeen = Array.from((k as any).patterns?.keys() || []).slice(-10) as string[];
+            await subconscious.saveDream({
+              sessionId: `kairos_manual_${Date.now()}`,
+              startedAt: dream.startedAt,
+              endedAt: dream.endedAt,
+              topics: dream.topics,
+              insights: dream.insights,
+              patternsSeen,
+            });
+            console.log('\n  💾 Dream insights saved to Sub-Conscious');
+          } catch (e: any) {
+            console.log(`\n  ⚠️  Could not save: ${e.message}`);
+          }
+        }
+      } else {
+        console.log('  No dream (already dreaming or not enabled)');
+      }
+
       console.log('');
     });
 
