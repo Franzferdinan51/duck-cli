@@ -4,6 +4,35 @@ All notable changes to Duck Agent will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v2.0.0] — 2026-04-06
+
+### Added
+- **🦸 Super Agent** — Complete v3 rewrite positioning duck-cli as rival to Claude Code, Letta Code, OpenAI Codex
+- **Chat Agent** — Conversational HTTP layer (port 18797) with multi-provider support (MiniMax/LM Studio/Kimi/OpenAI/OpenRouter)
+- **AI Council Bridge** — Deliberation BEFORE execution for complex/ethical/high-stakes tasks
+- **Agent Mesh Integration** — Inter-agent communication bus (port 4000) with registration, messaging, WebSocket
+- **3 Meta Agents** — Bridge Agent, Orchestrator, Subconscious all documented and integrated
+- **Multi-provider Chat** — Switch models at runtime via env vars or HTTP headers
+- **Pluggable Memory** — SQLite-backed persistent storage (Letta can be added later)
+
+### Changed
+- **README.md** — Complete rewrite with Super Agent tagline, v3 architecture diagram, all commands documented
+- **docs/ARCHITECTURE.md** — Full v2.0.0 architecture with all agents, flows, protocols
+- **docs/COUNCIL-INTEGRATION.md** — Updated to v2.0.0
+- **docs/ORCHESTRATOR.md** — Renamed to Meta-Agent Orchestrator v3
+- **Version** — All docs updated from v0.x to v2.0.0
+
+### Architecture
+- User → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
+- Chat Agent: conversational layer, session memory, multi-provider
+- AI Council: Speaker + Technocrat + Ethicist + Sentinel + Pragmatist
+- Bridge Agent: connection health, routing, protocol negotiation
+- Orchestrator: Plan→Critic→Healer→Learner loop
+- Subconscious: whisper monitoring, pattern matching
+- Agent Mesh: optional inter-agent communication
+
+---
+
 ## [v0.4.0] — 2026-04-01
 
 
