@@ -123,10 +123,12 @@ export class HybridOrchestrator {
     this.config = {
       name: this.name,
       version: this.version,
-      defaultTimeout: config.defaultTimeout ?? 30000,
+      // DUCK_TIMEOUT_MS env var cascades to orchestrator so Telegram-triggered
+      // tasks get enough time for complex operations (AI Council, multi-step agents).
+      defaultTimeout: config.defaultTimeout ?? parseInt(process.env.DUCK_TIMEOUT_MS || '120000', 10),
       maxConcurrentTasks: config.maxConcurrentTasks ?? 10,
       enableCouncil: config.enableCouncil ?? true,
-      councilTimeout: config.councilTimeout ?? 30000,
+      councilTimeout: config.councilTimeout ?? parseInt(process.env.DUCK_TIMEOUT_MS || '120000', 10),
       enableMetrics: config.enableMetrics ?? true,
       fastPath: config.fastPath ?? true,
       routerConfig: config.routerConfig ?? {},

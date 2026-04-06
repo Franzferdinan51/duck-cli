@@ -93,7 +93,7 @@ export function createDuckCLIOrchestrator(): OrchestratorCore {
   const orchestrator = createOrchestrator({
     name: 'duck-cli',
     version: '2.0.0',
-    defaultTimeout: 30000,
+    defaultTimeout: parseInt(process.env.DUCK_TIMEOUT_MS || '120000', 10),
     maxConcurrentTasks: 5,
     enableMetrics: true,
   });

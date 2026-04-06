@@ -52,7 +52,11 @@ export class ExecutionEngine {
 
   constructor(fallbackManager?: FallbackManager) {
     this.fallbackManager = fallbackManager ?? new FallbackManager();
-    this.defaultTimeout = 30000;
+    // Allow DUCK_TIMEOUT_MS env var to override default (for Telegram/long tasks).
+    // Default 120s gives complex orchestrated tasks (AI Council, multi-step agents)
+    // enough time without hitting Telegram's 5-min outer timeout.
+    const envTimeout = parseInt(process.env.DUCK_TIMEOUT_MS || '0', 10);
+    this.defaultTimeout = envTimeout > 0 ? envTimeout : 120000;
     this.defaultRetries = {
       maxAttempts: 3,
       initialDelayMs: 1000,

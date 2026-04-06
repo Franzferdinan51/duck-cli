@@ -198,8 +198,10 @@ export class ProviderManager {
       console.log(`[Router📡] Trying ${label}...`);
 
       try {
-        // Add timeout wrapper for each provider request
-        const timeoutMs = 60000; // 60 second timeout per provider
+        // Add timeout wrapper for each provider request.
+        // DUCK_PROVIDER_TIMEOUT_MS allows override (e.g. 120000 for slower models).
+        const envTimeout = parseInt(process.env.DUCK_PROVIDER_TIMEOUT_MS || '60000', 10);
+        const timeoutMs = envTimeout > 0 ? envTimeout : 60000;
         const result = await Promise.race([
           prov.complete({ model: target.model, messages: msgList }),
           new Promise<{ text?: string; toolCalls?: any[]; error?: string }>((_, reject) => 

@@ -234,7 +234,12 @@ async function forwardToGateway(message: string, chatId?: string): Promise<strin
       return;
     }
 
-    const timeoutMs = parseInt(process.env.DUCK_TELEGRAM_REPLY_TIMEOUT_MS || '300000', 10); // 5 min default
+    // Support both DUCK_TIMEOUT_MS (general override) and DUCK_TELEGRAM_REPLY_TIMEOUT_MS (Telegram-specific).
+    // DUCK_TIMEOUT_MS: orchestator/plugin-level timeout
+    // DUCK_TELEGRAM_REPLY_TIMEOUT_MS: Telegram-specific outer timeout (default 5 min)
+    const envGeneral = parseInt(process.env.DUCK_TIMEOUT_MS || '0', 10);
+    const envTelegram = parseInt(process.env.DUCK_TELEGRAM_REPLY_TIMEOUT_MS || '0', 10);
+    const timeoutMs = envTelegram > 0 ? envTelegram : (envGeneral > 0 ? envGeneral : 300000);
     const child = spawn(duckBin, ['run', message], {
       cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
       env: { ...process.env, DUCK_BOT_MODE: '1' },
