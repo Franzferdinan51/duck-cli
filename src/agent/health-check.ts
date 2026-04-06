@@ -190,15 +190,21 @@ async function checkMiniMax(silent: boolean = false): Promise<HealthCheckResult>
       };
     }
 
-    // Try a minimal API call
+    // Try a minimal chat completion API call (models endpoint doesn't exist)
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
     try {
-      const response = await fetch('https://api.minimax.chat/v1/models', {
+      const response = await fetch('https://api.minimax.io/v1/chat/completions', {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
+        body: JSON.stringify({
+          model: 'MiniMax-M2.7',
+          messages: [{ role: 'user', content: 'Hi' }],
+        }),
         signal: controller.signal,
       });
       clearTimeout(timeout);

@@ -4,7 +4,21 @@ All notable changes to Duck Agent will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [v2.0.0] — 2026-04-06
+## [v0.8.0] — 2026-04-06
+
+### Added
+- **External Agent Mesh Bridge** — Allow external agents to connect to duck-cli mesh via WebSocket/HTTP
+- **Hive Mind Mode** — Optional collaborative agent network for multi-agent coordination
+- **Missing Documentation** — BOOTSTRAP.md, HEARTBEAT.md, IDENTITY.md, USER.md
+- **Health Check Fixes** — MiniMax endpoint correction (api.minimax.io vs api.minimax.chat)
+
+### Fixed
+- **Version Consistency** — Aligned all version numbers (README, package.json, Go binary, CHANGELOG)
+- **Documentation Accuracy** — Updated architecture diagrams and command references
+
+---
+
+## [v0.7.0] — 2026-04-06
 
 ### Added
 - **🦸 Super Agent** — Complete v3 rewrite positioning duck-cli as rival to Claude Code, Letta Code, OpenAI Codex
@@ -17,10 +31,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 - **README.md** — Complete rewrite with Super Agent tagline, v3 architecture diagram, all commands documented
-- **docs/ARCHITECTURE.md** — Full v2.0.0 architecture with all agents, flows, protocols
-- **docs/COUNCIL-INTEGRATION.md** — Updated to v2.0.0
+- **docs/ARCHITECTURE.md** — Full v0.7.0 architecture with all agents, flows, protocols
+- **docs/COUNCIL-INTEGRATION.md** — Updated to v0.7.0
 - **docs/ORCHESTRATOR.md** — Renamed to Meta-Agent Orchestrator v3
-- **Version** — All docs updated from v0.x to v2.0.0
+- **Version** — All docs updated from v0.x to v0.7.0
 
 ### Architecture
 - User → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools

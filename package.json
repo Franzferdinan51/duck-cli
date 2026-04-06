@@ -1,6 +1,6 @@
 {
   "name": "@duckets/duck-cli-orchestrator",
-  "version": "2.0.0",
+  "version": "0.8.0",
   "description": "duck-cli v2 Orchestrator Core with Tool Registry and Fallback System",
   "main": "dist/orchestrator/index.js",
   "module": "dist/orchestrator/index.js",

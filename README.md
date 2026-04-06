@@ -1,4 +1,4 @@
-# 🦆 duck-cli v2.0.0
+# 🦆 duck-cli v0.8.0
 
 > **Standalone AI Agent** — Smart multi-provider routing, AI Council deliberation, proactive KAIROS heartbeat, agent-mesh networking, and 50+ built-in commands. Runs standalone on Mac/PC/Linux/Android — or connect it to OpenClaw/ACP to let OTHER agents use its tools.
 
