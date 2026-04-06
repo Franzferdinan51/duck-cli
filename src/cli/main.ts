@@ -1041,7 +1041,7 @@ async function runTask(task: string) {
   } catch (e: any) {
     if (suppressLog) suppressLog();
     if (botMode) {
-      process.stdout.write(`Error: ${e.message}\n`);
+      console.error(`Error: ${e.message}`);
     } else {
       console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
       if (process.env.DEBUG_STACK === '1' && e?.stack) {
