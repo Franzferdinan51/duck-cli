@@ -5,16 +5,16 @@
 # Purpose: Read grow journal planting dates, calculate days to harvest
 #          per strain, and send countdown to Telegram
 # Schedule: Weekly Sunday at 9:00 AM
-# Example:  0 9 * * 0 /Users/duckets/.openclaw/workspace/tools/autonomous/grow-harvest-countdown.sh
+# Example:  0 9 * * 0 /.openclaw/workspace/tools/autonomous/grow-harvest-countdown.sh
 #===============================================================================
 
 set -euo pipefail
 
 # Configuration
-OUT_DIR="/Users/duckets/.openclaw/workspace/grow-logs"
+OUT_DIR="/.openclaw/workspace/grow-logs"
 JOURNAL_FILE="$OUT_DIR/grow-journal.md"
 COUNTDOWN_FILE="$OUT_DIR/harvest-countdown.txt"
-LOG_FILE="/Users/duckets/.openclaw/workspace/logs/grow-harvest.log"
+LOG_FILE="/.openclaw/workspace/logs/grow-harvest.log"
 TELEGRAM_TOPIC_ID="648118"
 
 # Default flowering times by strain type (days from flip)

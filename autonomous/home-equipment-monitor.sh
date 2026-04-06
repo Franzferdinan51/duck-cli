@@ -5,11 +5,11 @@
 # Runs daily via cron
 # Tracks AC Infinity equipment runtime hours
 # Flags equipment approaching lifespan
-# Logs to /Users/duckets/.openclaw/workspace/grow-logs/
+# Logs to /.openclaw/workspace/grow-logs/
 # =============================================================================
 
-LOGFILE="/Users/duckets/.openclaw/workspace/logs/home-equipment-monitor.log"
-GROW_LOGS="/Users/duckets/.openclaw/workspace/grow-logs"
+LOGFILE="/.openclaw/workspace/logs/home-equipment-monitor.log"
+GROW_LOGS="/.openclaw/workspace/grow-logs"
 EQUIPMENT_LOG="$GROW_LOGS/equipment-hours.log"
 ALERT_THRESHOLD_HOURS=2000  # Generic filter lifespan warning
 

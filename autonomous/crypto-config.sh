@@ -113,7 +113,7 @@ PRICE_CACHE_FILE="/tmp/crypto_prices_prev.json"
 #------------------------------------------------------------------------------
 # Logging Configuration
 #------------------------------------------------------------------------------
-LOG_DIR="${LOG_DIR:-/Users/duckets/.openclaw/workspace/logs}"
+LOG_DIR="${LOG_DIR:-/.openclaw/workspace/logs}"
 LOG_FILE="${LOG_DIR}/crypto-monitor.log"
 ARCHIVE_LOG_DAYS=7                  # Keep logs for 7 days
 

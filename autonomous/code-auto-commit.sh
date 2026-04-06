@@ -13,8 +13,8 @@ set -euo pipefail
 # Configuration
 readonly LOG_FILE="/tmp/auto-commit.log"
 readonly LOCK_FILE="/tmp/code-auto-commit.lock"
-readonly WORKSPACE="/Users/duckets/.openclaw/workspace"
-readonly AI_COUNCIL="/Users/duckets/AI-Bot-Council-Concensus"
+readonly WORKSPACE="${HOME}/.openclaw/workspace"
+readonly AI_COUNCIL="/AI-Bot-Council-Concensus"
 
 # Telegram
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
@@ -86,8 +86,8 @@ get_repos() {
         repos+=("$AI_COUNCIL")
     fi
 
-    # Scan /Users/duckets/ for other git repos
-    if [[ -d "/Users/duckets" ]]; then
+    # Scan ${HOME}/ for other git repos
+    if [[ -d "${HOME}" ]]; then
         while IFS= read -r -d '' repo; do
             # Skip .openclaw subdirs
             if [[ "$repo" != *".openclaw/"* ]] && [[ "$repo" != *".openclaw"* ]]; then
@@ -95,7 +95,7 @@ get_repos() {
                     repos+=("$repo")
                 fi
             fi
-        done < <(find /Users/duckets -maxdepth 2 -type d -name ".git" -print0 2>/dev/null | while read -d '' gitdir; do dirname "$gitdir"; done)
+        done < <(find ${HOME} -maxdepth 2 -type d -name ".git" -print0 2>/dev/null | while read -d '' gitdir; do dirname "$gitdir"; done)
     fi
 
     # Remove duplicates

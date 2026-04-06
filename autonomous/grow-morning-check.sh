@@ -5,14 +5,14 @@
 # Purpose: Morning plant health check - captures photo, runs diagnostics,
 #          logs to journal, and sends Telegram report
 # Schedule: Daily at 9:00 AM (configure via cron)
-# Example:  0 9 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-morning-check.sh
+# Example:  0 9 * * * /.openclaw/workspace/tools/autonomous/grow-morning-check.sh
 #===============================================================================
 
 set -euo pipefail
 
 # Configuration
-OUT_DIR="/Users/duckets/.openclaw/workspace/grow-logs"
-LOG_FILE="/Users/duckets/.openclaw/workspace/logs/grow-morning.log"
+OUT_DIR="/.openclaw/workspace/grow-logs"
+LOG_FILE="/.openclaw/workspace/logs/grow-morning.log"
 JOURNAL_FILE="$OUT_DIR/grow-journal.md"
 CANNAI_URL="http://localhost:3000"
 TELEGRAM_TOPIC_ID="648118"
@@ -171,7 +171,7 @@ run_cannaai_diagnostic() {
     # Check if CannaAI is running
     if ! curl -s -o /dev/null -w "%{http_code}" "$CANNAI_URL/health" 2>/dev/null | grep -q "200\|404"; then
         log "⚠️  CannaAI not running, attempting to start..."
-        cd /Users/duckets/.openclaw/workspace/CannaAI
+        cd /.openclaw/workspace/CannaAI
         if [ ! -d ".next" ]; then
             npm run build >/dev/null 2>&1 || true
         fi

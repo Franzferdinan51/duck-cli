@@ -8,7 +8,7 @@
 # Sends to Telegram topic 647901
 # =============================================================================
 
-LOGFILE="/Users/duckets/.openclaw/workspace/logs/news-daily-brief.log"
+LOGFILE="/.openclaw/workspace/logs/news-daily-brief.log"
 TELEGRAM_TOPIC="647901"
 MAX_RESULTS=5
 

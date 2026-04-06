@@ -2,7 +2,7 @@
 # Duck CLI - Quick Sync Script
 # Usage: ./sync.sh "commit message"
 
-cd ~/.openclaw/workspace/duck-cli-src
+cd "${DUCK_CLI_DIR:-$HOME/.openclaw/workspace/duck-cli-src}"
 
 MSG="${1:-Auto-sync $(date '+%Y-%m-%d %H:%M')}"
 

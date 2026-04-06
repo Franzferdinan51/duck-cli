@@ -7,10 +7,10 @@
 # Sends to Telegram topic 647896
 # =============================================================================
 
-LOGFILE="/Users/duckets/.openclaw/workspace/logs/weather-daily.log"
+LOGFILE="/.openclaw/workspace/logs/weather-daily.log"
 TELEGRAM_TOPIC="647896"
 LOCATION="45424"  # Huber Heights, OH
-ALERT_EMAIL_FILE="/Users/duckets/.openclaw/workspace/.last-weather-alert"
+ALERT_EMAIL_FILE="${HOME}/.openclaw/workspace/.last-weather-alert"
 
 # -----------------------------------------------------------------------------
 # Logging helper

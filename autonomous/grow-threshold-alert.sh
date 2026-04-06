@@ -5,14 +5,14 @@
 # Purpose: Check AC Infinity thresholds continuously and send alerts
 #          if VPD > 1.8, temp > 82°F, or humidity > 55%
 # Schedule: Every 15 minutes via cron
-# Example:  0 */2 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-threshold-alert.sh
+# Example:  0 */2 * * * /.openclaw/workspace/tools/autonomous/grow-threshold-alert.sh
 #===============================================================================
 
 set -euo pipefail
 
 # Configuration
-OUT_DIR="/Users/duckets/.openclaw/workspace/grow-logs"
-LOG_FILE="/Users/duckets/.openclaw/workspace/logs/grow-threshold-alert.log"
+OUT_DIR="/.openclaw/workspace/grow-logs"
+LOG_FILE="/.openclaw/workspace/logs/grow-threshold-alert.log"
 DATA_DIR="$OUT_DIR/data"
 CANNAI_URL="http://localhost:3000"
 TELEGRAM_TOPIC_ID="648118"

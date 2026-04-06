@@ -3,7 +3,7 @@
 
 set -e
 
-COUNCIL_DIR="${COUNCIL_DIR:-/Users/duckets/.openclaw/workspace/ai-council-webui-new}"
+COUNCIL_DIR="${COUNCIL_DIR:-$HOME/.openclaw/workspace/ai-council-webui-new}"
 PORT="${COUNCIL_PORT:-3003}"
 
 echo "🦆 Starting AI Council Server..."

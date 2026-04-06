@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Configuration
 readonly LOG_FILE="/tmp/sys-health.log"
-readonly HEAL_SCRIPT="/Users/duckets/.openclaw/workspace/tools/autonomous/sys-auto-heal.sh"
+readonly HEAL_SCRIPT="/.openclaw/workspace/tools/autonomous/sys-auto-heal.sh"
 readonly LOCK_FILE="/tmp/sys-health-check.lock"
 readonly TIMEOUT=5  # seconds for curl timeout
 

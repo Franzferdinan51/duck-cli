@@ -11,9 +11,9 @@ set -euo pipefail
 
 # Configuration
 readonly LOG_FILE="/tmp/sys-backup.log"
-readonly BACKUP_DIR="/Users/duckets/openclaw-backups"
-readonly WORKSPACE_DIR="/Users/duckets/.openclaw/workspace"
-readonly BRAIN_BACKUP_SCRIPT="/Users/duckets/.openclaw/workspace/tools/brain-backup.sh"
+readonly BACKUP_DIR="${HOME}/openclaw-backups"
+readonly WORKSPACE_DIR="${HOME}/.openclaw/workspace"
+readonly BRAIN_BACKUP_SCRIPT="/.openclaw/workspace/tools/brain-backup.sh"
 readonly LOCK_FILE="/tmp/sys-backup.lock"
 readonly MIN_BACKUP_INTERVAL_HOURS=2
 
@@ -112,9 +112,9 @@ create_archive_backup() {
 
     # Key dirs to backup
     local dirs_to_backup=(
-        "/Users/duckets/.openclaw/workspace"
-        "/Users/duckets/.openclaw/config"
-        "/Users/duckets/.openclaw/skills"
+        "${HOME}/.openclaw/workspace"
+        "${HOME}/.openclaw/config"
+        "${HOME}/.openclaw/skills"
     )
 
     # Check which dirs actually exist

@@ -15,8 +15,8 @@ readonly LOCK_FILE="/tmp/code-failure-recover.lock"
 readonly TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 readonly TELEGRAM_ALERT_ID="647890"
 readonly MAX_FAILURES=3
-readonly AUTONOMOUS_DIR="/Users/duckets/.openclaw/workspace/tools/autonomous"
-readonly TOOLS_DIR="/Users/duckets/.openclaw/workspace/tools"
+readonly AUTONOMOUS_DIR="/.openclaw/workspace/tools/autonomous"
+readonly TOOLS_DIR="/.openclaw/workspace/tools"
 
 # =============================================================================
 # Logging
@@ -181,7 +181,7 @@ scan_for_failures() {
         "/tmp/auto-heal.log"
         "/tmp/sys-backup.log"
         "/tmp/auto-commit.log"
-        "/Users/duckets/.openclaw/workspace/logs/grow-cron.log"
+        "/.openclaw/workspace/logs/grow-cron.log"
     )
 
     local found_failures=()

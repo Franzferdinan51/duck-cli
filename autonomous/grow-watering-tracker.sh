@@ -5,16 +5,16 @@
 # Purpose: Check reservoir level via AC Infinity, log to watering journal,
 #          and alert if refilled or dropping faster than expected
 # Schedule: Daily at 7:00 AM
-# Example:  0 7 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-watering-tracker.sh
+# Example:  0 7 * * * /.openclaw/workspace/tools/autonomous/grow-watering-tracker.sh
 #===============================================================================
 
 set -euo pipefail
 
 # Configuration
-OUT_DIR="/Users/duckets/.openclaw/workspace/grow-logs"
+OUT_DIR="/.openclaw/workspace/grow-logs"
 WATER_LOG="$OUT_DIR/watering-log.txt"
 DATA_DIR="$OUT_DIR/data"
-LOG_FILE="/Users/duckets/.openclaw/workspace/logs/grow-watering.log"
+LOG_FILE="/.openclaw/workspace/logs/grow-watering.log"
 TELEGRAM_TOPIC_ID="648118"
 
 # Expected consumption rates (liters per day)

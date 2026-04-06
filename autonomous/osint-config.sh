@@ -5,8 +5,8 @@
 # ============================================================================
 
 # Directory paths
-OSINT_DIR="/Users/duckets/.openclaw/workspace/tools/autonomous"
-LOG_DIR="/Users/duckets/.openclaw/workspace/logs"
+OSINT_DIR="/.openclaw/workspace/tools/autonomous"
+LOG_DIR="/.openclaw/workspace/logs"
 CACHE_DIR="${OSINT_DIR}/cache"
 STATE_DIR="${OSINT_DIR}/state"
 
@@ -31,7 +31,7 @@ send_telegram() {
     
     # Try to get token from config if not set
     if [[ -z "$bot_token" ]]; then
-        bot_token=$(grep -A5 '"telegram"' /Users/duckets/.openclaw/openclaw.json 2>/dev/null | grep 'token' | head -1 | sed 's/.*"token"[[:space:]]*:[[:space:]]*"//' | sed 's/".*//' || echo "")
+        bot_token=$(grep -A5 '"telegram"' ${HOME}/.openclaw/openclaw.json 2>/dev/null | grep 'token' | head -1 | sed 's/.*"token"[[:space:]]*:[[:space:]]*"//' | sed 's/".*//' || echo "")
     fi
     
     if [[ -z "$bot_token" ]]; then

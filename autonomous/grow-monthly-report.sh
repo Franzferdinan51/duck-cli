@@ -5,15 +5,15 @@
 # Purpose: Compile monthly stats (temp/humidity/VPD averages),
 #          equipment runtime, photo timeline, and send formatted report
 # Schedule: Monthly on the 1st at 8:00 AM
-# Example:  0 8 1 * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-monthly-report.sh
+# Example:  0 8 1 * * /.openclaw/workspace/tools/autonomous/grow-monthly-report.sh
 #===============================================================================
 
 set -euo pipefail
 
 # Configuration
-OUT_DIR="/Users/duckets/.openclaw/workspace/grow-logs"
+OUT_DIR="/.openclaw/workspace/grow-logs"
 DATA_DIR="$OUT_DIR/data"
-LOG_FILE="/Users/duckets/.openclaw/workspace/logs/grow-monthly.log"
+LOG_FILE="/.openclaw/workspace/logs/grow-monthly.log"
 TELEGRAM_TOPIC_ID="648118"
 
 # Previous month (for the report)

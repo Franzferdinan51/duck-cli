@@ -101,7 +101,7 @@ heal_cannai() {
     fi
 
     # Restart CannaAI
-    cd /Users/duckets/.openclaw/workspace/CannaAI
+    cd /.openclaw/workspace/CannaAI
     # Check if build exists, rebuild if missing
     if [[ ! -f ".next/BUILD_ID" ]]; then
         log "  -> CannaAI build missing, rebuilding..."
@@ -123,7 +123,7 @@ heal_cannai() {
 # =============================================================================
 heal_ai_council() {
     log "  -> Attempting to heal AI Council Chamber..."
-    local start_script="/Users/duckets/.openclaw/workspace/start-ai-council.sh"
+    local start_script="${HOME}/.openclaw/workspace/start-ai-council.sh"
 
     if [[ ! -f "$start_script" ]]; then
         log "  -> start-ai-council.sh not found, trying direct start..."
@@ -133,7 +133,7 @@ heal_ai_council() {
         sleep 2
 
         # Start from known location
-        local council_dir="/Users/duckets/.openclaw/workspace/ai-council-chamber"
+        local council_dir="${HOME}/.openclaw/workspace/ai-council-chamber"
         if [[ -d "$council_dir" ]]; then
             cd "$council_dir"
             nohup npm run dev >> /tmp/ai-council.log 2>&1 &

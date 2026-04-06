@@ -8,7 +8,7 @@
 # Handles DST automatically via API
 # =============================================================================
 
-LOGFILE="/Users/duckets/.openclaw/workspace/logs/home-smart-lights.log"
+LOGFILE="/.openclaw/workspace/logs/home-smart-lights.log"
 LAT="39.84"  # Huber Heights, OH
 LON="-84.17"
 

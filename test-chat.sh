@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/.openclaw/workspace/duck-cli-src
+cd "${DUCK_CLI_DIR:-$HOME/.openclaw/workspace/duck-cli-src}"
 node dist/agent/chat-agent.js &
 PID=$!
 sleep 2

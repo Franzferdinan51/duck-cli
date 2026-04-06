@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-readonly AUTONOMOUS_DIR="/Users/duckets/.openclaw/workspace/tools/autonomous"
+readonly AUTONOMOUS_DIR="/.openclaw/workspace/tools/autonomous"
 readonly LOG_DIR="/tmp"
 
 # Colors
@@ -107,52 +107,52 @@ MAILTO=""
 # -----------------------------------------------------------------------------
 # EVERY HOUR (max polling rate)
 # -----------------------------------------------------------------------------
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/sys-health-check.sh >> /tmp/sys-health.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/sys-memory-check.sh >> /tmp/sys-memory.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/code-failure-recover.sh >> /tmp/failure-recover.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-threshold-alert.sh >> /Users/duckets/.openclaw/workspace/logs/grow-cron.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/crypto-price-alert.sh >> /Users/duckets/.openclaw/workspace/logs/crypto-cron.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/crypto-whale-watch.sh >> /Users/duckets/.openclaw/workspace/logs/crypto-cron.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/osint-keyword-alert.sh >> /Users/duckets/.openclaw/workspace/logs/osint-cron.log 2>&1
-0 * * * * /Users/duckets/.openclaw/workspace/tools/autonomous/osint-account-watch.sh >> /Users/duckets/.openclaw/workspace/logs/osint-cron.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/sys-health-check.sh >> /tmp/sys-health.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/sys-memory-check.sh >> /tmp/sys-memory.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/code-failure-recover.sh >> /tmp/failure-recover.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/grow-threshold-alert.sh >> /.openclaw/workspace/logs/grow-cron.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/crypto-price-alert.sh >> /.openclaw/workspace/logs/crypto-cron.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/crypto-whale-watch.sh >> /.openclaw/workspace/logs/crypto-cron.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/osint-keyword-alert.sh >> /.openclaw/workspace/logs/osint-cron.log 2>&1
+0 * * * * /.openclaw/workspace/tools/autonomous/osint-account-watch.sh >> /.openclaw/workspace/logs/osint-cron.log 2>&1
 
 # -----------------------------------------------------------------------------
 # EVERY 2 HOURS
 # -----------------------------------------------------------------------------
-0 */2 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/sys-backup.sh >> /tmp/sys-backup.log 2>&1
-0 */2 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/code-auto-commit.sh >> /tmp/auto-commit.log 2>&1
-0 */2 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/osint-github-watch.sh >> /Users/duckets/.openclaw/workspace/logs/osint-cron.log 2>&1
+0 */2 * * * /.openclaw/workspace/tools/autonomous/sys-backup.sh >> /tmp/sys-backup.log 2>&1
+0 */2 * * * /.openclaw/workspace/tools/autonomous/code-auto-commit.sh >> /tmp/auto-commit.log 2>&1
+0 */2 * * * /.openclaw/workspace/tools/autonomous/osint-github-watch.sh >> /.openclaw/workspace/logs/osint-cron.log 2>&1
 
 # -----------------------------------------------------------------------------
 # EVERY 6 HOURS
 # -----------------------------------------------------------------------------
-0 */6 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/crypto-defi-health.sh >> /Users/duckets/.openclaw/workspace/logs/crypto-cron.log 2>&1
+0 */6 * * * /.openclaw/workspace/tools/autonomous/crypto-defi-health.sh >> /.openclaw/workspace/logs/crypto-cron.log 2>&1
 
 # -----------------------------------------------------------------------------
 # DAILY (once per day)
 # -----------------------------------------------------------------------------
-0 7 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-watering-tracker.sh >> /Users/duckets/.openclaw/workspace/logs/grow-cron.log 2>&1
-0 7 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/weather-daily.sh >> /Users/duckets/.openclaw/workspace/logs/weather-cron.log 2>&1
-0 8 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/news-daily-brief.sh >> /Users/duckets/.openclaw/workspace/logs/news-cron.log 2>&1
-0 8 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/crypto-news-scan.sh >> /Users/duckets/.openclaw/workspace/logs/crypto-cron.log 2>&1
-0 9 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/osint-briefing.sh >> /Users/duckets/.openclaw/workspace/logs/osint-cron.log 2>&1
-0 9 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/osint-reddit-digest.sh >> /Users/duckets/.openclaw/workspace/logs/osint-cron.log 2>&1
-0 9 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/crypto-portfolio.sh >> /Users/duckets/.openclaw/workspace/logs/crypto-cron.log 2>&1
-0 9 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-morning-check.sh >> /Users/duckets/.openclaw/workspace/logs/grow-cron.log 2>&1
-0 21 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-evening-check.sh >> /Users/duckets/.openclaw/workspace/logs/grow-cron.log 2>&1
-0 18 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/crypto-news-scan.sh >> /Users/duckets/.openclaw/workspace/logs/crypto-cron.log 2>&1
-0 18 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/osint-reddit-digest.sh >> /Users/duckets/.openclaw/workspace/logs/osint-cron.log 2>&1
-0 8 * * * /Users/duckets/.openclaw/workspace/tools/autonomous/home-equipment-monitor.sh >> /Users/duckets/.openclaw/workspace/logs/home-cron.log 2>&1
+0 7 * * * /.openclaw/workspace/tools/autonomous/grow-watering-tracker.sh >> /.openclaw/workspace/logs/grow-cron.log 2>&1
+0 7 * * * /.openclaw/workspace/tools/autonomous/weather-daily.sh >> /.openclaw/workspace/logs/weather-cron.log 2>&1
+0 8 * * * /.openclaw/workspace/tools/autonomous/news-daily-brief.sh >> /.openclaw/workspace/logs/news-cron.log 2>&1
+0 8 * * * /.openclaw/workspace/tools/autonomous/crypto-news-scan.sh >> /.openclaw/workspace/logs/crypto-cron.log 2>&1
+0 9 * * * /.openclaw/workspace/tools/autonomous/osint-briefing.sh >> /.openclaw/workspace/logs/osint-cron.log 2>&1
+0 9 * * * /.openclaw/workspace/tools/autonomous/osint-reddit-digest.sh >> /.openclaw/workspace/logs/osint-cron.log 2>&1
+0 9 * * * /.openclaw/workspace/tools/autonomous/crypto-portfolio.sh >> /.openclaw/workspace/logs/crypto-cron.log 2>&1
+0 9 * * * /.openclaw/workspace/tools/autonomous/grow-morning-check.sh >> /.openclaw/workspace/logs/grow-cron.log 2>&1
+0 21 * * * /.openclaw/workspace/tools/autonomous/grow-evening-check.sh >> /.openclaw/workspace/logs/grow-cron.log 2>&1
+0 18 * * * /.openclaw/workspace/tools/autonomous/crypto-news-scan.sh >> /.openclaw/workspace/logs/crypto-cron.log 2>&1
+0 18 * * * /.openclaw/workspace/tools/autonomous/osint-reddit-digest.sh >> /.openclaw/workspace/logs/osint-cron.log 2>&1
+0 8 * * * /.openclaw/workspace/tools/autonomous/home-equipment-monitor.sh >> /.openclaw/workspace/logs/home-cron.log 2>&1
 
 # -----------------------------------------------------------------------------
 # WEEKLY (Sunday 9AM)
 # -----------------------------------------------------------------------------
-0 9 * * 0 /Users/duckets/.openclaw/workspace/tools/autonomous/grow-harvest-countdown.sh >> /Users/duckets/.openclaw/workspace/logs/grow-cron.log 2>&1
+0 9 * * 0 /.openclaw/workspace/tools/autonomous/grow-harvest-countdown.sh >> /.openclaw/workspace/logs/grow-cron.log 2>&1
 
 # -----------------------------------------------------------------------------
 # MONTHLY (1st of month 8AM)
 # -----------------------------------------------------------------------------
-0 8 1 * * /Users/duckets/.openclaw/workspace/tools/autonomous/grow-monthly-report.sh >> /Users/duckets/.openclaw/workspace/logs/grow-cron.log 2>&1
+0 8 1 * * /.openclaw/workspace/tools/autonomous/grow-monthly-report.sh >> /.openclaw/workspace/logs/grow-cron.log 2>&1
 
 # =============================================================================
 # End of DuckBot Master Cron
@@ -168,7 +168,7 @@ create_run_all() {
     cat > "$run_all_path" << 'SCRIPTEOF'
 #!/bin/bash
 set -euo pipefail
-readonly AUTONOMOUS_DIR="/Users/duckets/.openclaw/workspace/tools/autonomous"
+readonly AUTONOMOUS_DIR="/.openclaw/workspace/tools/autonomous"
 readonly LOG_DIR="/tmp"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }
 SCRIPTEOF

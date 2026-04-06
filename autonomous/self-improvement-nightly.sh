@@ -3,8 +3,8 @@
 # Runs 2x nightly (2AM and 5AM) - autonomous self-improvement + Kanban
 # Sends Telegram notification on completion
 
-LOG_FILE="/Users/duckets/.openclaw/workspace/logs/self-improvement.log"
-KANBAN="/Users/duckets/.openclaw/workspace/KANBAN.md"
+LOG_FILE="/.openclaw/workspace/logs/self-improvement.log"
+KANBAN="${HOME}/.openclaw/workspace/KANBAN.md"
 DATE=$(date '+%Y-%m-%d %H:%M')
 
 echo "=== Self-Improvement Run: $DATE ===" >> "$LOG_FILE"
@@ -66,7 +66,7 @@ find /tmp -name "*.tmp" -mtime +3 -delete 2>/dev/null
 
 # 14. Git status (NO AUTO-COMMIT - only Duckets commits)
 echo "[$DATE] Git status (not committing - Duckets reviews):" >> "$LOG_FILE"
-cd /Users/duckets/.openclaw/workspace
+cd ${HOME}/.openclaw/workspace
 git status --short 2>/dev/null | head -10 >> "$LOG_FILE"
 
 echo "[$DATE] Run complete" >> "$LOG_FILE"
