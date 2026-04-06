@@ -1,6 +1,6 @@
 # 🦆 duck-cli
 
-> **Desktop AI Agent** — Autonomous task execution on Mac/PC/Linux. Powered by a hybrid orchestrator that combines AI Council deliberation, KAIROS proactive heartbeat, subconscious whisper monitoring, and multi-provider LLM routing — all coordinated through 100+ built-in tools with safety guards, memory, and learning.
+> **Desktop AI Agent** — Autonomous task execution on Mac/PC/Linux. Powered by a Meta-Agent Orchestrator v3 that combines LLM-powered planning (Planner→Critic→Healer→Learner), AI Council deliberation, KAIROS proactive heartbeat, subconscious whisper monitoring, and multi-provider LLM routing — all coordinated through 100+ built-in tools with safety guards, memory, and learning.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -20,11 +20,16 @@ npm install && npm run build
 # Run a task
 ./duck run "what is the capital of Japan?"
 
+# Meta-Agent planning (LLM-powered orchestration, qwen3.5-0.8b local free!)
+./duck meta plan "build a REST API"
+./duck meta run "build a REST API" --planner qwen3.5-0.8b --provider lmstudio
+
 # Interactive shell
 ./duck shell
 
-# Check status
+# Check status and providers
 ./duck status
+./duck providers list
 
 # Telegram bot (standalone — connects to @AgentSmithsbot)
 ./duck telegram start
