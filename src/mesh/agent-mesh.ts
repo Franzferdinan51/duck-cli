@@ -389,7 +389,12 @@ export class AgentMeshClient extends EventEmitter {
   private async sendHeartbeat(): Promise<void> {
     if (!this.agentId) return;
 
-    await this.request('POST', `/api/agents/${this.agentId}/heartbeat`);
+    try {
+      await this.request('POST', `/api/agents/${this.agentId}/heartbeat`);
+    } catch (error) {
+      this._log('[Mesh] Heartbeat failed:', error);
+      this.emitError('heartbeat_failed', error);
+    }
   }
 
   private scheduleReconnect(): void {
@@ -398,7 +403,12 @@ export class AgentMeshClient extends EventEmitter {
     this.reconnectTimer = setTimeout(async () => {
       if (!this.connected && this.agentId) {
         this._log('[Mesh] Attempting reconnect...');
-        await this.connect();
+        try {
+          await this.connect();
+        } catch (error) {
+          this._log('[Mesh] Reconnect failed:', error);
+          this.emitError('reconnect_failed', error);
+        }
       }
     }, this.reconnectInterval);
   }
