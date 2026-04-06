@@ -175,6 +175,10 @@ export class MessageRouter {
       l.startsWith('Active subagents:') ||
       l.startsWith('✅ Duck Agent stopped') ||
       l.startsWith('[Tool') ||
+      l.startsWith('[TOOL_CALL]') ||
+      l.startsWith('[/TOOL_CALL]') ||
+      l.startsWith('[TOOL_SUCCESS]') ||
+      l.startsWith('[TOOL_FAIL]') ||
       l.startsWith('[Healer') ||
       l.includes('→ tool:') ||
       l.includes('executing tool') ||
@@ -194,6 +198,8 @@ export class MessageRouter {
     const lines = String(text)
       .replace(/<think>[\s\S]*?<\/think>/g, '')
       .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
+      .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+      .replace(/^\[TOOL_(CALL|SUCCESS|FAIL)\].*$/gm, '')
       .split('\n');
 
     const publicLines: string[] = [];

@@ -398,6 +398,15 @@ async function main() {
       await councilCommand(args);
       break;
 
+    case 'failures': {
+      const { registerFailuresCommand } = await import('../commands/failures-cmd.js');
+      const failuresCmd = new Command();
+      registerFailuresCommand(failuresCmd);
+      const fullArgs = ['node', 'failures', ...args].filter(a => a.length > 0);
+      await failuresCmd.parseAsync(fullArgs);
+      break;
+    }
+
     case 'meta':
     case 'agent:meta': {
       const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
@@ -997,6 +1006,10 @@ function formatResponse(text: string): string {
         trimmed.startsWith('[Router') ||
         trimmed.startsWith('[LMStudio]') ||
         trimmed.startsWith('[MetaPlanner]') ||
+        trimmed.startsWith('[TOOL_CALL]') ||
+        trimmed.startsWith('[/TOOL_CALL]') ||
+        trimmed.startsWith('[TOOL_SUCCESS]') ||
+        trimmed.startsWith('[TOOL_FAIL]') ||
         trimmed.startsWith('🦆 Duck Agent shutting down') ||
         trimmed.startsWith('Total cost:') ||
         trimmed.startsWith('Interactions:') ||
@@ -1013,6 +1026,8 @@ function formatResponse(text: string): string {
   return filtered
     .replace(/<think>[\s\S]*?<\/think>/g, '')
     .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
+    .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+    .replace(/^\[TOOL_(CALL|SUCCESS|FAIL)\].*$/gm, '')
     .replace(/\[TOOL:.*?\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
