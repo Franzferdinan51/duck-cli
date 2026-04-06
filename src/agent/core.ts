@@ -2402,15 +2402,34 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
     while ((match = pattern1.exec(text)) !== null) {
       try { calls.push({ name: match[1], args: JSON.parse(match[2]) }); } catch {}
     }
-            const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
-        let match2;
-        while ((match2 = pattern2.exec(text)) !== null) {
-          if (this.tools.has(match2[1])) {
-            try { calls.push({ name: match2[1], args: JSON.parse(match2[2]) }); } catch {}
-          }
-        }
-        return calls;
+
+    const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
+    let match2;
+    while ((match2 = pattern2.exec(text)) !== null) {
+      if (this.tools.has(match2[1])) {
+        try { calls.push({ name: match2[1], args: JSON.parse(match2[2]) }); } catch {}
       }
+    }
+
+    // Support model outputs like:
+    // {tool => "web_search", args => { --query "OpenClaw documentation" --provider "DuckDuckGo" }}
+    const pattern3 = /\{\s*tool\s*=>\s*"([^"]+)"\s*,\s*args\s*=>\s*\{([\s\S]*?)\}\s*\}/g;
+    let match3;
+    while ((match3 = pattern3.exec(text)) !== null) {
+      const name = match3[1];
+      const rawArgs = match3[2] || '';
+      if (!this.tools.has(name)) continue;
+      const args: Record<string, any> = {};
+      const argPattern = /--([a-zA-Z0-9_-]+)\s+"([^"]*)"/g;
+      let argMatch;
+      while ((argMatch = argPattern.exec(rawArgs)) !== null) {
+        args[argMatch[1]] = argMatch[2];
+      }
+      calls.push({ name, args });
+    }
+
+    return calls;
+  }
 
       private estimateTokens(text: string): number {
         return Math.ceil(text.length / 4);
