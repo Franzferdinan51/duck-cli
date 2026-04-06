@@ -74,6 +74,42 @@ Smart routing picks the right model automatically:
 | 5th | **OpenClaw Gateway** | Kimi k2.5 | Free via gateway | Vision + coding |
 | 6th | **Kimi direct** | K2.5 | Pay-per-use | Vision |
 
+---
+
+## 🤖 Meta-Agent (v3)
+
+The v3 orchestrator is **LLM-powered** — the orchestrator itself reasons about how to approach tasks:
+
+```bash
+./duck meta plan "build a REST API"   # Preview plan (Planner LLM)
+./duck meta run "build a REST API"     # Full execution with Planner→Critic→Healer→Learner
+./duck meta learnings                   # Show lessons from past sessions
+```
+
+**How it works:**
+```
+Task → MetaPlanner (LLM) → Structured Plan
+                          ↓
+              MetaCritic (LLM) evaluates each step
+                          ↓
+              MetaHealer (LLM) diagnoses failures + recovery
+                          ↓
+              MetaLearner logs to ./experiences/
+```
+
+**10 v3 enhancements:**
+1. **Adaptive complexity** — LLM scores dynamically (not static rules)
+2. **Tool-chain sequences** — Planner generates custom tool chains per task
+3. **Visual planning trace** — See the full plan before any execution
+4. **Self-healing** — Healer LLM diagnoses failures and suggests fixes
+5. **Proactive anticipation** — Planner predicts what comes next
+6. **Multi-turn memory** — Experiences persist across sessions in `experiences/`
+7. **Auto subagent spawning** — Planner identifies what can run in parallel
+8. **Cost optimization** — Planner estimates cost/time for each step
+9. **Sandboxed preview** — `duck meta plan` shows the plan without executing
+10. **Cross-session learning** — MetaLearner accumulates lessons over time
+
+
 **OpenRouter free models** also available:
 - `qwen/qwen3.6-plus-preview:free` — 1M context
 - `qwen/qwen3-coder:free` — 262K coding
@@ -90,7 +126,8 @@ Smart routing picks the right model automatically:
                                  │
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     HYBRID ORCHESTRATOR v2                               │
+│                   META-AGENT ORCHESTRATOR v3                          │
+│              (LLM-powered: Planner → Critic → Healer → Learner)            │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │              TASK COMPLEXITY CLASSIFIER (1-10)                    │  │
