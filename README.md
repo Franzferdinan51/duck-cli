@@ -49,10 +49,13 @@ Unlike a chatbot, duck-cli is built for **autonomous execution** — it has memo
 You: "build a REST API for my project"
   │
   ▼
-duck-cli Gateway (receives task)
+Chat Agent (MiniMax) — conversational, friendly, maintains chat history
   │
   ▼
-Bridge Agent (qwen3.5-0.8b local) — decides routing, connection health, protocol
+AI Council Deliberation (complex/ethical/high-stakes tasks only)
+  │
+  ▼
+Bridge Agent (qwen3.5-0.8b local) — connection health, routing, protocol
   │
   ▼
 Orchestrator (MetaAgent v3) — Plan → Critic → Healer → Learner
@@ -126,6 +129,57 @@ Task → MetaPlanner (LLM) → Structured Plan
 
 ---
 
+## 🗣️ Chat Agent (v3) — Conversational Layer
+
+The Chat Agent is the **conversational entry point** for duck-cli. It sits between user input and the orchestrator, handling chat history and deciding when to involve AI Council or the MetaAgent.
+
+```bash
+# Start as standalone HTTP server
+./duck chat-agent start --port 18797
+
+# Or integrate with Telegram:
+./duck telegram start
+```
+
+**HTTP Endpoints:**
+```
+POST /chat          — Send message, get response
+POST /chat/stream   — Streaming response
+GET  /chat/:userId/history — Session history
+DELETE /chat/:userId — Clear session
+GET  /sessions      — List all sessions
+GET  /health        — Health check
+```
+
+**Chat flow:**
+```
+User message → Chat Agent
+                   │
+              AI Council? ───yes──→ Deliberate (complex/ethical/high-stakes)
+                   │no                        │
+                   ▼                          ▼
+            Simple chat ←──APPROVE── AI Council
+            (MiniMax)                           │
+                   │                      REJECT/MODIFY
+                   ▼                           ▼
+             User response          Return council verdict
+```
+
+**Council triggers:**
+- Complexity score >= 7
+- Ethical keywords: "should i", "privacy", "hack", "illegal"
+- High-stakes keywords: "money", "security", "delete everything"
+- Explicit council request: "council", "debate", "discuss"
+
+**Example:**
+```bash
+curl -X POST localhost:18797/chat \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"duck","message":"should I invest in bitcoin?"}'
+```
+
+---
+
 ## 🏗️ Architecture
 
 ```
@@ -134,6 +188,25 @@ Task → MetaPlanner (LLM) → Structured Plan
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │
                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     CHAT AGENT (MiniMax M2.7)                            │
+│                 Conversational, friendly, session memory                  │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+           Simple chat                  Complex/High-stakes
+                    │                         │
+                    ▼                         ▼
+         ┌──────────────────┐    ┌───────────────────────────────────┐
+         │  Direct MiniMax  │    │       AI COUNCIL DELIBERATION     │
+         │    Response      │    │  (Ethical/High-stakes/Complex)     │
+         └──────────────────┘    │     Speaker + Technocrat +         │
+                                │     Ethicist + Sentinel +            │
+                                │     Pragmatist                      │
+                                └──────────────┬────────────────────┘
+                                               │ APPROVE / REJECT / MODIFY
+                                               ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                   META-AGENT ORCHESTRATOR v3                          │
 │              (LLM-powered: Planner → Critic → Healer → Learner)            │
