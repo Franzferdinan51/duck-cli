@@ -178,10 +178,11 @@ function findDuckBinary(): string | undefined {
     const inSource = join(process.env.DUCK_SOURCE_DIR, 'duck');
     if (existsSync(inSource)) return inSource;
   }
-  // Check where the Go binary usually is
+  // Check where the Go binary usually is (portable: use HOME env var)
+  const duckHome = process.env.HOME || '';
   const paths = [
-    '/Users/duckets/.openclaw/workspace/duck-cli-src/duck',
-    '/Users/duckets/.local/bin/duck',
+    join(duckHome, '.openclaw', 'workspace', 'duck-cli-src', 'duck'),
+    join(duckHome, '.local', 'bin', 'duck'),
     '/usr/local/bin/duck',
   ];
   for (const p of paths) {
