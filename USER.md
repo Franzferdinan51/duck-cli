@@ -4,132 +4,277 @@
 
 ### Getting Started
 
-1. **Installation**: See INSTALL.md
-2. **Configuration**: Copy `.env.example` to `.env` and add your API keys
-3. **First Run**: `./duck run "Hello!"`
+1. **Install Duck CLI**
+   ```bash
+   git clone https://github.com/Franzferdinan51/duck-cli.git
+   cd duck-cli
+   npm install && npm run build
+   go build -o duck ./cmd/duck/
+   cp duck ~/.local/bin/
+   ```
 
-### Common Commands
+2. **Configure API Keys**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your API keys
+   ```
 
+3. **Verify Installation**
+   ```bash
+   duck status
+   duck health
+   ```
+
+### Basic Usage
+
+**Interactive Mode:**
 ```bash
-# Basic chat
-./duck run "What's the weather in Tokyo?"
-
-# Web search
-./duck run "search for latest AI news"
-
-# File operations
-./duck run "read the README.md file"
-./duck run "create a file called notes.txt with my ideas"
-
-# Meta-agent for complex tasks
-./duck meta run "research Python async patterns and create a summary"
-
-# Android control (if device connected)
-./duck android screen
-./duck android tap 500 800
+duck shell
 ```
 
-### Configuration
-
-Edit `~/.duck/config.yaml`:
-
-```yaml
-default_provider: lmstudio
-default_model: qwen3.5-0.8b
-subconscious:
-  enabled: true
-  persistence: sqlite
-mesh:
-  enabled: true
-  port: 4000
+**Single Command:**
+```bash
+duck run "Your task here"
 ```
 
-### Troubleshooting
+**With Specific Provider:**
+```bash
+duck run "Your task" --provider minimax
+duck run "Your task" --provider lmstudio
+```
 
-**Issue**: Commands not executing  
-**Fix**: Check `./duck health` and ensure providers are configured
+### Common Tasks
 
-**Issue**: Context lost between sessions  
-**Fix**: Ensure subconscious daemon is running: `./duck subconscious status`
+**File Operations:**
+```bash
+# Read a file
+duck run "Read /path/to/file.txt"
 
-**Issue**: Meta-agent not spawning subagents  
-**Fix**: Check mesh status: `./duck mesh status`
+# Write a file
+duck run "Create a file at /path/to/file.txt with content: Hello World"
+
+# Search files
+duck run "Find all .ts files in src/"
+```
+
+**Web Search:**
+```bash
+duck run "Search for latest TypeScript features"
+```
+
+**Code Tasks:**
+```bash
+# Code review
+duck run "Review this code" --skill code-review
+
+# Git workflow
+duck run "Create a feature branch and commit changes"
+```
+
+**Android Control:**
+```bash
+# List devices
+duck android devices
+
+# Take screenshot
+duck android screenshot
+
+# Execute command
+duck android shell "ls -la /sdcard/"
+```
+
+### Advanced Features
+
+**AI Council Deliberation:**
+```bash
+duck council "Should we use microservices or monolith?"
+```
+
+**Parallel Thinking:**
+```bash
+duck run "Think about this problem from multiple angles" --parallel 3
+```
+
+**Spawn Sub-Agents:**
+```bash
+duck run "Spawn 3 agents to research X, Y, and Z in parallel"
+```
+
+**Create Skills:**
+```bash
+duck run "Create a skill for deploying to AWS"
+```
 
 ## For Developers
 
 ### Architecture Overview
 
 Duck CLI consists of:
-- **Core Agent** (`src/agent/core.ts`) - Main orchestration
-- **Chat Agent** (`src/agent/chat-agent.ts`) - HTTP API server
-- **Subconscious** (`src/daemons/subconsciousd.ts`) - Context persistence
-- **Mesh** (`src/mesh/`) - Inter-agent communication
-- **Bridge** (`src/bridge/`) - External integrations
+- **Go CLI Wrapper**: Entry point, command routing
+- **TypeScript Core**: Agent logic, tools, providers
+- **Hybrid Orchestrator**: Task routing and complexity analysis
+- **Meta-Agent**: Complex task planning and execution
+- **Sub-Conscious**: Long-term memory and pattern recognition
 
-### Adding Tools
+### Key Components
 
-Edit `src/agent/core.ts`:
+| Component | File | Purpose |
+|-----------|------|---------|
+| Agent Core | `src/agent/core.ts` | Main agent class |
+| Chat Agent | `src/agent/chat-agent.ts` | Conversational interface |
+| Orchestrator | `src/orchestrator/` | Task routing |
+| Meta-Agent | `src/orchestrator/meta-agent.ts` | Complex task handling |
+| Tool Registry | `src/tools/registry.ts` | Tool management |
+| Providers | `src/providers/manager.ts` | AI provider routing |
 
-```typescript
-this.registerTool({
-  name: 'my_tool',
-  description: 'Does something useful',
-  schema: { param: { type: 'string' } },
-  handler: async (args) => {
-    // Implementation
-    return { result: 'success' };
-  }
-});
-```
+### Adding Features
 
-### Adding Skills
+**New Tool:**
+1. Add to `src/agent/core.ts` → `registerTools()`
+2. Define schema and handler
+3. Rebuild: `npm run build`
 
-Create `skills/my-skill/SKILL.md` following the skill template.
+**New Provider:**
+1. Create provider class in `src/providers/`
+2. Register in `src/providers/manager.ts`
+3. Add configuration to `.env`
 
-### Testing
+**New Skill:**
+1. Create `skills/my-skill/SKILL.md`
+2. Add scripts if needed
+3. Rebuild to auto-load
+
+### Development Workflow
 
 ```bash
-# Run all tests
+# Start development
+npm run watch
+
+# Run tests
 npm test
 
-# Test specific component
-npm test -- --grep "agent"
+# Type check
+npx tsc --noEmit
 
-# E2E test
-./duck test e2e
+# Build Go binary
+go build -o duck ./cmd/duck/
+
+# Test locally
+./duck run "test command"
 ```
 
-## Advanced Usage
-
-### Custom Providers
-
-Add to `src/providers/`:
-
-```typescript
-export class MyProvider implements Provider {
-  name = 'my-provider';
-  async complete(opts) {
-    // Call your API
-    return { text: result };
-  }
-}
-```
-
-### Agent Mesh Integration
-
-Register your agent:
+### Debugging
 
 ```bash
-./duck mesh register --id my-agent --role worker
-./duck mesh broadcast "Hello from my-agent"
+# Enable tracing
+DUCK_TRACE=1 ./duck run "command"
+
+# View logs
+./duck logger logs --limit 50
+
+# Check health
+./duck health
+
+# Run doctor
+./duck doctor
 ```
 
-### Subconscious API
+## Configuration
 
-Access memories programmatically:
+### Environment Variables
 
-```typescript
-const client = new SubconsciousClient();
-await client.save({ content: 'Important context' });
-const memories = await client.recall('context', 5);
+**Required:**
+- `MINIMAX_API_KEY` - Primary AI provider
+
+**Optional:**
+- `KIMI_API_KEY` - Moonshot/Kimi
+- `OPENAI_API_KEY` - OpenAI/Codex
+- `OPENROUTER_API_KEY` - OpenRouter
+- `LMSTUDIO_URL` - Local LM Studio
+- `TELEGRAM_BOT_TOKEN` - Telegram bot
+
+### Configuration Files
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `.env` | Project root | API keys |
+| `config.json` | `~/.duck/` | User preferences |
+| `memory.db` | `~/.duck/` | SQLite database |
+| `sessions/` | `~/.duck/` | Session logs |
+
+## Troubleshooting
+
+### Common Issues
+
+**"Module not found" errors:**
+```bash
+npm install
+npm run build
 ```
+
+**Provider timeout:**
+- Check API key validity
+- Verify network connection
+- Try different provider: `--provider openrouter`
+
+**Permission denied:**
+```bash
+chmod +x duck
+```
+
+**Port conflicts:**
+```bash
+# Check ports
+lsof -i :3850    # MCP
+lsof -i :18794   # ACP
+lsof -i :18797   # Chat Agent
+```
+
+### Getting Help
+
+1. Check `duck doctor` for diagnostics
+2. Run `duck health` to check services
+3. View logs: `duck logger logs`
+4. Search issues: https://github.com/Franzferdinan51/duck-cli/issues
+5. Join Discord: https://discord.gg/clawd
+
+## Best Practices
+
+### For Users
+
+1. **Start simple** - Begin with basic commands
+2. **Use skills** - Leverage built-in skills for common tasks
+3. **Check outputs** - Review what the agent is doing
+4. **Provide feedback** - Help the system learn
+5. **Stay secure** - Review dangerous operations before approving
+
+### For Developers
+
+1. **Test thoroughly** - Run tests before committing
+2. **Document changes** - Update relevant .md files
+3. **Follow patterns** - Use existing code as reference
+4. **Handle errors** - Graceful failure handling
+5. **Respect limits** - Don't abuse API rate limits
+
+## Resources
+
+- **GitHub**: https://github.com/Franzferdinan51/duck-cli
+- **OpenClaw**: https://github.com/openclaw/openclaw
+- **Hermes**: https://github.com/NousResearch/hermes-agent
+- **Discord**: https://discord.gg/clawd
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+MIT License - See LICENSE file for details
+
+---
+
+*This guide helps both users and developers get the most out of Duck CLI.*

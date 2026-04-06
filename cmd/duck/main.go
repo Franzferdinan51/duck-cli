@@ -878,6 +878,11 @@ func toolsCmd() *cobra.Command {
 func runNode(args ...string) error {
 	exePath, _ := os.Executable()
 	cmdDir := filepath.Dir(exePath)
+	// Resolve symlinks in dist/ path so DUCK_SOURCE_DIR points to real source dir
+	distPath := filepath.Join(cmdDir, "dist")
+	if realDist, err := filepath.EvalSymlinks(distPath); err == nil {
+		cmdDir = filepath.Dir(realDist)
+	}
 	nodeCmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, args...)...)
 	nodeCmd.Stdout = os.Stdout
 	nodeCmd.Stderr = os.Stderr
