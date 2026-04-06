@@ -397,12 +397,29 @@ class LMStudioProvider implements Provider {
 
   constructor(private url: string, private key: string = 'not-needed') {}
 
+  /**
+   * Normalize a bare model name to its fully-qualified LM Studio model ID.
+   * LM Studio uses namespaced IDs like 'qwen/qwen3.5-9b' but duck-cli often
+   * references models as bare names like 'qwen3.5-9b'.
+   */
+  private normalizeModel(model?: string): string {
+    const raw = model || process.env.GEMMA_MODEL || 'google/gemma-4-26b-a4b';
+    // Already namespaced - use as-is
+    if (raw.includes('/')) return raw;
+    // Map bare model names to their LM Studio namespaced IDs
+    if (raw.startsWith('qwen3.5-') || raw.startsWith('qwen2.5-')) return `qwen/${raw}`;
+    if (raw.startsWith('gemma-4-') || raw.startsWith('gemma4-')) return `google/${raw}`;
+    // Unknown format - try as-is
+    return raw;
+  }
+
   async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
     const makeRequest = async (): Promise<{ text?: string; toolCalls?: any[]; error?: string }> => {
       try {
         // Use OpenAI-compatible endpoint (/v1/chat/completions) - works perfectly
         const endpoint = this.url.includes('/v1/chat/completions') ? this.url : `${this.url.replace('/api/v1', '').replace('/v1', '')}/v1/chat/completions`;
-        
+        const lmModel = this.normalizeModel(opts.model);
+
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -410,7 +427,7 @@ class LMStudioProvider implements Provider {
             'Authorization': `Bearer ${this.key}`
           },
           body: JSON.stringify({
-            model: opts.model || process.env.GEMMA_MODEL || 'google/gemma-4-26b-a4b',
+            model: lmModel,
             messages: opts.messages,
             tools: opts.tools,
             stream: false
