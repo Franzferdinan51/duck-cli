@@ -219,12 +219,17 @@ export class SubagentManager extends EventEmitter {
     const timeout = config.timeout || 300000; // 5 min default
     const startTime = Date.now();
 
-    // Try ACP session on OpenClaw gateway first (lightweight, uses Moonshot kimi-k2.5)
-    const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL || 'http://localhost:18792';
+    // Try duck-cli gateway first (lightweight, uses Moonshot kimi-k2.5)
+    // DUCK_GATEWAY_URL takes priority; OPENCLAW_GATEWAY_URL is accepted for
+    // backward compatibility when duck-cli is bridged to an OpenClaw install.
+    // Default (http://localhost:18792) is duck-cli's own built-in gateway.
+    const gatewayUrl = process.env.DUCK_GATEWAY_URL ||
+      process.env.OPENCLAW_GATEWAY_URL ||
+      'http://localhost:18792';
     const rolePrompt = this.buildRolePrompt(agent.role, agent.task, config.memory);
 
     try {
-      // Try ACP session via OpenClaw gateway (lightweight, parallel)
+      // Try duck-cli gateway (lightweight, parallel subagent execution)
       const model = config.model || 'kimi-k2.5';
       const messages = [
         { role: 'system', content: rolePrompt },
@@ -244,7 +249,7 @@ export class SubagentManager extends EventEmitter {
           agent.progress = 100;
           agent.status = 'completed';
           agent.result = content;
-          agent.toolsUsed = ['openclaw-gateway'];
+          agent.toolsUsed = ['duck-gateway'];
           return { output: content, cost: data.usage?.total_tokens ? Number(data.usage.total_tokens) : undefined, toolsUsed: agent.toolsUsed };
         }
       }

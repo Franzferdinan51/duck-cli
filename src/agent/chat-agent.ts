@@ -395,23 +395,38 @@ function scoreComplexity(message: string): number {
 async function routeToMetaAgent(task: string): Promise<string> {
   return new Promise((resolve) => {
     const { spawn } = require('child_process');
-    const child = spawn('./duck', ['meta', 'run', task], {
-      cwd: process.cwd(),
+    const { join } = require('path');
+    const duckBin = process.env.DUCK_CLI_PATH
+      || (process.env.DUCK_SOURCE_DIR ? join(process.env.DUCK_SOURCE_DIR, 'duck') : './duck');
+    const timeoutMs = parseInt(process.env.DUCK_META_TIMEOUT_MS || '300000', 10);
+
+    const child = spawn(duckBin, ['meta', 'run', task], {
+      cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
       env: { ...process.env },
     });
 
     let output = '';
+    let finished = false;
+    const finish = (text: string) => {
+      if (finished) return;
+      finished = true;
+      resolve(text);
+    };
+
     child.stdout.on('data', (data: Buffer) => { output += data.toString(); });
     child.stderr.on('data', (data: Buffer) => { output += data.toString(); });
 
     child.on('close', (code: number) => {
-      resolve(output || `[MetaAgent exited with code ${code}]`);
+      finish(output || `[MetaAgent exited with code ${code}]`);
     });
 
     setTimeout(() => {
-      child.kill();
-      resolve('[MetaAgent timeout after 120s]');
-    }, 120000);
+      try { child.kill('SIGTERM'); } catch {}
+      setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+      }, 3000);
+      finish(`[MetaAgent timeout after ${Math.round(timeoutMs / 1000)}s]`);
+    }, timeoutMs);
   });
 }
 

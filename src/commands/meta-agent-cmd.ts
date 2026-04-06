@@ -132,9 +132,26 @@ async function executeTool(tool: string, params: any): Promise<any> {
 }
 
 async function spawnAgentStub(task: string): Promise<string> {
-  const agentId = randomUUID().substring(0, 8);
-  console.log(`[MetaCLI] Spawned subagent ${agentId}: "${task}"`);
-  return agentId;
+  const { SubagentManager } = await import('../agent/subagent-manager.js');
+  const manager = new SubagentManager();
+  const agent = manager.spawn(task, {
+    role: 'general',
+    timeout: 300000,
+    model: process.env.DUCK_MODEL || 'qwen3.5-0.8b',
+    provider: process.env.DUCK_PROVIDER || 'lmstudio',
+  });
+
+  manager.start(agent.id, {
+    role: 'general',
+    timeout: 300000,
+    model: process.env.DUCK_MODEL || 'qwen3.5-0.8b',
+    provider: process.env.DUCK_PROVIDER || 'lmstudio',
+  }).catch((err: any) => {
+    console.error(`[MetaCLI] Failed to start subagent ${agent.id}: ${err?.message || err}`);
+  });
+
+  console.log(`[MetaCLI] Spawned real subagent ${agent.id}: "${task}"`);
+  return agent.id;
 }
 
 export function createMetaAgentCommand(): Command {
