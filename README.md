@@ -94,23 +94,15 @@ Unlike a chatbot, duck-cli is built for **autonomous execution** — it has memo
 **The core loop:**
 
 ```
-You: "build a REST API for my project"
-  │
-  ▼
-Chat Agent (MiniMax) — conversational, friendly, maintains chat history
-  │
-  ▼
-AI Council Deliberation (complex/ethical/high-stakes tasks only)
-  │
-  ▼
-Bridge Agent (qwen3.5-0.8b local) — connection health, routing, protocol
-  │
-  ▼
-Orchestrator (MetaAgent v3) — Plan → Critic → Healer → Learner
-  │
-  ▼
-Tool Execution + Model Routing (MiniMax, LM Studio Gemma 4, Kimi)
+You → Chat Agent → [AI Council if complexity ≥ 7 or ethical]
+                → Orchestrator (MetaAgent v3)
+                → Tools (102 tools)
+                ↕
+        Bridge Agent (ACP/MCP/WebSocket protocol bridge)
+        (exposes duck-cli to other agents and tools)
 ```
+
+Tasks flow from you through the Chat Agent. Simple tasks go straight to the Orchestrator. Complex or ethical tasks trigger AI Council deliberation first. The Orchestrator plans, criticizes, heals, and learns — then executes via 102 tools. The Bridge Agent sits alongside as a protocol bridge, exposing duck-cli's capabilities to external agents via ACP, MCP, and WebSocket.
 
 ---
 
@@ -253,79 +245,81 @@ curl -X POST localhost:18797/chat \
 
 ## 🏗️ Architecture
 
+### Server Architecture — One Unified Agent
+
+Chat Agent, Bridge Agent, and Subconscious work together as **ONE unified agent** — not separate servers running the bot. They share the same process, memory, and mesh bus, coordinating to provide:
+
+- **Conversational interface** (Chat Agent)
+- **Protocol access for external agents** (Bridge Agent)
+- **Background whisper monitoring** (Subconscious)
+
+This unified design means they share context seamlessly, with no network overhead between components. When you run `./duck chat-agent start`, all three components start together as a single service.
+
 ```
-                         ┌─────────────────────────────────────┐
-                         │          You (CLI / Telegram)        │
-                         └──────────────────┬──────────────────┘
-                                            │
-                                            ▼
-                         ┌─────────────────────────────────────┐
-                         │           CHAT AGENT (Leaf)          │
-                         │      MiniMax M2.7 · Session memory   │
-                         └──────────────────┬──────────────────┘
-                                            │
-                        ┌───────────────────┴───────────────────┐
-                        │                                       │
-               Simple chat                            Complex task
-                        │                                       │
-                        ▼                                       ▼
-             ┌──────────────────┐          ┌──────────────────────────────┐
-             │  Direct Response │          │       AI COUNCIL             │
-             └──────────────────┘          │  Speaker + Technocrat +       │
-                                           │  Ethicist + Sentinel +        │
-                                           │  Pragmatist + Skeptic         │
-                                           └──────────────┬───────────────┘
-                                                          │ APPROVE / REJECT
-                                                          ▼
-                         ┌─────────────────────────────────────┐
-                         │      🌉 BRIDGE AGENT (Watchdog)     │
-                         │   Connection health · Routing ·      │
-                         │   Protocol negotiation · Health      │
-                         │   aggregation via mesh              │
-                         └──────────────────┬──────────────────┘
-                                            │
-                        ┌───────────────────┴───────────────────┐
-                        │                                       │
-               Simple task                             Complex task
-                        │                                       │
-                        ▼                                       ▼
-                         ┌─────────────────────────────────────┐
-                         │   META-AGENT ORCHESTRATOR v3        │
-                         │   Planner → Critic → Healer →        │
-                         │   Learner · 102 tools · Fallbacks    │
-                         └──────────────────┬──────────────────┘
-                                            │
-                                            ▼
-                         ┌─────────────────────────────────────┐
-                         │              TOOLS                   │
-                         │   exec · file · http · browser ·     │
-                         │   android · cron · subagent + 92    │
-                         └─────────────────────────────────────┘
-                                            │
-                                            │
-                         ┌─────────────────────────────────────┐
-                         │              MESH BUS                │
-                         │     (Coordination — not execution)   │
-                         │                                      │
-                         │  MetaAgent (hub)  ←→  Bridge (wdg)   │
-                         │  Bridge (wdg)      ←→  Chat (leaf)   │
-                         │  Chat (leaf)       ←→  Subcons (obs) │
-                         └──────────────────┬──────────────────┘
-                                            │
-                         ┌─────────────────────────────────────┐
-                         │    🌊 SUBCONSCIOUS (Observer)        │
-                         │   Pattern matching · Whisper fires   │
-                         │   Confidence < 0.5 → log            │
-                         │   Confidence ≥ 0.7 → council        │
-                         │   Learned fix → apply silently        │
-                         └─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    You (CLI / Telegram)                   │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│                    CHAT AGENT (Leaf)                      │
+│               MiniMax M2.7 · Session memory               │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+         ┌─────────────────┴─────────────────┐
+         │                                   │
+   Simple task                        Complex task
+         │                                   │
+         ▼                                   ▼
+┌──────────────────┐         ┌───────────────────────────────┐
+│ Direct Response  │         │          AI COUNCIL            │
+└──────────────────┘         │  Speaker · Technocrat ·        │
+                             │  Ethicist · Sentinel ·         │
+                             │  Pragmatist · Skeptic           │
+                             └───────────────┬───────────────┘
+                                             │ APPROVE / REJECT
+                                             ▼
+                             ┌───────────────────────────────┐
+                             │  META-AGENT ORCHESTRATOR v3     │
+                             │  Planner → Critic → Healer →    │
+                             │  Learner · 102 tools · Fallbacks│
+                             └───────────────┬───────────────┘
+                                             │
+                                             ▼
+                             ┌───────────────────────────────┐
+                             │            TOOLS               │
+                             │  exec · file · http · browser · │
+                             │  android · cron · subagent + 92│
+                             └───────────────────────────────┘
+                                             │
+                           ┌─────────────────┼─────────────────┐
+                           │                 │                 │
+                           ▼                 │                 ▼
+                    ┌──────────────┐         │         ┌──────────────┐
+                    │ BRIDGE AGENT │◄────────┴────────►│  MESH BUS    │
+                    │(Protocol     │                   │             │
+                    │ Sidecar)     │                   │ Chat←→Subcon │
+                    │ACP/MCP/WS   │                   └──────────────┘
+                    └──────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │SUBCONSCIOUS  │
+                    │ (Observer)   │
+                    │ Pattern match │
+                    │ Whisper fires │
+                    └──────────────┘
 ```
 
 **The core loop:**
+
 ```
-You → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
-              ↓                   ↓
-            Subconscious ←────────┘
+You → Chat Agent → [AI Council if complexity ≥ 7 or ethical]
+                → Orchestrator (MetaAgent v3)
+                → Tools (102 tools)
+                ↕
+        Bridge Agent (protocol sidecar)
+        Bridge Agent ↔ Mesh Bus ↔ Subconscious
 ```
 │              (LLM-powered: Planner → Critic → Healer → Learner)            │
 │                                                                          │
@@ -408,11 +402,12 @@ You → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
 │  │  ./duck mesh stop       — Stop mesh server                       │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
-**4 Super Agents:**
+**4 Agent Components:**
+*(These are internal components of the unified duck-cli agent — not separate servers)*
 | Agent | Tier | Model | Purpose |
 |-------|------|-------|---------|
 | **MetaAgent** | Hub | qwen3.5-0.8b | Coordinates all agents, owns system prompt |
-| **Bridge Agent** | Watchdog | qwen3.5-0.8b | Connection health, routing decisions, protocol negotiation |
+| **Bridge Agent** | Protocol Sidecar | qwen3.5-0.8b | ACP/MCP/WebSocket bridge for external agents |
 | **Chat Agent** | Leaf | MiniMax M2.7 | Conversational interface, session memory |
 | **Subconscious** | Observer | Pattern matching | Whisper monitoring, alerts, autonomous responses |
 
@@ -420,19 +415,21 @@ You → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
 
 ---
 
-## 🌉 Bridge Agent — Connection & Routing Watchdog
+## 🌉 Bridge Agent — Protocol Bridge (Sidecar)
 
-The **Bridge Agent** sits between the AI Council and the Orchestrator, acting as a watchdog for all task routing decisions.
+The **Bridge Agent** is a **protocol access layer** that exposes duck-cli's capabilities to external agents and tools via ACP, MCP, and WebSocket. It is **not** in the main execution path between AI Council and Orchestrator — it sits alongside as a sidecar.
 
 **What it does:**
+- **Protocol bridging** — ACP/MCP/WebSocket translation for external agent access
 - **Connection health** — Monitors provider endpoints (MiniMax, LM Studio, Kimi, OpenAI, OpenRouter) and routes around failures
-- **Routing decisions** — Decides whether a task takes the fast path or needs full deliberation
-- **Protocol negotiation** — Handles mesh protocol versioning and capability exchanges between agents
-- **Health aggregation** — Gathers health signals from all agents via the mesh bus and reports to MetaAgent
+- **Health aggregation** — Gathers health signals from all agents via the mesh bus
+- **External routing** — Routes requests from external agents into the duck-cli execution flow
 
-**Where it fits:**
+**Protocol support:**
 ```
-AI Council (verdict) → Bridge Agent (health check + routing) → Orchestrator (execution)
+External Agent ──ACP/MCP/WS──► Bridge Agent ──► duck-cli Orchestrator
+                                       │
+                                       └──► Mesh Bus ──► Subconscious
 ```
 
 **Mesh integration:**
@@ -445,6 +442,7 @@ The Bridge Agent uses the mesh bus to:
 - Announce its own health every 10s
 - Subscribe to health pings from Chat Agent, Orchestrator, and Subconscious
 - Alert MetaAgent if any agent goes silent
+- Expose duck-cli tools and capabilities to the agent mesh
 
 ---
 
