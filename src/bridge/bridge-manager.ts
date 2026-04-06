@@ -7,6 +7,7 @@ import { EventEmitter } from "events";
 import { ACPBridge } from "./acp-bridge";
 import { MCPBridge, MCPBridgeConfig } from "./mcp-bridge";
 import { RESTBridge, RESTBridgeConfig } from "./rest-bridge";
+import { ExternalMeshBridge, ExternalAgentConfig } from "./external-mesh-bridge";
 import {
   BridgeConfig,
   BridgeState,
@@ -40,6 +41,12 @@ export interface BridgeManagerConfig {
   /** Enable REST API */
   restEnabled?: boolean;
   restPort?: number;
+  /** Enable external agent mesh bridge */
+  externalMeshEnabled?: boolean;
+  externalMeshPort?: number;
+  externalMeshApiPort?: number;
+  externalMeshAuthToken?: string;
+  enableHiveMind?: boolean;
 }
 
 /**
@@ -47,6 +54,7 @@ export interface BridgeManagerConfig {
  */
 export class BridgeManager extends EventEmitter {
   private meshHealthInterval?: NodeJS.Timeout;
+  private externalMeshBridge?: ExternalMeshBridge;
   private config: Required<BridgeManagerConfig>;
   private acpBridge: ACPBridge;
   private mcpBridge: MCPBridge;
@@ -70,6 +78,11 @@ export class BridgeManager extends EventEmitter {
       mcpPort: config.mcpPort || 9090,
       restEnabled: config.restEnabled !== false,
       restPort: config.restPort || 8080,
+      externalMeshEnabled: config.externalMeshEnabled !== false,
+      externalMeshPort: config.externalMeshPort || 4001,
+      externalMeshApiPort: config.externalMeshApiPort || 4002,
+      externalMeshAuthToken: config.externalMeshAuthToken || process.env.MESH_AUTH_TOKEN || "",
+      enableHiveMind: config.enableHiveMind !== false,
     };
 
     // Create bridges
@@ -192,9 +205,41 @@ export class BridgeManager extends EventEmitter {
       this.startMeshHealthBroadcast(meshUrl, meshKey);
     }
 
+    // Start external mesh bridge if enabled
+    if (this.config.externalMeshEnabled) {
+      await this.startExternalMeshBridge();
+    }
+
     this.isInitialized = true;
     console.log("[BridgeManager] Initialization complete");
   }
+
+  /**
+   * Start mesh health broadcasting (every 30s)
+   * Call after initialize() if you want mesh integration
+   */
+  startMeshHealthBroadcast(meshUrl = 'http://localhost:4000', apiKey = 'openclaw-mesh-default-key'): void {
+    // Register first
+    this.registerWithMesh(meshUrl, apiKey).catch(() => {});
+
+    // Avoid leaking duplicate intervals if called repeatedly.
+    if (this.meshHealthInterval) {
+      clearInterval(this.meshHealthInterval);
+      this.meshHealthInterval = undefined;
+    }
+
+    this.meshHealthInterval = setInterval(() => {
+      this.broadcastHealthToMesh(meshUrl, apiKey).catch(() => {});
+    }, 30000);
+    if (typeof this.meshHealthInterval.unref === 'function') {
+      this.meshHealthInterval.unref();
+    }
+
+    // Emit so caller can track
+    this.emit('mesh_health_broadcast_started', { interval: 30000 });
+    console.log('[BridgeManager] 🌐 Mesh health broadcast started (30s interval)');
+  }
+
 
   /**
    * Connect to OpenClaw gateway
@@ -630,28 +675,83 @@ export class BridgeManager extends EventEmitter {
   }
 
   /**
-   * Start mesh health broadcasting (every 30s)
-   * Call after initialize() if you want mesh integration
+   * Start external agent mesh bridge
    */
-  startMeshHealthBroadcast(meshUrl = 'http://localhost:4000', apiKey = 'openclaw-mesh-default-key'): void {
-    // Register first
-    this.registerWithMesh(meshUrl, apiKey).catch(() => {});
+  async startExternalMeshBridge(): Promise<void> {
+    try {
+      const { ExternalMeshBridge } = await import('./external-mesh-bridge.js');
+      this.externalMeshBridge = new ExternalMeshBridge({
+        meshPort: this.config.externalMeshPort,
+        apiPort: this.config.externalMeshApiPort,
+        authToken: this.config.externalMeshAuthToken,
+        enableHiveMind: this.config.enableHiveMind,
+      });
 
-    // Avoid leaking duplicate intervals if called repeatedly.
-    if (this.meshHealthInterval) {
-      clearInterval(this.meshHealthInterval);
-      this.meshHealthInterval = undefined;
+      // Forward external agent events to local mesh
+      this.externalMeshBridge.on("agent:connected", (agent) => {
+        console.log(`[BridgeManager] 🔌 External agent connected: ${agent.name}`);
+        this.broadcastToMesh({
+          type: "agent_joined",
+          agentId: agent.id,
+          agentName: agent.name,
+          role: agent.role,
+          capabilities: agent.capabilities,
+          external: true,
+        });
+      });
+
+      this.externalMeshBridge.on("agent:disconnected", (agent) => {
+        console.log(`[BridgeManager] 👋 External agent disconnected: ${agent.name}`);
+        this.broadcastToMesh({
+          type: "agent_left",
+          agentId: agent.id,
+          external: true,
+        });
+      });
+
+      this.externalMeshBridge.on("message", (msg) => {
+        // Forward external messages to local mesh
+        this.broadcastToMesh({
+          type: "external_message",
+          from: msg.from,
+          payload: msg.payload,
+          external: true,
+        });
+      });
+
+      await this.externalMeshBridge.start();
+      console.log(`[BridgeManager] 🌐 External mesh bridge started on port ${this.config.externalMeshPort}`);
+    } catch (e) {
+      console.error("[BridgeManager] ❌ Failed to start external mesh bridge:", e);
     }
+  }
 
-    this.meshHealthInterval = setInterval(() => {
-      this.broadcastHealthToMesh(meshUrl, apiKey).catch(() => {});
-    }, 30000);
-    if (typeof this.meshHealthInterval.unref === 'function') {
-      this.meshHealthInterval.unref();
-    }
+  /**
+   * Get connected external agents
+   */
+  getExternalAgents(): any[] {
+    return this.externalMeshBridge?.getAgents() || [];
+  }
 
-    // Emit so caller can track
-    this.emit('mesh_health_broadcast_started', { interval: 30000 });
-    console.log('[BridgeManager] 🌐 Mesh health broadcast started (30s interval)');
+  /**
+   * Send message to external agent
+   */
+  sendToExternalAgent(agentId: string, message: any): boolean {
+    return this.externalMeshBridge?.sendToAgent(agentId, message) || false;
+  }
+
+  /**
+   * Broadcast to external agents
+   */
+  broadcastToExternalAgents(message: any): void {
+    this.externalMeshBridge?.broadcast(message);
+  }
+
+  /**
+   * Broadcast to local mesh
+   */
+  private broadcastToMesh(data: any): void {
+    this.emit("mesh_broadcast", data);
   }
 }
+
