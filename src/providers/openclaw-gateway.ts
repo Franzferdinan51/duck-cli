@@ -1,8 +1,10 @@
 import { Provider } from './manager.js';
 
 /**
- * OpenClaw Gateway provider - routes through local OpenClaw gateway
- * Gives duck-cli access to OpenClaw's providers (Moonshot/kimi-k2.5, etc.)
+ * Duck Gateway provider - routes through duck-cli's built-in gateway (port 18792).
+ * The built-in gateway proxies to external LLMs (kimi-k2.5, etc.).
+ * Named 'openclaw' for historical/backward-compatibility reasons —
+ * this does NOT require an external OpenClaw installation.
  */
 export class OpenClawGatewayProvider implements Provider {
   name = 'openclaw';
@@ -26,7 +28,7 @@ export class OpenClawGatewayProvider implements Provider {
         if (res.status === 429) {
           const retryAfter = res.headers.get('Retry-After');
           const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
-          console.warn(`[OpenClawGateway] ⚠️  Rate limited (429), ${waitMs ? `waiting ${waitMs}ms` : 'will retry with backoff'}`);
+          console.warn(`[DuckGateway] ⚠️  Rate limited (429), ${waitMs ? `waiting ${waitMs}ms` : 'will retry with backoff'}`);
           return { error: '__RETRY__', retry: true };
         }
 
@@ -34,7 +36,7 @@ export class OpenClawGatewayProvider implements Provider {
           const err = await res.text();
           // 401 = auth failure, 403 = forbidden - don't retry
           if (res.status === 401 || res.status === 403) {
-            return { error: `Gateway ${res.status}: ${err}` };
+            return { error: `Duck Gateway ${res.status}: ${err}` };
           }
           // Server errors are retryable
           const isRetryable = res.status >= 500 || res.status === 408;
@@ -45,7 +47,7 @@ export class OpenClawGatewayProvider implements Provider {
         const content = data.choices?.[0]?.message?.content;
 
         if (!content || content.includes('All providers failed')) {
-          return { error: 'OpenClaw gateway: all upstream providers failed' };
+          return { error: 'Duck Gateway: all upstream providers failed' };
         }
 
         return { text: content };
@@ -56,7 +58,7 @@ export class OpenClawGatewayProvider implements Provider {
                            e.message?.includes('ETIMEDOUT') ||
                            e.message?.includes('fetch') ||
                            e.message?.includes('ENOTFOUND');
-        return { error: `Connection failed: ${e.message}`, retry: isRetryable };
+        return { error: `Duck Gateway connection failed: ${e.message}`, retry: isRetryable };
       }
     };
 
@@ -64,7 +66,7 @@ export class OpenClawGatewayProvider implements Provider {
     for (let attempt = 0; attempt <= this.retryDelays.length; attempt++) {
       if (attempt > 0) {
         const delay = this.retryDelays[attempt - 1];
-        console.log(`[OpenClawGateway] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
+        console.log(`[DuckGateway] Retry ${attempt}/${this.retryDelays.length} after ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
 
@@ -76,7 +78,7 @@ export class OpenClawGatewayProvider implements Provider {
         return { error: result.error };
       }
       if (attempt === this.retryDelays.length) {
-        return { error: result.error || 'Gateway request failed after retries' };
+        return { error: result.error || 'Duck Gateway request failed after retries' };
       }
     }
 

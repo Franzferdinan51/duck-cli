@@ -113,9 +113,11 @@ export class ProviderManager {
       this.providers.set('moonshot', new KimiProvider(process.env.MOONSHOT_API_KEY));
       console.log('[Provider] Moonshot loaded');
     }
-        // OpenClaw Gateway - local gateway with Moonshot/kimi-k2.5 (free unlimited)
+        // Duck Gateway - duck-cli's built-in gateway (port 18792) proxying to kimi-k2.5
+        // NOTE: 'openclaw' provider name kept for backward compatibility;
+        // this does NOT require an external OpenClaw installation.
     this.providers.set('openclaw', new OpenClawGatewayProvider());
-    console.log('[Provider] OpenClaw Gateway loaded (kimi-k2.5 free)');
+    console.log('[Provider] Duck Gateway loaded (kimi-k2.5 free)');
 
     const first = Array.from(this.providers.keys())[0];
     if (first) this.active = this.providers.get(first);
@@ -139,7 +141,7 @@ export class ProviderManager {
     let targets = [
       { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (Gemma 4 26B, local FREE)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
-      { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'OpenClaw Gateway (Kimi k2.5)' },
+      { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'Duck Gateway (Kimi k2.5)' },
       { provider: 'kimi',      model: 'k2p5',                label: 'Kimi K2.5 (direct)' },
     ];
 
@@ -325,7 +327,7 @@ export class ProviderManager {
     // Try vision-capable providers in priority order
     const visionTargets = [
       { provider: 'kimi',      model: 'k2p5', label: 'Kimi K2.5 (vision)' },
-      { provider: 'openclaw',  model: 'kimi-k2.5', label: 'OpenClaw Kimi k2.5' },
+      { provider: 'openclaw',  model: 'kimi-k2.5', label: 'Duck Gateway Kimi k2.5' },
       { provider: 'lmstudio',  model: undefined, label: 'LM Studio (vision model)' },
     ];
 
