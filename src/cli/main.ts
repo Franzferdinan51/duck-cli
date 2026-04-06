@@ -161,6 +161,7 @@ async function main() {
       await showStatus();
       break;
 
+    case 'mcp-server':
     case 'mcp':
     case 'server':
       // Check for --stdio flag
