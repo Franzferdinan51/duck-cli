@@ -9,6 +9,7 @@ import { Agent } from '../agent/core.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { logger } from './logger.js';
 import { LiveErrorStream } from './live-error-stream.js';
+import { DEFAULT_MCP_PORT } from '../config/index.js';
 
 // MCP JSON-RPC types
 export interface MCPRequest {
@@ -74,7 +75,7 @@ export class MCPServer {
   private nextId = 1;
   private errorStream: LiveErrorStream | null = null;
 
-  constructor(port: number = 3850) {
+  constructor(port: number = DEFAULT_MCP_PORT) {
     this.port = port;
     this.agent = new Agent({ name: 'Duck Agent (MCP)' });
     this.registerCoreHandlers();

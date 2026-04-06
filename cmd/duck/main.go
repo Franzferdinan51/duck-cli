@@ -120,6 +120,7 @@ Features:
 		thinkCmd(),
 		doctorCmd(),
 		healthCmd(),
+		loggerCmd(),
 		statsCmd(),
 		configCmd(),
 		traceCmd(),
@@ -750,6 +751,44 @@ func healthCmd() *cobra.Command {
 			return runNodeWithEnv("health", cmd)
 		},
 	}
+}
+
+// loggerCmd - duck logger
+func loggerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "logger",
+		Short: "Logger commands (status|logs|errors|tail)",
+	}
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show logger health status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("logger", cmd)
+		},
+	}
+	logsCmd := &cobra.Command{
+		Use:   "logs",
+		Short: "Show recent logs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("logger logs", cmd)
+		},
+	}
+	errorsCmd := &cobra.Command{
+		Use:   "errors",
+		Short: "Show errors",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("logger errors", cmd)
+		},
+	}
+	tailCmd := &cobra.Command{
+		Use:   "tail",
+		Short: "Stream logs in real-time",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("logger tail", cmd)
+		},
+	}
+	cmd.AddCommand(statusCmd, logsCmd, errorsCmd, tailCmd)
+	return cmd
 }
 
 // statsCmd - duck stats

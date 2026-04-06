@@ -55,6 +55,7 @@ import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
 import { runHealthCheck, runBootDiagnostics, printHealthReport } from '../agent/health-check.js';
 import { getConfigManager, ConfigManager } from '../agent/config-manager.js';
 import { getSelfMonitor, SelfMonitor } from '../agent/self-monitor.js';
+import { DEFAULT_MCP_PORT, DEFAULT_MESH_PORT, DEFAULT_SUBCONSCIOUS_PORT } from '../config/index.js';
 
 // Colors
 const c = {
@@ -376,7 +377,7 @@ async function main() {
         if (protoIdx !== -1 && args[protoIdx + 1]) opts.protocol = args[protoIdx + 1];
         await loggerErrorsCommand(opts);
       } else if (loggerCmd === 'tail') {
-        const port = parseInt(args[1]) || 3850;
+        const port = parseInt(args[1]) || DEFAULT_MCP_PORT;
         await loggerTailCommand(port);
       } else {
         console.log('Usage: duck logger <status|logs|errors|tail> [options]');
@@ -2197,7 +2198,7 @@ async function updateCommand(args: string[]) {
 // ============ ACP SERVER (for OpenClaw) ============
 
 async function startACPServer(args: string[]) {
-  const port = parseInt(args[0]) || 18794;
+  const port = parseInt(args[0]) || DEFAULT_ACP_PORT;
   
   const { ACPServer } = await import('../gateway/acp-server.js');
   const agent = new Agent({ name: 'Duck Agent (ACP Server)' });

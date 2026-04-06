@@ -63,6 +63,15 @@ export const DEFAULT_MESH_PORT = parseInt(process.env.MESH_PORT || process.env.P
 /** OpenClaw-RL default port */
 export const DEFAULT_OPENCLAW_RL_PORT = parseInt(process.env.OPENCLAW_RL_PORT || '30000');
 
+/** MCP server default port (Streamable HTTP + WebSocket) */
+export const DEFAULT_MCP_PORT = parseInt(process.env.MCP_PORT || '3850');
+
+/** Live error stream default port (WebSocket) */
+export const DEFAULT_LIVE_ERROR_PORT = parseInt(process.env.LIVE_ERROR_PORT || '3851');
+
+/** ACP server default port (for OpenClaw gateway) */
+export const DEFAULT_ACP_PORT = parseInt(process.env.ACP_PORT || '18794');
+
 // ─── API Keys (with fallback defaults for dev) ────────────────────────────────
 
 export const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';

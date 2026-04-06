@@ -1112,7 +1112,9 @@ export class Agent extends EventEmitter {
       handler: async () => {
         const { exec } = await import('child_process');
         return new Promise((resolve) => {
-          exec('cd /tmp/duck-cli-main-sync && ~/.local/bin/duck doctor', (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
+          const duckSourceDir = process.env.DUCK_SOURCE_DIR || '/tmp/duck-cli-main-sync';
+        const duckBinary = process.env.DUCK_BINARY || 'duck';
+        exec(`cd ${duckSourceDir} && ${duckBinary} doctor`, (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
         });
       }
     });

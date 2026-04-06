@@ -1,5 +1,6 @@
 import { logger } from '../server/logger.js';
 import http from 'http';
+import { DEFAULT_MCP_PORT } from '../config/index.js';
 
 /**
  * duck logger status - Show logger status
@@ -70,7 +71,7 @@ export async function loggerErrorsCommand(options: { unresolved?: boolean; proto
 /**
  * duck logger tail - Stream logs in real-time via HTTP
  */
-export async function loggerTailCommand(port: number = 3850) {
+export async function loggerTailCommand(port: number = DEFAULT_MCP_PORT) {
   console.log(`🦆 Tailing logs from http://localhost:${port}/logs (Ctrl+C to stop)`);
   console.log('');
   

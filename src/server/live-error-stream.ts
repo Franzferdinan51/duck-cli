@@ -7,6 +7,7 @@
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { LogLevel, LogEntry, logger } from './logger.js';
+import { DEFAULT_LIVE_ERROR_PORT } from '../config/index.js';
 
 export interface LiveStreamConfig {
   levels?: LogLevel[];
@@ -25,7 +26,7 @@ export class LiveErrorStream {
   private wss: WebSocketServer;
   private server: http.Server;
 
-  constructor(port: number = 3851) {
+  constructor(port: number = DEFAULT_LIVE_ERROR_PORT) {
     this.server = http.createServer();
     this.wss = new WebSocketServer({ server: this.server });
 
