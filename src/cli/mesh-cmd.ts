@@ -181,7 +181,7 @@ export async function meshCommand(args: string[]): Promise<void> {
       console.log(`   🔑 API Key:     openclaw-mesh-default-key`);
       console.log();
 
-      const child = spawn('node', [serverPath], {
+      const child = spawn(process.execPath, [serverPath], {
         detached: true,
         stdio: 'ignore',
         env: {

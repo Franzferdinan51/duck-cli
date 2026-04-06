@@ -153,13 +153,13 @@ Remember: You are a subagent. Focus only on your assigned task.`;
 
 function spawnChildAgent(taskDir: string, timeout: number): Promise<{ success: boolean; output?: string; error?: string }> {
   return new Promise((resolve) => {
-    // Use Duck Agent itself as the child agent
-    const child = spawn('node', [
-      'dist/cli/main.js',
+    // Use process.execPath so node is found regardless of PATH (Telegram/scheduled contexts)
+    const child = spawn(process.execPath, [
+      join(__dirname, '..', 'cli', 'main.js'),
       'think',
       `Task from delegate: ${JSON.parse(require('fs').readFileSync(join(taskDir, 'task.json'), 'utf-8')).task}`
     ], {
-      cwd: process.cwd(),
+      cwd: __dirname,
       timeout,
       stdio: ['pipe', 'pipe', 'pipe'],
     });

@@ -254,8 +254,8 @@ export class SubagentManager extends EventEmitter {
 
     // Fallback: spawn Node.js subprocess
     return new Promise((resolve, reject) => {
-      const child = spawn('node', [
-        'dist/cli/main.js', 
+      const child = spawn(process.execPath, [
+        'dist/cli/main.js',
         'run',
         '--model', config.model || 'minimax',
         '--provider', config.provider || 'minimax',
