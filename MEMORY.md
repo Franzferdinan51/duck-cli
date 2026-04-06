@@ -4757,6 +4757,15 @@ User Task
 
 ### Subconscious + AI Council Integration
 
+**Updated 2026-04-06:** KAIROS ↔ Sub-Conscious daemon now fully wired (b857a7f):
+- `/dream` POST endpoint in subconsciousd.ts — saves KAIROS dream insights to SQLite
+- SubconsciousClient.saveDream() — client method to call `/dream`
+- `dream_complete` event → saves automatically when KAIROS runs scheduled dreams
+- `./duck kairos dream --save` — manual dream trigger that saves to daemon
+- `./duck dream` — saves AI dreaming cycle results to daemon
+- `/whisper` GET endpoint — now persists generated whispers to SQLite
+- Valid source types: 'session', 'council', 'analysis', 'manual', 'dream', 'whisper'
+
 ```
 User Message → Subconscious
                     ↓
@@ -5132,7 +5141,8 @@ curl "http://localhost:37777/api/export?format=json"
 
 **Removed fake/non-existent commands:**
 - `./duck chat` → actually `./duck chat-agent`
-- `./duck dream` → doesn't exist (it's `./duck subconscious dream`)
+- `./duck dream` → `./duck subconscious dream` OR `./duck kairos dream` (both work)
+  - `./duck kairos dream --save` → manual dream + save to Sub-Conscious daemon
 - `./duck backup` → doesn't exist
 - `./duck brain` → doesn't exist
 - `logger errors --limit` / `logger logs --limit` → `--limit` flag not supported
