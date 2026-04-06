@@ -21,6 +21,8 @@ export interface PlanStep {
   dependsOn?: number[];  // step numbers this depends on
   estimatedCost?: number;
   estimatedTimeMs?: number;
+  /** Tool-specific parameters, e.g. { path, content } for file_write */
+  params?: Record<string, any>;
 }
 
 export interface Plan {

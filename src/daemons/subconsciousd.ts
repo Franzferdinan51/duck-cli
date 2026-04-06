@@ -127,6 +127,24 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
           recentTopics: req2.recentTopics
         });
 
+        // Persist the generated whisper as a memory so it can be recalled later
+        if (whisper && whisper.length > 10) {
+          const memory: StoredMemory = {
+            id: `whisper_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            content: whisper,
+            context: `Generated from: ${req2.message || 'current context'}`,
+            tags: ['whisper', 'subconscious', ...(req2.recentTopics || [])],
+            importance: 0.5,
+            source: 'manual' as const,  // whisper-generated, saved as manual memory
+            topic: req2.recentTopics?.[0] || 'general',
+            createdAt: new Date().toISOString(),
+            accessedAt: new Date().toISOString(),
+            accessCount: 0
+          };
+          await store.save(memory);
+          console.log(`[Sub-Conscious Daemon] Whisper saved: ${whisper.substring(0, 60)}...`);
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ 
           whisper,

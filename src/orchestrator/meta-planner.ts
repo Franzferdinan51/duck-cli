@@ -16,7 +16,8 @@ Output JSON with fields:
 {
   "complexity": 1-10,
   "approach": "single-step" | "multi-step" | "parallel" | "deliberate",
-  "steps": [{step, action, description, tool, provider, model, parallel, dependsOn, estimatedTimeMs}],
+  "steps": [{step, action, description, tool, provider, model, parallel, dependsOn, estimatedTimeMs, params}],
+  // params: object with tool-specific parameters, e.g. for file_write: {path: "~/foo.txt", content: "..."}, for shell: {command: "ls -la"}, for web_search: {query: "..."}
   "provider": "minimax" | "lmstudio",
   "model": "MiniMax-M2.7" | "gemma-4-26b",
   "reasoning": "why this approach",

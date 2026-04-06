@@ -91,7 +91,9 @@ export class MetaAgent {
 
       let result: StepResult;
       if (step.action === 'tool' && step.tool) {
-        result = await this.executeTool(step.tool, { prompt: task.prompt, description: step.description });
+        // Pass step-specific params if provided, otherwise fall back to prompt/description
+        const toolParams = step.params || { prompt: task.prompt, description: step.description };
+        result = await this.executeTool(step.tool, toolParams);
       } else if (step.action === 'subagent') {
         const id = await this.spawnAgent(step.description);
         result = { step: step.step, action: step.action, success: true, output: id, durationMs: 1000 };
