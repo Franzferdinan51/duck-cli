@@ -69,6 +69,12 @@ export class TelegramChannel {
   private longPollTimeout: NodeJS.Timeout | null = null;
   private useWebhook: boolean = false;
   private webhookSecret?: string;
+  // Rate limiting (Telegram has 30 msg/sec limit)
+  private rateLimiter = {
+    messages: 0,
+    lastReset: Date.now(),
+    maxPerSecond: 30
+  };
 
   // Command handlers
   private commands: Map<string, CommandHandler> = new Map();
@@ -619,6 +625,47 @@ export class TelegramChannel {
     return false;
   }
 
+
+  // ============== RATE LIMITING & RETRY ==============
+
+
+  /**
+   * Rate-limited request that respects Telegram's 30 msg/sec limit
+   */
+  private async rateLimitedRequest(method: string, body?: any): Promise<any> {
+    const now = Date.now();
+    if (now - this.rateLimiter.lastReset > 1000) {
+      this.rateLimiter.messages = 0;
+      this.rateLimiter.lastReset = now;
+    }
+    
+    if (this.rateLimiter.messages >= this.rateLimiter.maxPerSecond) {
+      await new Promise(r => setTimeout(r, 1000 - (now - this.rateLimiter.lastReset)));
+      return this.rateLimitedRequest(method, body);
+    }
+    
+    this.rateLimiter.messages++;
+    return this.requestWithRetry(method, body);
+  }
+
+  /**
+   * Request with exponential backoff retry for transient errors
+   */
+  private async requestWithRetry(method: string, body?: any, retries = 3): Promise<any> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await this.request(method, body);
+      } catch (e: any) {
+        if (e.message.includes('429') && i < retries - 1) {
+          // Rate limited, wait and retry with exponential backoff
+          await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+          continue;
+        }
+        throw e;
+      }
+    }
+  }
+
   // ============== SEND METHODS ==============
 
   async sendMessage(chatId: number, text: string): Promise<void> {
@@ -627,7 +674,7 @@ export class TelegramChannel {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    await this.request('/sendMessage', {
+    await this.rateLimitedRequest('/sendMessage', {
       chat_id: chatId,
       text: escapedText,
       parse_mode: 'HTML'
@@ -638,7 +685,7 @@ export class TelegramChannel {
    * Send a photo with optional caption
    */
   async sendPhoto(chatId: number, photo: string, caption?: string): Promise<void> {
-    await this.request('/sendPhoto', {
+    await this.rateLimitedRequest('/sendPhoto', {
       chat_id: chatId,
       photo,
       caption: caption,
@@ -650,7 +697,7 @@ export class TelegramChannel {
    * Send a document with optional caption
    */
   async sendDocument(chatId: number, document: string, caption?: string): Promise<void> {
-    await this.request('/sendDocument', {
+    await this.rateLimitedRequest('/sendDocument', {
       chat_id: chatId,
       document,
       caption: caption,
