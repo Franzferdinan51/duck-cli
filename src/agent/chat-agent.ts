@@ -169,7 +169,7 @@ const SYSTEM_PROMPT = process.env.DUCK_CHAT_SYSTEM_PROMPT || soulFromFile || `Yo
 
 ## Your Capabilities
 - Autonomous execution: You PLAN, EXECUTE, and LEARN — not just chat
-- ~37 built-in tools: file ops, shell, web search, Android control, cron, subagents
+- 102 built-in tools: file ops, shell, web search, Android control, cron, subagents
 - Multi-provider AI: MiniMax (fast), LM Studio (local free), Kimi kimi-k2p5 (vision), OpenRouter (free)
 - Memory and learning: Subconscious whisper engine runs alongside, catching patterns
 - AI Council: For complex/ethical decisions, deliberation with ~35 specialized councilors

@@ -32,7 +32,9 @@ function loadEnv(): Record<string, string> {
           const m = line.match(/^([^#=]+)=(.*)$/);
           if (m) env[m[1].trim()] = m[2].trim();
         }
-      } catch {}
+      } catch (e) {
+        console.warn(`[Telegram] Failed to read env file ${envPath}:`, e instanceof Error ? e.message : e);
+      }
       break;
     }
   }

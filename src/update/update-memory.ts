@@ -72,7 +72,10 @@ export class UpdateMemoryStore {
           feedback: m.feedback.map((f: any) => ({ ...f, timestamp: new Date(f.timestamp) }))
         }));
       }
-    } catch { this.memories = []; }
+    } catch (e) {
+      console.error('[UpdateMemory] Failed to load memories, resetting:', e instanceof Error ? e.message : e);
+      this.memories = [];
+    }
   }
 
   private save(): void {
@@ -81,7 +84,9 @@ export class UpdateMemoryStore {
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       writeFileSync(this.memoryPath, JSON.stringify({ memories: this.memories }, null, 2), 'utf-8');
       this.statsCache = null;
-    } catch {}
+    } catch (e) {
+      console.error('[UpdateMemory] Failed to save memories:', e instanceof Error ? e.message : e);
+    }
   }
 
   record(memory: Omit<UpdateMemory, 'feedback'> & { feedback?: FeedbackItem[] }): void {

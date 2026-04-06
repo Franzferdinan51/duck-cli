@@ -108,7 +108,8 @@ function isPrivateIP(addr: string): boolean {
         if (ipInCidr(bytes, range)) return true;
       }
     }
-  } catch {
+  } catch (e) {
+    console.error('[SSRF] Private IP check failed, blocking as fail-safe:', e instanceof Error ? e.message : e);
     return true; // Fail safe - block unknown
   }
   

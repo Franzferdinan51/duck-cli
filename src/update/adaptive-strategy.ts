@@ -51,7 +51,9 @@ export class AdaptiveStrategyEngine {
       const { existsSync, readFileSync } = require('fs');
       const path = `${process.env.HOME}/.duck/update-strategy.json`;
       if (existsSync(path)) this.config = { ...this.config, ...JSON.parse(readFileSync(path, 'utf-8')) };
-    } catch {}
+    } catch (e) {
+      console.error('[AdaptiveStrategy] Failed to load config:', e instanceof Error ? e.message : e);
+    }
   }
 
   saveConfig(): void {
@@ -61,7 +63,9 @@ export class AdaptiveStrategyEngine {
       const dir = require('path').dirname(path);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       writeFileSync(path, JSON.stringify(this.config, null, 2), 'utf-8');
-    } catch {}
+    } catch (e) {
+      console.error('[AdaptiveStrategy] Failed to save config:', e instanceof Error ? e.message : e);
+    }
   }
 
   generateStrategy(classification: ClassifiedUpdate, prediction: SuccessPrediction): UpdateStrategy {

@@ -1008,7 +1008,7 @@ export class Agent extends EventEmitter {
         });
       }
     });
-    this.registerTool({ name: 'duck_council', description: '🏛️ Ask the AI Council (45 deliberative agents)',
+    this.registerTool({ name: 'duck_council', description: '🏛️ Ask the AI Council (~35 specialized councilors)',
       schema: { question: { type: 'string' }, mode: { type: 'string', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const { exec } = await import('child_process');

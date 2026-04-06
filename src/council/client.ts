@@ -361,7 +361,8 @@ export class AICouncilClient extends EventEmitter {
         signal: AbortSignal.timeout(5000),
       });
       return response.ok;
-    } catch {
+    } catch (e) {
+      console.error('[Council] healthCheck failed:', e instanceof Error ? e.message : e);
       return false;
     }
   }
@@ -405,7 +406,8 @@ export class AICouncilClient extends EventEmitter {
         body: JSON.stringify({ topic }),
       });
       return response.ok;
-    } catch {
+    } catch (e) {
+      console.error('[Council] setTopic failed:', e instanceof Error ? e.message : e);
       return false;
     }
   }
@@ -419,8 +421,8 @@ export class AICouncilClient extends EventEmitter {
       if (response.ok) {
         return await response.json();
       }
-    } catch {
-      // Ignore
+    } catch (e) {
+      console.error('[Council] getSession failed:', e instanceof Error ? e.message : e);
     }
     return null;
   }
@@ -470,8 +472,8 @@ export class AICouncilClient extends EventEmitter {
       if (response.ok) {
         return await response.json();
       }
-    } catch {
-      // Ignore
+    } catch (e) {
+      console.warn('[Council] listCouncilors failed, using defaults:', e instanceof Error ? e.message : e);
     }
     return CORE_COUNCILORS;
   }
@@ -482,8 +484,8 @@ export class AICouncilClient extends EventEmitter {
       if (response.ok) {
         return await response.json();
       }
-    } catch {
-      // Ignore
+    } catch (e) {
+      console.warn('[Council] listModes failed, using defaults:', e instanceof Error ? e.message : e);
     }
     return DELIBERATION_MODES;
   }

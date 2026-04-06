@@ -43,7 +43,9 @@ export class FeedbackLoop {
         this.lastWeeklyReview = state.lastWeeklyReview ? new Date(state.lastWeeklyReview) : null;
         this.lastMonthlyReview = state.lastMonthlyReview ? new Date(state.lastMonthlyReview) : null;
       }
-    } catch {}
+    } catch (e) {
+      console.error('[FeedbackLoop] Failed to load state:', e instanceof Error ? e.message : e);
+    }
   }
 
   private saveState(): void {
@@ -57,7 +59,9 @@ export class FeedbackLoop {
         lastWeeklyReview: this.lastWeeklyReview?.toISOString(),
         lastMonthlyReview: this.lastMonthlyReview?.toISOString()
       }, null, 2), 'utf-8');
-    } catch {}
+    } catch (e) {
+      console.error('[FeedbackLoop] Failed to save state:', e instanceof Error ? e.message : e);
+    }
   }
 
   async gatherFeedback(outcome: UpdateOutcome): Promise<void> {

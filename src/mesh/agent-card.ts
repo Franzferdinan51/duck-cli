@@ -48,7 +48,7 @@ export class AgentCardManager {
   private detectSkills(): Skill[] {
     const skills: Skill[] = [
       { name: 'duck_run', description: 'Run AI tasks with smart provider routing', tags: ['ai', 'reasoning'] },
-      { name: 'duck_council', description: '45-agent deliberative council', tags: ['ai', 'deliberation'] },
+      { name: 'duck_council', description: '~35-agent deliberative council', tags: ['ai', 'deliberation'] },
       { name: 'duck_kairos', description: 'Proactive autonomous AI', tags: ['ai', 'autonomous'] },
       { name: 'provider_list', description: 'List available AI providers', tags: ['system'] },
       { name: 'memory_recall', description: 'Search long-term memory', tags: ['memory'] },

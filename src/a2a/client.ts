@@ -99,7 +99,8 @@ export class A2AClient {
     try {
       const client = new A2AClient(url);
       return await client.getAgentCard();
-    } catch {
+    } catch (e) {
+      console.error('[A2A] Agent discover failed:', e instanceof Error ? e.message : e);
       return null;
     }
   }

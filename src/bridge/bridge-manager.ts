@@ -571,8 +571,8 @@ export class BridgeManager extends EventEmitter {
           },
         }),
       });
-    } catch {
-      // Silently fail — mesh is optional
+    } catch (e) {
+      console.warn('[BridgeManager] Mesh registration failed (mesh optional):', e instanceof Error ? e.message : e);
     }
   }
 
@@ -599,8 +599,8 @@ export class BridgeManager extends EventEmitter {
         }),
       });
       console.warn(`[BridgeManager] 🚨 Catastrophe broadcast: ${message}`);
-    } catch {
-      // Silently fail
+    } catch (e) {
+      console.error('[BridgeManager] Catastrophe broadcast failed:', e instanceof Error ? e.message : e);
     }
   }
 
