@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var (
@@ -773,6 +774,10 @@ func loggerCmd() *cobra.Command {
 			return runNodeWithEnv("logger logs", cmd)
 		},
 	}
+	logsCmd.Flags().Int("limit", 20, "Number of logs to show")
+	logsCmd.Flags().String("level", "", "Filter by log level (INFO, WARN, ERROR)")
+	logsCmd.Flags().String("protocol", "", "Filter by protocol (mcp, acp, websocket, rest)")
+
 	errorsCmd := &cobra.Command{
 		Use:   "errors",
 		Short: "Show errors",
@@ -780,6 +785,9 @@ func loggerCmd() *cobra.Command {
 			return runNodeWithEnv("logger errors", cmd)
 		},
 	}
+	errorsCmd.Flags().Bool("unresolved", false, "Show only unresolved errors")
+	errorsCmd.Flags().String("protocol", "", "Filter by protocol (mcp, acp, websocket, rest)")
+
 	tailCmd := &cobra.Command{
 		Use:   "tail",
 		Short: "Stream logs in real-time",
@@ -1124,6 +1132,13 @@ func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	parts := strings.Split(script, " ")
 	nodeArgs := []string{filepath.Join(cmdDir, "dist", "cli", "main.js")}
 	for _, p := range parts { nodeArgs = append(nodeArgs, p) }
+	// Pass cobra command flags to Node.js
+	cobraCmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Changed {
+			nodeArgs = append(nodeArgs, "--"+f.Name)
+			nodeArgs = append(nodeArgs, f.Value.String())
+		}
+	})
 	nodeCmd := exec.Command("node", nodeArgs...)
 	nodeCmd.Stdout = os.Stdout
 	nodeCmd.Stderr = os.Stderr
