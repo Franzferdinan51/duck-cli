@@ -9,7 +9,7 @@
  */
 
 import https from 'https';
-import { existsSync, readFileSync, createReadStream } from 'fs';
+import { existsSync, readFileSync, writeFileSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
 
@@ -41,6 +41,8 @@ function loadEnv(): Record<string, string> {
   return env;
 }
 
+const UPDATE_FILE = '/tmp/duck-cli-telegram-update-id.txt';
+
 function getConfig() {
   const env = loadEnv();
   const botToken = env.TELEGRAM_BOT_TOKEN;
@@ -62,6 +64,52 @@ function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function sanitizeTelegramReply(text: string): string {
+  const filtered = String(text)
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .filter(line => !(
+      line.startsWith('◇ injected env') ||
+      line.startsWith('[Provider]') ||
+      line.startsWith('[Router') ||
+      line.startsWith('[LMStudio]') ||
+      line.startsWith('[MetaPlanner]') ||
+      line.startsWith('🦆 Duck Agent shutting down') ||
+      line.startsWith('Total cost:') ||
+      line.startsWith('Interactions:') ||
+      line.startsWith('Success rate:') ||
+      line.startsWith('Sessions:') ||
+      line.startsWith('Learned skills:') ||
+      line.startsWith('Cron jobs:') ||
+      line.startsWith('Active subagents:') ||
+      line.startsWith('✅ Duck Agent stopped')
+    ))
+    .join('\n')
+    .replace(/\[TOOL:.*?\]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return filtered || '🦆 Processed, but no clean reply was returned.';
+}
+
+function loadUpdateOffset(): number {
+  if (!existsSync(UPDATE_FILE)) return 0;
+  try {
+    return parseInt(readFileSync(UPDATE_FILE, 'utf-8').trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveUpdateOffset(offset: number): void {
+  try {
+    writeFileSync(UPDATE_FILE, String(offset));
+  } catch {}
 }
 
 // ─── Telegram API Helpers ──────────────────────────────────────────────────────
@@ -209,13 +257,11 @@ async function forwardToGateway(message: string): Promise<string> {
       stderr += data.toString();
     });
     
-    child.on('close', (code) => {
+    child.on('close', (_code) => {
       if (stdout.trim()) {
-        // Return last 1500 chars (Telegram limit per message)
-        const result = stdout.trim().slice(-1500);
-        resolve(result);
+        resolve(sanitizeTelegramReply(stdout));
       } else if (stderr.trim()) {
-        resolve('🦆 ' + stderr.trim().slice(-1500));
+        resolve('🦆 ' + sanitizeTelegramReply(stderr).slice(-1500));
       } else {
         resolve('🦆 Processed (no output)');
       }
@@ -305,19 +351,10 @@ export async function telegramStart(): Promise<void> {
     process.exit(1);
   }
 
-  // Send startup message
-  try {
-    await sendMessage(
-      '🦆 <b>Duck CLI Telegram Bot is online!</b>\n\n' +
-      'I am connected to duck-cli. Send me any message and I will forward it to the AI.\n' +
-      'Type /help for commands.'
-    );
-    console.log('✅ Startup notification sent\n');
-  } catch (e: any) {
-    console.error(`⚠️  Could not send startup message: ${e.message}`);
-  }
+  // No startup message by default. Restarts should stay quiet for users.
+  console.log('✅ Telegram bot ready\n');
 
-  let updateOffset = 0;
+  let updateOffset = loadUpdateOffset();
   let running = true;
 
   const shutdown = () => {
@@ -370,6 +407,7 @@ export async function telegramStart(): Promise<void> {
             await sendMessage(`Unknown command: ${text}\nSend /help for available commands.`, msg.message_id);
           }
           updateOffset = update.update_id + 1;
+          saveUpdateOffset(updateOffset);
           continue;
         }
 
@@ -414,6 +452,7 @@ export async function telegramStart(): Promise<void> {
         }
 
         updateOffset = update.update_id + 1;
+        saveUpdateOffset(updateOffset);
       }
     } catch (e: any) {
       console.error(`⚠️  Polling error: ${e.message}`);

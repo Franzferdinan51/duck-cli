@@ -6,16 +6,14 @@
     <string>ai.duckbot.telegram</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
-        <string>-u</string>
-        <string>/Users/duckets/.openclaw/workspace/tools/telegram-bot-standalone.py</string>
+        <string>/Users/duckets/.openclaw/workspace/duck-cli-src/tools/run-duck-telegram.sh</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/duckets/.openclaw/workspace/tools</string>
+    <string>/Users/duckets/.openclaw/workspace/duck-cli-src</string>
     <key>StandardOutPath</key>
-    <string>/tmp/telegram-bot.log</string>
+    <string>/tmp/duck-telegram.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/telegram-bot.err</string>
+    <string>/tmp/duck-telegram.err</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

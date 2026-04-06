@@ -10,7 +10,7 @@ try {
     ? path.join(process.env.DUCK_SOURCE_DIR, '.env')
     : path.join(process.cwd(), '.env');
   if (fs.existsSync(envPath)) {
-    dotenvConfig({ path: envPath });
+    dotenvConfig({ path: envPath, quiet: true });
   }
 } catch(e) {
   // dotenv not available, skip
@@ -985,8 +985,34 @@ ${c.bold}Just type${c.reset} what you want me to help with!
 }
 
 function formatResponse(text: string): string {
-  // Clean up response formatting
-  return text
+  // Clean up response formatting, especially for bot/Telegram mode.
+  const filtered = text
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return true;
+      return !(
+        trimmed.startsWith('◇ injected env') ||
+        trimmed.startsWith('[Provider]') ||
+        trimmed.startsWith('[Router') ||
+        trimmed.startsWith('[LMStudio]') ||
+        trimmed.startsWith('[MetaPlanner]') ||
+        trimmed.startsWith('🦆 Duck Agent shutting down') ||
+        trimmed.startsWith('Total cost:') ||
+        trimmed.startsWith('Interactions:') ||
+        trimmed.startsWith('Success rate:') ||
+        trimmed.startsWith('Sessions:') ||
+        trimmed.startsWith('Learned skills:') ||
+        trimmed.startsWith('Cron jobs:') ||
+        trimmed.startsWith('Active subagents:') ||
+        trimmed.startsWith('✅ Duck Agent stopped')
+      );
+    })
+    .join('\n');
+
+  return filtered
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
     .replace(/\[TOOL:.*?\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -1034,23 +1060,23 @@ async function runTask(task: string) {
 
   try {
     const result = await agent.chat(task);
-    // Restore console before final output
-    if (suppressLog) suppressLog();
-    // Bot mode: only output the actual response, no logo/formatting
+    // In bot mode, keep console suppressed through shutdown so shutdown stats
+    // do not leak into Telegram/other transports. Use stdout directly.
     process.stdout.write(formatResponse(result) + '\n');
   } catch (e: any) {
-    if (suppressLog) suppressLog();
     if (botMode) {
-      console.error(`Error: ${e.message}`);
+      process.stdout.write(`Error: ${e.message}\n`);
     } else {
+      if (suppressLog) suppressLog();
       console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
       if (process.env.DEBUG_STACK === '1' && e?.stack) {
         console.log(`${c.dim}${e.stack}${c.reset}`);
       }
     }
+  } finally {
+    await agent.shutdown();
+    if (suppressLog) suppressLog();
   }
-
-  await agent.shutdown();
 }
 
 // ============ THINK MODE ============
