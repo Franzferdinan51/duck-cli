@@ -38,8 +38,12 @@ export class AgentMesh {
 
   async register(name: string, capabilities: string[] = ['reasoning', 'coding', 'desktop']): Promise<string | null> {
     this.agentName = name;
-    
+    const quiet = (process.env.DUCK_QUIET_MESH === '1' || process.env.DUCK_BOT_MODE === '1');
+    const log = quiet ? () => {} : console.log;
+
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const response = await fetch(`${this.serverUrl}/api/agents/register`, {
         method: 'POST',
         headers: {
@@ -50,36 +54,39 @@ export class AgentMesh {
           name,
           endpoint: 'http://localhost:3000',
           capabilities
-        })
+        }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json() as any;
-      
+
       if (data.success) {
         this.agentId = data.agentId;
-        console.log(`✅ Agent registered: ${name} (${this.agentId})`);
+        log(`✅ Agent registered: ${name} (${this.agentId})`);
         return this.agentId;
       }
-      
-      console.log(`❌ Registration failed:`, data);
+
+      log(`❌ Registration failed:`, data);
       return null;
     } catch (error) {
-      console.log(`❌ Mesh server not available:`, error);
+      log(`❌ Mesh server not available:`, error);
       return null;
     }
   }
 
   async connect(): Promise<boolean> {
     if (!this.agentId) {
-      console.log('❌ Not registered yet');
       return false;
     }
+    const quiet = (process.env.DUCK_QUIET_MESH === '1' || process.env.DUCK_BOT_MODE === '1');
+    const log = quiet ? () => {} : console.log;
 
     try {
       this.ws = new WebSocket(`${this.serverUrl.replace('http', 'ws')}/ws?agentId=${this.agentId}`);
 
       this.ws.onopen = () => {
-        console.log('✅ Connected to mesh');
+        log('✅ Connected to mesh');
         this.connected = true;
       };
 
@@ -89,24 +96,27 @@ export class AgentMesh {
       };
 
       this.ws.onclose = () => {
-        console.log('⚠️ Disconnected from mesh');
+        log('⚠️ Disconnected from mesh');
         this.connected = false;
       };
 
       return true;
     } catch (error) {
-      console.log('❌ WebSocket failed:', error);
+      log('❌ WebSocket failed:', error);
       return false;
     }
   }
 
   async sendMessage(to: string, content: string, type: MeshMessage['type'] = 'direct'): Promise<boolean> {
     if (!this.agentId) {
-      console.log('❌ Not registered');
       return false;
     }
+    const quiet = (process.env.DUCK_QUIET_MESH === '1' || process.env.DUCK_BOT_MODE === '1');
+    const log = quiet ? () => {} : console.log;
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const response = await fetch(`${this.serverUrl}/api/messages`, {
         method: 'POST',
         headers: {
@@ -118,21 +128,27 @@ export class AgentMesh {
           toAgentId: to,
           message: content,
           type
-        })
+        }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json() as any;
       return data.success || false;
     } catch (error) {
-      console.log('❌ Send failed:', error);
+      log('❌ Send failed:', error);
       return false;
     }
   }
 
   async broadcast(content: string): Promise<boolean> {
     if (!this.agentId) return false;
+    const quiet = (process.env.DUCK_QUIET_MESH === '1' || process.env.DUCK_BOT_MODE === '1');
+    const log = quiet ? () => {} : console.log;
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const response = await fetch(`${this.serverUrl}/api/messages/broadcast`, {
         method: 'POST',
         headers: {
@@ -142,12 +158,15 @@ export class AgentMesh {
         body: JSON.stringify({
           fromAgentId: this.agentId,
           message: content
-        })
+        }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json() as any;
       return data.success || false;
     } catch (error) {
+      log('❌ Broadcast failed:', error);
       return false;
     }
   }
@@ -172,7 +191,7 @@ export class AgentMesh {
 
   async findAgentByCapability(capability: string): Promise<MeshAgent | null> {
     const agents = await this.listAgents();
-    return agents.find(a => 
+    return agents.find(a =>
       a.capabilities.includes(capability) && a.status === 'online'
     ) || null;
   }

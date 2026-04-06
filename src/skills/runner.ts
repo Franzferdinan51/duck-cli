@@ -63,6 +63,18 @@ export class SkillRunner {
       scanDirs.push(autoDir);
     }
 
+    // 🦆 Auto-discover skills from Duck workspace - picks up MiniMax skills, custom skills, etc.
+    const workspaceSkillsDir = join(homedir(), '.openclaw', 'workspace', 'skills');
+    if (existsSync(workspaceSkillsDir) && !scanDirs.includes(workspaceSkillsDir)) {
+      scanDirs.push(workspaceSkillsDir);
+    }
+
+    // Also scan duck-cli-src/skills for development
+    const srcSkillsDir = join(homedir(), '.openclaw', 'workspace', 'duck-cli-src', 'skills');
+    if (existsSync(srcSkillsDir) && !scanDirs.includes(srcSkillsDir)) {
+      scanDirs.push(srcSkillsDir);
+    }
+
     for (const dir of scanDirs) {
       if (!existsSync(dir)) continue;
 

@@ -119,6 +119,14 @@ export class AgentMeshClient extends EventEmitter {
     this.version = options.version || '1.0.0';
     this.heartbeatInterval = options.heartbeatInterval || 30000;
     this.reconnectInterval = options.reconnectInterval || 5000;
+    // Suppress console.log spam in bot/mesh contexts
+    this._quiet = (process.env.DUCK_QUIET_MESH === '1' || process.env.DUCK_BOT_MODE === '1');
+  }
+
+  // Lightweight logger that can be silenced
+  private _quiet: boolean = false;
+  private _log(...args: any[]): void {
+    if (!this._quiet) console.log(...args);
   }
 
   // ============ HTTP Helpers ============
@@ -158,7 +166,7 @@ export class AgentMeshClient extends EventEmitter {
    * Register this agent with the mesh
    */
   async register(): Promise<string | null> {
-    console.log(`[Mesh] Registering as "${this.agentName}"...`);
+    this._log(`[Mesh] Registering as "${this.agentName}"...`);
 
     const result = await this.request<{
       success: boolean;
@@ -174,12 +182,12 @@ export class AgentMeshClient extends EventEmitter {
 
     if (result?.success && result.agentId) {
       this.agentId = result.agentId;
-      console.log(`[Mesh] ✅ Registered: ${this.agentName} (${this.agentId})`);
+      this._log(`[Mesh] ✅ Registered: ${this.agentName} (${this.agentId})`);
       this.emit('registered', { agentId: this.agentId });
       return this.agentId;
     }
 
-    console.log(`[Mesh] ❌ Registration failed: ${result?.error || 'Unknown error'}`);
+    this._log(`[Mesh] ❌ Registration failed: ${result?.error || 'Unknown error'}`);
     return null;
   }
 
@@ -219,7 +227,7 @@ export class AgentMeshClient extends EventEmitter {
     if (result?.success) {
       this.agentId = '';
       this.disconnect();
-      console.log('[Mesh] Unregistered from mesh');
+      this._log('[Mesh] Unregistered from mesh');
       return true;
     }
 

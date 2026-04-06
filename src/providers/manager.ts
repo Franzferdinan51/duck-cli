@@ -16,6 +16,42 @@ export class ProviderManager {
   private browserOS: BrowserOSProvider | undefined;
   private active: Provider | undefined;
 
+  /**
+   * 🧠 Smart model auto-selection based on task content
+   * Analyzes prompt keywords to select the best provider/model
+   */
+  selectModel(prompt: string): { provider: string; model: string; reason: string } {
+    const p = prompt.toLowerCase();
+
+    // Vision tasks: screenshot, image, vision analysis
+    if (/screenshot|screen.?shot|image.?analysis|vision|look at|see what|analyze image|describe image|visual/i.test(p)) {
+      return { provider: 'kimi', model: 'k2p5', reason: '📸 Vision task → Kimi k2p5' };
+    }
+
+    // Android tasks: tap, swipe, adb, android device control
+    if (/android|tap on android|swipe|adb shell|android device|mobile app|phone screen|termux/i.test(p)) {
+      return { provider: 'lmstudio', model: 'google/gemma-4-e4b-it', reason: '📱 Android task → Gemma 4 (LM Studio, FREE)' };
+    }
+
+    // Coding tasks: build, debug, code, fix bug, implement, refactor
+    if (/code|build|debug|fix bug|implement|refactor|compile|program|script|function|class|api|endpoint/i.test(p)) {
+      return { provider: 'minimax', model: 'MiniMax-M2.7', reason: '💻 Coding task → MiniMax-M2.7 (GLM-5)' };
+    }
+
+    // Fast/simple tasks: quick, simple, fast, just, what is, lookup
+    if (/^quick|^simple|^fast|^just |what is|lookup|check |list |show me |get |find /i.test(p)) {
+      return { provider: 'lmstudio', model: 'qwen/qwen3.5-0.8b', reason: '⚡ Fast task → Qwen 0.8B (LM Studio, FREE)' };
+    }
+
+    // Reasoning/complex tasks
+    if (/analyze|compare|evaluate|strategy|plan|research|investigate|reasoning|think deeply/i.test(p)) {
+      return { provider: 'minimax', model: 'MiniMax-M2.7', reason: '🧠 Complex reasoning → MiniMax-M2.7' };
+    }
+
+    // Default: prefer free local model
+    return { provider: 'lmstudio', model: 'qwen/qwen3.5-9b', reason: '🦆 Default → Qwen 3.5-9B (LM Studio, FREE)' };
+  }
+
   async load(): Promise<void> {
     // LM Studio - local models (Mac/Windows PC with LM Studio running)
     // Auto-detect if LM Studio is running; try even if health check fails (may need auth)
@@ -87,12 +123,15 @@ export class ProviderManager {
 
   /**
    * Smart router - tries providers in priority order until one succeeds.
-   * Priority: kimi → minimax → openrouter (free tier)
+   * Uses auto-selection when no explicit provider/model is set.
    */
   async route(prompt: string, messages?: any[]): Promise<{ text: string; provider: string; model: string }> {
     // Build target list from DUCK_PRIORITY env var, or use default
     const priorityEnv = process.env.DUCK_PRIORITY;
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
+    
+    // Smart model selection - auto-detect best model from task content
+    const autoSelected = this.selectModel(prompt);
     
     // Smart default: prefer local (free) > API > paid
     // Use GEMMA_MODEL env var for LM Studio, or first available model
@@ -126,6 +165,24 @@ export class ProviderManager {
         };
       });
       console.log(`[Router📡] Custom priority: ${priorityEnv}`);
+    } else {
+      // Auto-selection: put smart-recommended model first in the chain
+      const smartTarget = {
+        provider: autoSelected.provider,
+        model: autoSelected.model,
+        label: autoSelected.reason,
+      };
+      // Only prepend if the provider is available
+      const prov = this.providers.get(autoSelected.provider);
+      if (prov) {
+        targets = [
+          smartTarget,
+          ...targets.filter(t => t.provider !== autoSelected.provider)
+        ];
+        console.log(`[Router📡] 🧠 Auto-selected: ${autoSelected.reason}`);
+      } else {
+        console.log(`[Router📡] 🧠 Auto-selection skipped: ${autoSelected.provider} not available`);
+      }
     }
 
     const msgList = messages || [{ role: 'user', content: prompt }];

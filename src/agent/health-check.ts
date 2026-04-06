@@ -42,9 +42,11 @@ export async function runHealthCheck(verbose: boolean = false): Promise<HealthRe
     checkAndroid(),
     checkMCPServers(),
     checkLMStudio(),
+    checkSystem(),    // RAM, Disk, CPU
+    checkServices(),  // Running services
   ]);
 
-  const checkNames = ['Gateway', 'MiniMax', 'Kimi', 'OpenRouter', 'Android', 'MCP Servers', 'LM Studio'];
+  const checkNames = ['Gateway', 'MiniMax', 'Kimi', 'OpenRouter', 'Android', 'MCP Servers', 'LM Studio', 'System', 'Services'];
   
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
@@ -498,6 +500,136 @@ async function checkLMStudio(silent: boolean = false): Promise<HealthCheckResult
       latencyMs: Date.now() - start,
       optional: true,
     };
+  }
+}
+
+/**
+ * Check system resources: RAM, Disk, CPU
+ */
+async function checkSystem(): Promise<HealthCheckResult> {
+  const start = Date.now();
+  try {
+    const { execSync } = await import('child_process');
+    const os = await import('os');
+
+    // RAM check - use platform-specific command for accurate free memory
+    let memPercent = 0;
+    let memFree = '';
+    try {
+      if (process.platform === 'darwin') {
+        // macOS: use vm_stat for accurate free memory
+        const vmStat = execSync('vm_stat | head -5', { encoding: 'utf8' });
+        const pagesFree = parseInt(vmStat.match(/Pages free[:\s]+(\d+)/i)?.[1] || '0');
+        const pagesInactive = parseInt(vmStat.match(/Pages inactive[:\s]+(\d+)/i)?.[1] || '0');
+        const pagesSpeculative = parseInt(vmStat.match(/Pages speculative[:\s]+(\d+)/i)?.[1] || '0');
+        const pageSize = 4096; // macOS page size
+        const totalMemBytes = os.totalmem();
+        const freeBytes = (pagesFree + pagesInactive + pagesSpeculative) * pageSize;
+        memFree = `${Math.round(freeBytes / 1024 / 1024 / 1024 * 10) / 10}GB`;
+        memPercent = Math.round(((totalMemBytes - freeBytes) / totalMemBytes) * 100);
+      } else {
+        // Linux/other: os.freemem() is reasonably accurate
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        memFree = `${Math.round(freeMem / 1024 / 1024 / 1024 * 10) / 10}GB`;
+        memPercent = Math.round(((totalMem - freeMem) / totalMem) * 100);
+      }
+    } catch {
+      // fallback to simple calculation
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      memFree = `${Math.round(freeMem / 1024 / 1024 / 1024)}GB`;
+      memPercent = Math.round(((totalMem - freeMem) / totalMem) * 100);
+    }
+
+    // Disk check (root filesystem)
+    let diskPercent = 0;
+    let diskFreeStr = '';
+    try {
+      if (process.platform === 'darwin') {
+        const diskInfo = execSync('df -h / | tail -1 | awk \'{print $5 " " $4}\' 2>/dev/null').toString().trim();
+        const parts = diskInfo.split(/\s+/);
+        diskPercent = parseInt(parts[0]);
+        diskFreeStr = `, ${parts[1]} free`;
+      } else if (process.platform === 'linux') {
+        const diskInfo = execSync('df -h / | tail -1 | awk \'{print $5 " " $4}\' 2>/dev/null').toString().trim();
+        const parts = diskInfo.split(/\s+/);
+        diskPercent = parseInt(parts[0]);
+        diskFreeStr = `, ${parts[1]} free`;
+      }
+    } catch {
+      // disk check failed, skip
+    }
+
+    // Build detail string
+    const memStr = `RAM ${memPercent}% used (${memFree} free)`;
+    const diskStr = diskPercent > 0 ? ` | Disk ${diskPercent}% used${diskFreeStr}` : '';
+
+    // Determine status (macOS is more memory-compressed so use higher thresholds)
+    let status: 'ok' | 'warn' | 'error' = 'ok';
+    const isMac = process.platform === 'darwin';
+    if (memPercent > 97 || diskPercent > 95) status = 'error';
+    else if (memPercent > (isMac ? 90 : 80) || diskPercent > 85) status = 'warn';
+
+    const detail = `${memStr}${diskStr}`;
+    return { name: 'System', status, detail, latencyMs: Date.now() - start };
+  } catch (e: any) {
+    return { name: 'System', status: 'warn', detail: e.message, latencyMs: Date.now() - start, optional: true };
+  }
+}
+
+/**
+ * Check running services: Gateway, AI Council, CannaAI, etc.
+ */
+async function checkServices(): Promise<HealthCheckResult> {
+  const start = Date.now();
+  try {
+    const { execSync } = await import('child_process');
+    const { existsSync } = await import('fs');
+
+    const services: { name: string; check: () => boolean }[] = [
+      { name: 'Gateway', check: () => existsSync('/tmp/openclaw-gateway.lock') || existsSync(`${process.env.HOME || '/root'}/.openclaw/gateway.lock`) },
+      { name: 'LM Studio', check: () => {
+        try {
+          execSync('curl -s http://localhost:1234/v1/models --max-time 1 > /dev/null 2>&1', { stdio: 'ignore' });
+          return true;
+        } catch { return false; }
+      }},
+      { name: 'AI Council', check: () => existsSync('/tmp/ai-council.lock') || existsSync(`${process.env.HOME || '/root'}/.duck/council.lock`) },
+    ];
+
+    const running: string[] = [];
+    const stopped: string[] = [];
+
+    for (const svc of services) {
+      try {
+        if (svc.check()) {
+          running.push(svc.name);
+        } else {
+          stopped.push(svc.name);
+        }
+      } catch {
+        stopped.push(svc.name);
+      }
+    }
+
+    let status: 'ok' | 'warn' | 'error' = 'ok';
+    let detail: string;
+
+    if (running.length === 0) {
+      detail = 'No services running (CLI mode OK)';
+      status = 'ok';
+    } else if (running.length < services.length) {
+      detail = `Running: ${running.join(', ')} | Stopped: ${stopped.join(', ')}`;
+      status = 'warn';
+    } else {
+      detail = `All ${running.length} services running`;
+      status = 'ok';
+    }
+
+    return { name: 'Services', status, detail, latencyMs: Date.now() - start };
+  } catch (e: any) {
+    return { name: 'Services', status: 'warn', detail: e.message, latencyMs: Date.now() - start, optional: true };
   }
 }
 
