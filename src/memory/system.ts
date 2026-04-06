@@ -4,9 +4,13 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
 import { SQLiteStore, MemorySearch, ToolUsage, SessionSummary } from './sqlite-store.js';
+
+// Raw import for SOUL-template.md fallback personality
+import soulTemplateRaw from '../prompts/SOUL-template.md?raw';
 
 export { SQLiteStore, MemorySearch, ToolUsage, SessionSummary };
 
@@ -48,6 +52,11 @@ export class MemorySystem {
   }
 
   private defaultSoul(): string {
+    // Use SOUL-template.md as fallback from prompts module
+    if (soulTemplateRaw) {
+      return soulTemplateRaw;
+    }
+    // Fallback to basic SOUL if template not available
     return `# Duck Agent SOUL
 
 ## Identity
