@@ -200,7 +200,7 @@ export class AgentMeshClient extends EventEmitter {
     version: string;
   }>): Promise<boolean> {
     if (!this.agentId) {
-      console.log('[Mesh] Not registered');
+      this._log('[Mesh] Not registered');
       return false;
     }
 
@@ -241,7 +241,7 @@ export class AgentMeshClient extends EventEmitter {
    */
   async connect(): Promise<boolean> {
     if (!this.agentId) {
-      console.log('[Mesh] Not registered - call register() first');
+      this._log('[Mesh] Not registered - call register() first');
       return false;
     }
 
@@ -252,7 +252,7 @@ export class AgentMeshClient extends EventEmitter {
         this.ws = new WebSocket(`${wsUrl}?agentId=${this.agentId}`);
 
         this.ws.onopen = () => {
-          console.log('[Mesh] ✅ WebSocket connected');
+          this._log('[Mesh] ✅ WebSocket connected');
           this.connected = true;
           this.emit('connected', {});
           this.startHeartbeat();
@@ -264,25 +264,25 @@ export class AgentMeshClient extends EventEmitter {
             const msg = JSON.parse(event.data);
             this.handleEvent(msg);
           } catch (e) {
-            console.log('[Mesh] Failed to parse WS message:', e);
+            this._log('[Mesh] Failed to parse WS message:', e);
           }
         };
 
         this.ws.onclose = () => {
-          console.log('[Mesh] ⚠️ WebSocket disconnected');
+          this._log('[Mesh] ⚠️ WebSocket disconnected');
           this.connected = false;
           this.emit('disconnected', {});
           this.stopHeartbeat();
         };
 
         this.ws.onerror = (error) => {
-          console.log('[Mesh] WebSocket error:', error);
+          this._log('[Mesh] WebSocket error:', error);
           this.emitError('websocket_error', error);
         };
 
         resolve(true);
       } catch (error) {
-        console.log('[Mesh] Failed to connect WebSocket:', error);
+        this._log('[Mesh] Failed to connect WebSocket:', error);
         resolve(false);
       }
     });
@@ -311,7 +311,7 @@ export class AgentMeshClient extends EventEmitter {
    */
   setupShutdownHandlers(): void {
     const cleanup = () => {
-      console.log('[Mesh] Shutting down...');
+      this._log('[Mesh] Shutting down...');
       this.disconnect();
     };
 
@@ -352,11 +352,11 @@ export class AgentMeshClient extends EventEmitter {
         break;
 
       case 'agent_joined':
-        console.log(`[Mesh] 🤝 Agent joined: ${event.data?.name || event.agentId}`);
+        this._log(`[Mesh] 🤝 Agent joined: ${event.data?.name || event.agentId}`);
         break;
 
       case 'agent_left':
-        console.log(`[Mesh] 👋 Agent left: ${event.data?.name || event.agentId}`);
+        this._log(`[Mesh] 👋 Agent left: ${event.data?.name || event.agentId}`);
         break;
     }
   }
@@ -397,7 +397,7 @@ export class AgentMeshClient extends EventEmitter {
 
     this.reconnectTimer = setTimeout(async () => {
       if (!this.connected && this.agentId) {
-        console.log('[Mesh] Attempting reconnect...');
+        this._log('[Mesh] Attempting reconnect...');
         await this.connect();
       }
     }, this.reconnectInterval);
@@ -420,7 +420,7 @@ export class AgentMeshClient extends EventEmitter {
     if (!this.agentId) {
       const regResult = await this.register();
       if (!regResult) {
-        console.log('[Mesh] Not registered and auto-register failed');
+        this._log('[Mesh] Not registered and auto-register failed');
         return null;
       }
     }
@@ -437,11 +437,11 @@ export class AgentMeshClient extends EventEmitter {
     });
 
     if (result?.success && result.messageId) {
-      console.log(`[Mesh] Message sent to ${toAgentId}: ${result.messageId}`);
+      this._log(`[Mesh] Message sent to ${toAgentId}: ${result.messageId}`);
       return result.messageId;
     }
 
-    console.log(`[Mesh] Failed to send message: ${result?.error}`);
+    this._log(`[Mesh] Failed to send message: ${result?.error}`);
     return null;
   }
 
