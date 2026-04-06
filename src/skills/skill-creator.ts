@@ -2,6 +2,7 @@
  * Duck Agent - Autonomous Skill Creator
  * Detects complex recurring patterns and auto-creates skills
  * Uses LLM to generate properly formatted SKILL.md files
+ * Follows the agentskills.io open standard for skill portability
  */
 
 import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync } from 'fs';
@@ -49,9 +50,128 @@ export interface SkillTemplate {
   autoCreated: boolean;
   createdAt: string;
   parentExecutions: number;
+  // agentskills.io standard fields
+  author: string;
+  version: string;
 }
 
 const SKILL_AUTOCREATE_DIR = join(process.env.HOME || '/tmp', '.duck', 'skills', 'auto');
+
+// agentskills.io YAML frontmatter template for tryCreateSkill
+const AGENTSKILLS_PROMPT_TEMPLATE = `--You are duck-cli's Skill Creator. Given a recurring task pattern, output a properly formatted SKILL.md file.
+
+Follow the agentskills.io standard with YAML frontmatter:
+
+\`\`\`markdown
+---
+name: skill-name
+description: 2-3 sentence description of what this skill does and when to use it.
+metadata:
+  author: duck-cli
+  version: "1.0.0"
+---
+
+# Skill Name
+
+## Trigger Phrases
+phrase1, phrase2, phrase3
+
+## Steps
+1. {First step}
+2. {Second step}
+3. {Third step...}
+
+## Example
+User: {example prompt that would trigger this skill}
+Agent: {what the agent should do}
+\`\`\`
+
+Rules:
+- name: kebab-case, max 64 chars, lowercase alphanumeric + hyphens only
+- description: max 1024 chars, describe what it does AND when to use it
+- metadata.author: always "duck-cli"
+- metadata.version: always "1.0.0"
+- Triggers: 3-5 short phrases that would make someone want this skill
+- Steps: 3-7 numbered steps, specific to THIS pattern
+- Example: Use a real prompt from the executions provided
+- Be specific about the tools and order, not generic-->`;
+
+const SKILLIFY_PROMPT_TEMPLATE = `--You are duck-cli's Skill Creator. Output ONLY a SKILL.md file.
+
+Follow the agentskills.io standard with YAML frontmatter:
+
+\`\`\`markdown
+---
+name: skill-name
+description: 2-3 sentence description of what this skill does and when to use it.
+metadata:
+  author: duck-cli
+  version: "1.0.0"
+---
+
+# Skill Name
+
+## Trigger Phrases
+phrase1, phrase2, phrase3
+
+## Steps
+${'{steps}'}
+
+## Example
+User: {trigger phrase}
+Agent: {behavior}
+\`\`\`
+
+Rules:
+- name: kebab-case, max 64 chars, lowercase alphanumeric + hyphens only
+- description: max 1024 chars, describe what it does AND when to use it
+- metadata.author: always "duck-cli"
+- metadata.version: always "1.0.0"-->`;
+
+const SKILLAUTO_FRONT = `-----
+name: `;
+const SKILLAUTO_MID1 = `
+description: Auto-created skill from `;
+const SKILLAUTO_MID2 = ` recurring executions of `;
+const SKILLAUTO_MID3 = `. Trigger when needing to perform this workflow.
+metadata:
+  author: duck-cli
+  version: "1.0.0"
+---
+
+# `;
+const SKILLAUTO_TRIGGERS = `
+
+## Trigger Phrases
+`;
+const SKILLAUTO_DESC = `
+
+## Description
+Auto-created skill from `;
+const SKILLAUTO_STEPS = `
+
+## Steps
+`;
+const SKILLAUTO_EXAMPLE1 = `
+
+## Example
+User: `;
+const SKILLAUTO_EXAMPLE2 = `
+Agent: Execute the `;
+const SKILLAUTO_END = ` workflow
+`;
+
+const SKILLAUTO_NAME_DESC_FRONT = `-----
+name: `;
+const SKILLAUTO_NAME_DESC_MID1 = `
+description: Auto-created skill from `;
+const SKILLAUTO_NAME_DESC_MID2 = ` recurring executions. Trigger when needing to perform this workflow.
+metadata:
+  author: duck-cli
+  version: "1.0.0"
+---
+
+# `;
 
 export class SkillCreator {
   private skillExecutions: Map<string, SkillExecution[]> = new Map();
@@ -139,38 +259,6 @@ export class SkillCreator {
     await provider.load(); // Initialize providers before use
     const model = 'minimax/MiniMax-M2.7';
 
-    const systemPrompt = `You are duck-cli's Skill Creator. Given a recurring task pattern, output a properly formatted SKILL.md file.
-
-Output ONLY valid markdown. Use this exact format:
-
-\`\`\`markdown
-# {Skill Name}
-
-**Trigger phrases:** phrase1, phrase2, phrase3
-**Created:** ${new Date().toISOString().split('T')[0]}
-**Auto-created:** true
-**Pattern:** ${pattern}
-
-## Description
-{2-3 sentence description of what this skill does}
-
-## Steps
-1. {First step}
-2. {Second step}
-3. {Third step...}
-
-## Example
-User: {example prompt that would trigger this skill}
-Agent: {what the agent should do}
-\`\`\`
-
-Rules:
-- Skill name: Use kebab-case, max 3 words
-- Triggers: 3-5 short phrases that would make someone want this skill
-- Steps: 3-7 numbered steps, specific to THIS pattern
-- Example: Use a real prompt from the executions provided
-- Be specific about the tools and order, not generic`;
-
     try {
       const response = await provider.routeWithModel(model, context);
       const content = response.text;
@@ -212,31 +300,12 @@ Rules:
       return null;
     }
 
+    ensureEnv();
     const provider = new ProviderManager();
     await provider.load(); // Initialize providers before use
     const model = 'minimax/MiniMax-M2.7';
 
     const context = `Create a skill from this request:\n"${prompt}"\n\nSteps identified:\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
-
-    const systemPrompt = `You are duck-cli's Skill Creator. Output ONLY a SKILL.md file.
-
-\`\`\`markdown
-# {Skill Name}
-
-**Trigger phrases:** phrase1, phrase2, phrase3
-**Created:** ${new Date().toISOString().split('T')[0]}
-**Auto-created:** true
-
-## Description
-{2-3 sentence description}
-
-## Steps
-${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-
-## Example
-User: {trigger phrase}
-Agent: {behavior}
-\`\`\``;
 
     try {
       const response = await provider.routeWithModel(model, context);
@@ -295,10 +364,11 @@ Generate a SKILL.md that captures this recurring task.`;
   }
 
   private isValidSkillMd(content: string): boolean {
-    return content.includes('# ') &&
-           content.includes('**Trigger') &&
-           content.includes('## Description') &&
-           content.includes('## Steps');
+    // Check for agentskills.io YAML frontmatter
+    const hasFrontmatter = content.startsWith('---') && content.includes('name:') && content.includes('description:') && content.includes('metadata:');
+    // Also validate body sections
+    const hasBody = content.includes('# ') && content.includes('## Steps');
+    return hasFrontmatter && hasBody;
   }
 
   private skillExists(name: string): boolean {
@@ -320,45 +390,42 @@ Generate a SKILL.md that captures this recurring task.`;
 
   private saveSkillBasic(name: string, pattern: string, executions: SkillExecution[]): SkillTemplate {
     const example = executions[executions.length - 1];
-    const content = `# ${name}
-
-**Trigger phrases:** ${pattern.split('→').join(', ')}
-**Created:** ${new Date().toISOString().split('T')[0]}
-**Auto-created:** true
-**Pattern:** ${pattern}
-
-## Description
-Auto-created skill from ${executions.length} recurring executions of: ${pattern}
-
-## Steps
-${pattern.split('→').map((tool, i) => `${i + 1}. Use ${tool}`).join('\n')}
-
-## Example
-User: ${example?.prompt.slice(0, 100) || 'trigger phrase'}
-Agent: Execute the ${pattern} workflow
-`;
+    const stepLines = pattern.split('→').map((tool, i) => `${i + 1}. Use ${tool}`).join('\n');
+    const content =
+      SKILLAUTO_NAME_DESC_FRONT + name +
+      SKILLAUTO_NAME_DESC_MID1 + executions.length +
+      SKILLAUTO_NAME_DESC_MID2 +
+      SKILLAUTO_TRIGGERS.slice(2) + pattern.split('→').join(', ') +
+      SKILLAUTO_DESC + executions.length + SKILLAUTO_MID2 + pattern +
+      SKILLAUTO_STEPS + stepLines +
+      SKILLAUTO_EXAMPLE1 + (example?.prompt.slice(0, 100) || 'trigger phrase') +
+      SKILLAUTO_EXAMPLE2 + pattern +
+      SKILLAUTO_END;
 
     return this.saveSkill(name, content);
   }
 
   private parseSkillTemplate(name: string, content: string): SkillTemplate {
-    const triggersMatch = content.match(/\*\*Trigger phrases:\*\* ([^\n]+)/);
-    const descMatch = content.match(/## Description\n([\s\S]+?)(?=## |```)/);
+    const triggersMatch = content.match(/## Trigger Phrases\n([\s\S]+?)(?=## |```)/i);
+    const descMatch = content.match(/## Description\n([\s\S]+?)(?=## |```)/i);
     const stepMatches = content.matchAll(/^\d+\. (.+)$/gm);
     const exampleMatch = content.match(/User: (.+)\nAgent: (.+)/);
+    const metadataMatch = content.match(/metadata:\s+author:\s*(\S+)/i);
 
     return {
       name,
       description: descMatch?.[1]?.trim() || name,
-      triggers: triggersMatch?.[1]?.split(',').map(t => t.trim()) || [],
-      steps: Array.from(stepMatches).map(m => m[1]),
+      triggers: triggersMatch?.[1]?.split(',').map((t: string) => t.trim()).filter(Boolean) || [],
+      steps: Array.from(stepMatches).map((m: RegExpMatchArray) => m[1]),
       example: {
         prompt: exampleMatch?.[1] || '',
         behavior: exampleMatch?.[2] || ''
       },
-      autoCreated: content.includes('**Auto-created:** true'),
+      autoCreated: content.includes('duck-cli'),
       createdAt: new Date().toISOString(),
-      parentExecutions: this.skillPatterns.get(name) || 0
+      parentExecutions: this.skillPatterns.get(name) || 0,
+      author: metadataMatch?.[1] || 'duck-cli',
+      version: '1.0.0',
     };
   }
 
