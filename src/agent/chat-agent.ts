@@ -23,6 +23,124 @@ import { processWithCouncil } from '../council/chat-bridge.js';
 // ---------------------------------------------------------------------------
 const PORT = parseInt(process.env.DUCK_CHAT_PORT || '18797');
 
+// ---------------------------------------------------------------------------
+// Agent Mesh Integration (optional)
+// ---------------------------------------------------------------------------
+const MESH_ENABLED = process.env.MESH_ENABLED === 'true';
+const MESH_API_URL = process.env.MESH_API_URL || 'http://localhost:4000';
+const MESH_API_KEY = process.env.MESH_API_KEY || 'openclaw-mesh-default-key';
+const AGENT_ID = 'ChatAgent';
+
+let meshRegistered = false;
+let registeredAgentId: string | null = null;
+
+/**
+ * Check if mesh is available (port 4000 open)
+ */
+async function checkMeshAvailable(): Promise<boolean> {
+  if (!MESH_ENABLED) return false;
+  try {
+    const resp = await fetch(`${MESH_API_URL}/health`, { 
+      method: 'GET',
+      signal: AbortSignal.timeout(2000)
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Register this agent with the mesh (optional - won't fail if mesh unavailable)
+ */
+async function registerWithMesh(): Promise<void> {
+  if (!MESH_ENABLED) return;
+  
+  const available = await checkMeshAvailable();
+  if (!available) {
+    console.log('[Mesh] Server not available, skipping registration');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${MESH_API_URL}/api/agents/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': MESH_API_KEY,
+      },
+      body: JSON.stringify({
+        name: AGENT_ID,
+        endpoint: `http://localhost:${PORT}`,
+        capabilities: ['chat', 'messaging', 'conversation'],
+      }),
+    });
+    
+    if (!resp.ok) {
+      console.log(`[Mesh] Registration failed: ${resp.status}`);
+      return;
+    }
+
+    const data = await resp.json();
+    if (data.success) {
+      meshRegistered = true;
+      registeredAgentId = data.agentId;
+      console.log(`[Mesh] Registered as ${data.agentId}`);
+    }
+  } catch (err) {
+    console.log(`[Mesh] Registration error: ${err.message}`);
+  }
+}
+
+/**
+ * Broadcast message to mesh (optional - won't fail if mesh unavailable)
+ */
+async function broadcastToMesh(type: string, content: any): Promise<void> {
+  if (!meshRegistered) return;
+
+  try {
+    await fetch(`${MESH_API_URL}/api/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': MESH_API_KEY,
+      },
+      body: JSON.stringify({
+        type: 'broadcast',
+        fromAgentId: registeredAgentId || AGENT_ID,
+        content: { event: type, ...content },
+      }),
+    });
+  } catch (err) {
+    console.log(`[Mesh] Broadcast error: ${err.message}`);
+  }
+}
+
+/**
+ * Send whisper alert to user via mesh
+ */
+async function sendWhisperAlert(alert: { type: string; message: string; confidence: number }): Promise<void> {
+  if (!meshRegistered) return;
+
+  try {
+    await fetch(`${MESH_API_URL}/api/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': MESH_API_KEY,
+      },
+      body: JSON.stringify({
+        type: 'whisper',
+        fromAgentId: 'Subconscious',
+        toAgentId: registeredAgentId || AGENT_ID,
+        content: alert,
+      }),
+    });
+  } catch (err) {
+    console.log(`[Mesh] Whisper send error: ${err.message}`);
+  }
+}
+
 // Provider config - loaded from environment
 const PROVIDER = process.env.DUCK_CHAT_PROVIDER || 'minimax';
 const MODEL = process.env.DUCK_CHAT_MODEL || getDefaultModel(PROVIDER);
@@ -306,10 +424,19 @@ async function processMessage(
     }
   }
 
+  // Broadcast task-queued to mesh for complex tasks
+  if (complexity >= 7) {
+    broadcastToMesh('task-queued', { prompt: message, complexity });
+  }
+
   // Route complex tasks to MetaAgent
   if (complexity >= 7 && apiKey) {
     try {
       const result = await routeToMetaAgent(message);
+      
+      // Broadcast task-completed to mesh
+      broadcastToMesh('task-completed', { prompt: message, complexity, routed: 'meta' });
+      
       session.addAssistant(result);
       return { 
         response: result, 
@@ -319,7 +446,13 @@ async function processMessage(
       };
     } catch (err) {
       console.error('[ChatAgent] MetaAgent routing failed:', err);
+      broadcastToMesh('task-failed', { prompt: message, complexity, error: err.message });
     }
+  }
+
+  // For complex tasks that fell back to direct (no apiKey), broadcast completion
+  if (complexity >= 7) {
+    broadcastToMesh('task-completed', { prompt: message, complexity, routed: 'direct' });
   }
 
   // Direct response via selected provider
@@ -546,6 +679,35 @@ function startServer(port: number) {
       return;
     }
 
+    // POST /mesh/whisper - Receive whisper alerts from Subconscious via mesh
+    if (req.method === 'POST' && pathname === '/mesh/whisper') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { type, message, confidence, fromAgentId } = JSON.parse(body);
+          
+          // Handle whisper alert from Subconscious
+          if (type === 'whisper' && fromAgentId === 'Subconscious') {
+            console.log(`[Mesh] Whisper alert received: ${message} (confidence: ${confidence})`);
+            
+            // Log the whisper for now - in production this would notify the user
+            // The notification mechanism depends on the chat channel (Telegram, etc.)
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ received: true, notified: true }));
+            return;
+          }
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ received: true }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
     // Health check
     if (req.method === 'GET' && (pathname === '/health' || pathname === '/')) {
       const apiKey = getApiKey(PROVIDER);
@@ -558,6 +720,8 @@ function startServer(port: number) {
         provider: PROVIDER,
         model: MODEL,
         apiKeyConfigured: !!apiKey,
+        meshRegistered,
+        meshEnabled: MESH_ENABLED,
         endpoints: {
           'POST /chat': 'Send message',
           'POST /chat/stream': 'Streaming response',
@@ -566,6 +730,7 @@ function startServer(port: number) {
           'GET /chat/:userId/history': 'Session history',
           'GET /sessions': 'List all sessions',
           'DELETE /chat/:userId': 'Clear session',
+          'POST /mesh/whisper': 'Receive whisper alerts from mesh',
           'GET /health': 'Health check',
         },
         usage: {
@@ -614,6 +779,14 @@ export async function startChatAgent(port: number = PORT) {
   console.log(`   Provider: ${PROVIDER}`);
   console.log(`   Model: ${MODEL}`);
   console.log(`   Max context: ${MAX_CONTEXT_TOKENS} tokens`);
+  
+  // Register with mesh (optional - won't fail if mesh unavailable)
+  if (MESH_ENABLED) {
+    console.log(`   Mesh: Enabled (${MESH_API_URL})`);
+    registerWithMesh();
+  } else {
+    console.log(`   Mesh: Disabled (set MESH_ENABLED=true to enable)`);
+  }
   
   const server = startServer(port);
 

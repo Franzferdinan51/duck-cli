@@ -2,7 +2,7 @@
 
 > **How duck-cli uses the AI Council for complex, ethical, and high-stakes decisions.**
 
-**Version:** v0.6.1 — April 4, 2026
+**Version:** v2.0.0 — April 4, 2026
 
 ---
 

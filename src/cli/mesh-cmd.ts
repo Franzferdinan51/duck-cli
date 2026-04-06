@@ -1,468 +1,420 @@
+/**
+ * Duck Agent - Agent Mesh Commands (daemon-level)
+ * Manages the agent-mesh-api server lifecycle and registration.
+ * 
+ * duck mesh start     - Start mesh server on port 4000
+ * duck mesh status    - Check if mesh server is running
+ * duck mesh stop      - Stop mesh server
+ * duck mesh register  - Register Chat Agent with mesh
+ */
 
-// ============ AGENT MESH ============
+import { createConnection } from 'net';
+import { spawn, execSync } from 'child_process';
+import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readFileSync as readFile } from 'fs';
 
-async function meshCommand(args: string[]) {
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+const MESH_PORT = parseInt(process.env.MESH_PORT || '4000');
+const MESH_HOST = process.env.MESH_HOST || '0.0.0.0';
+const MESH_URL = process.env.AGENT_MESH_URL || `http://localhost:${MESH_PORT}`;
+const MESH_API_KEY = process.env.AGENT_MESH_API_KEY || 'openclaw-mesh-default-key';
+
+// Find mesh-api directory
+function findMeshDir(): string {
+  const candidates = [
+    join(process.env.HOME || '', 'agent-mesh-api'),
+    join(process.env.HOME || '', '.openclaw', 'workspace', 'agent-mesh-api'),
+    join(process.cwd(), '..', 'agent-mesh-api'),
+    join(process.cwd(), 'agent-mesh-api'),
+  ];
+  for (const dir of candidates) {
+    if (existsSync(join(dir, 'src', 'server.js'))) {
+      return dir;
+    }
+  }
+  return candidates[0]; // default to home location
+}
+
+const MESH_API_DIR = process.env.MESH_API_DIR || findMeshDir();
+
+// PID file for mesh server
+const MESH_PID_FILE = join(process.env.HOME || '/tmp', '.duck', 'mesh-server.pid');
+
+// ---------------------------------------------------------------------------
+// Colors
+// ---------------------------------------------------------------------------
+const c = {
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  green: '\x1b[32m',
+  cyan: '\x1b[36m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  dim: '\x1b[2m',
+  brightGreen: '\x1b[92m',
+};
+
+// ---------------------------------------------------------------------------
+// Port check helper
+// ---------------------------------------------------------------------------
+async function isPortOpen(port: number, host: string = '127.0.0.1'): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = createConnection({ port, host, timeout: 2000 }, () => {
+      sock.destroy();
+      resolve(true);
+    });
+    sock.on('error', () => resolve(false));
+    sock.on('timeout', () => { sock.destroy(); resolve(false); });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// PID file helpers
+// ---------------------------------------------------------------------------
+function savePid(pid: number): void {
+  const dir = join(MESH_PID_FILE, '..');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(MESH_PID_FILE, String(pid));
+}
+
+function loadPid(): number | null {
+  try {
+    if (!existsSync(MESH_PID_FILE)) return null;
+    const pid = parseInt(readFileSync(MESH_PID_FILE, 'utf-8').trim());
+    return isNaN(pid) ? null : pid;
+  } catch {
+    return null;
+  }
+}
+
+function clearPid(): void {
+  try {
+    if (existsSync(MESH_PID_FILE)) {
+      const pid = loadPid();
+      if (pid) {
+        // Try to kill the process
+        try {
+          process.kill(pid, 'SIGTERM');
+        } catch { /* ignore if already dead */ }
+      }
+      writeFileSync(MESH_PID_FILE, '');
+    }
+  } catch { /* ignore */ }
+}
+
+function isPidRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0); // signal 0 just checks if process exists
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Banner
+// ---------------------------------------------------------------------------
+function printBanner(): void {
+  console.log(`\n${c.cyan}${c.bold}   ╔═══════════════════════════════════════╗
+   ║     🦆 Duck Agent Mesh Network 🦆      ║
+   ╚═══════════════════════════════════════╝${c.reset}`);
+}
+
+// ---------------------------------------------------------------------------
+// meshCommand - handles: start, status, stop, register
+// (Also handles the client-level commands: list, send, inbox, health, etc.)
+// ---------------------------------------------------------------------------
+export async function meshCommand(args: string[]): Promise<void> {
   const [action, ...actionArgs] = args;
 
-  // Colors for mesh output
-  const meshColors = {
-    reset: '\x1b[0m',
-    bold: '\x1b[1m',
-    green: '\x1b[32m',
-    cyan: '\x1b[36m',
-    yellow: '\x1b[33m',
-    red: '\x1b[31m',
-    dim: '\x1b[2m',
-  };
-
-  console.log(`
-${meshColors.cyan}${meshColors.bold}
-   ╔═══════════════════════════════════════╗
-   ║     🦆 Duck Agent Mesh Network 🦆      ║
-   ╚═══════════════════════════════════════╝
-${meshColors.reset}`);
-
-  // Show mesh status
-  const meshUrl = process.env.AGENT_MESH_URL || 'http://localhost:4000';
-  console.log(`   Server: ${meshColors.cyan}${meshUrl}${meshColors.reset}`);
-  console.log(`   Key:    ${meshColors.dim}openclaw-mesh-default-key${meshColors.reset}`);
+  printBanner();
+  console.log(`   Server: ${c.cyan}${MESH_URL}${c.reset}`);
+  console.log(`   Key:    ${c.dim}openclaw-mesh-default-key${c.reset}`);
+  console.log(`   API:    ${c.dim}${MESH_API_DIR}${c.reset}`);
   console.log();
 
-  // Load the mesh client
-  const { AgentMeshClient } = await import('../mesh/agent-mesh.js');
-
-  // Create client instance
-  const mesh = new AgentMeshClient({
-    serverUrl: meshUrl,
-    agentName: 'DuckCLI',
-    agentEndpoint: process.env.DUCK_AGENT_ENDPOINT || 'http://localhost:3000',
-    capabilities: ['reasoning', 'coding', 'messaging', 'cli'],
-  });
-
-  // Handle actions
   switch (action) {
-    case 'register': {
-      // Register with mesh
-      console.log(`${meshColors.cyan}Registering with mesh...${meshColors.reset}`);
+    // -----------------------------------------------------------------------
+    // duck mesh start - Start the mesh server daemon
+    // -----------------------------------------------------------------------
+    case 'start': {
+      const port = parseInt(actionArgs[0] || String(MESH_PORT));
+      const host = actionArgs[1] || MESH_HOST;
 
-      const agentId = await mesh.register();
+      console.log(`${c.cyan}Starting mesh server...${c.reset}`);
 
-      if (agentId) {
-        console.log(`${meshColors.green}✅ Registered successfully!${meshColors.reset}`);
-        console.log(`   Agent ID: ${agentId}`);
-
-        // Optionally connect for real-time events
-        const connected = await mesh.connect();
-        if (connected) {
-          console.log(`${meshColors.green}✅ WebSocket connected${meshColors.reset}`);
-
-          // Listen for messages
-          mesh.on('message_received', (msg: any) => {
-            console.log(`
-${meshColors.yellow}📨 New Message:${meshColors.reset}
-   From: ${msg.from || msg.fromAgentId}
-   Content: ${msg.content || msg.message}
-`);
-          });
-        }
-
-        console.log(`
-${meshColors.green}✅ Duck Agent is now part of the mesh!${meshColors.reset}
-   Use ${meshColors.bold}duck mesh list${meshColors.reset} to see other agents
-   Use ${meshColors.bold}duck mesh send <agent> <message>${meshColors.reset} to send a message
-`);
-      } else {
-        console.log(`${meshColors.red}❌ Registration failed${meshColors.reset}`);
-        console.log(`   Is the mesh server running at ${meshUrl}?`);
-      }
-      break;
-    }
-
-    case 'list':
-    case 'discover': {
-      // List all agents on mesh
-      console.log(`${meshColors.cyan}Discovering agents on mesh...${meshColors.reset}\n`);
-
-      const agents = await mesh.discoverAgents();
-
-      if (agents.length === 0) {
-        console.log(`${meshColors.yellow}No agents found on mesh${meshColors.reset}`);
-        console.log(`Run ${meshColors.bold}duck mesh register${meshColors.reset} to join!`);
-      } else {
-        console.log(`${meshColors.green}Found ${agents.length} agent(s):${meshColors.reset}\n`);
-
-        for (const agent of agents) {
-          const status = agent.status === 'online'
-            ? `${meshColors.green}● ONLINE${meshColors.reset}`
-            : `${meshColors.dim}○ OFFLINE${meshColors.reset}`;
-
-          console.log(`   ${meshColors.bold}${agent.name}${meshColors.reset}`);
-          console.log(`   ID:     ${agent.id}`);
-          console.log(`   Status: ${status}`);
-          console.log(`   Endpoint: ${agent.endpoint || 'N/A'}`);
-          if (agent.capabilities && agent.capabilities.length > 0) {
-            console.log(`   Skills: ${agent.capabilities.join(', ')}`);
-          }
-          console.log();
-        }
-      }
-      break;
-    }
-
-    case 'send': {
-      // Send message to agent
-      const [targetAgent, ...messageParts] = actionArgs;
-      const message = messageParts.join(' ');
-
-      if (!targetAgent || !message) {
-        console.log(`${meshColors.yellow}Usage: duck mesh send <agent-id|agent-name> <message>${meshColors.reset}`);
-        console.log(`\nExample: duck mesh send abc123 "Hello from Duck Agent!"`);
+      // Check if already running
+      const existingPid = loadPid();
+      if (existingPid && isPidRunning(existingPid)) {
+        console.log(`${c.yellow}⚠️  Mesh server already running (PID: ${existingPid})${c.reset}`);
+        console.log(`   Use ${c.bold}duck mesh status${c.reset} to check or ${c.bold}duck mesh stop${c.reset} to stop it.`);
         return;
       }
 
-      console.log(`${meshColors.cyan}Sending message...${meshColors.reset}`);
-
-      // First, find the agent (by ID or name)
-      let targetId = targetAgent;
-
-      // If not a UUID, try to find by name
-      if (!targetAgent.includes('-')) {
-        const agents = await mesh.discoverAgents();
-        const found = agents.find(a =>
-          a.name.toLowerCase() === targetAgent.toLowerCase() ||
-          a.name.toLowerCase().includes(targetAgent.toLowerCase())
-        );
-
-        if (found) {
-          targetId = found.id;
-          console.log(`   Found agent: ${found.name}`);
-        }
-      }
-
-      const messageId = await mesh.sendMessage(targetId, message);
-
-      if (messageId) {
-        console.log(`${meshColors.green}✅ Message sent!${meshColors.reset}`);
-        console.log(`   Message ID: ${messageId}`);
-        console.log(`   To: ${targetId}`);
-      } else {
-        console.log(`${meshColors.red}❌ Failed to send message${meshColors.reset}`);
-      }
-      break;
-    }
-
-    case 'inbox': {
-      // Get messages for this agent
-      console.log(`${meshColors.cyan}Checking inbox...${meshColors.reset}\n`);
-
-      const messages = await mesh.getInbox(true);
-
-      if (messages.length === 0) {
-        console.log(`${meshColors.dim}No unread messages${meshColors.reset}`);
-      } else {
-        console.log(`${meshColors.green}You have ${messages.length} unread message(s):${meshColors.reset}\n`);
-
-        for (const msg of messages) {
-          console.log(`   ${meshColors.bold}From:${meshColors.reset} ${msg.from}`);
-          console.log(`   ${meshColors.bold}Content:${meshColors.reset} ${msg.content}`);
-          console.log(`   ${meshColors.bold}Time:${meshColors.reset} ${new Date(msg.timestamp).toLocaleString()}`);
-          console.log();
-
-          // Mark as read
-          await mesh.markRead(msg.id);
-        }
-      }
-      break;
-    }
-
-    case 'health': {
-      // Health dashboard
-      console.log(`${meshColors.cyan}Loading health dashboard...${meshColors.reset}\n`);
-
-      const health = await mesh.getHealth();
-
-      if (health) {
-        const total = health.totalAgents || 0;
-        const healthy = health.healthy || 0;
-        const degraded = health.degraded || 0;
-        const unhealthy = health.unhealthy || 0;
-        const offline = health.offline || 0;
-
-        console.log(`${meshColors.bold}Mesh Health Overview${meshColors.reset}`);
-        console.log(`   Total Agents: ${total}`);
-        console.log(`   ${meshColors.green}Healthy:${meshColors.reset}   ${healthy}`);
-        console.log(`   ${meshColors.yellow}Degraded:${meshColors.reset}  ${degraded}`);
-        console.log(`   ${meshColors.red}Unhealthy:${meshColors.reset} ${unhealthy}`);
-        console.log(`   ${meshColors.dim}Offline:${meshColors.reset}   ${offline}`);
-
-        if (health.criticalEvents && health.criticalEvents > 0) {
-          console.log(`\n   ${meshColors.red}⚠️  ${health.criticalEvents} critical event(s)${meshColors.reset}`);
-        }
-      } else {
-        console.log(`${meshColors.red}❌ Failed to get health status${meshColors.reset}`);
-      }
-      break;
-    }
-
-    case 'broadcast': {
-      // Broadcast to all agents
-      const message = actionArgs.join(' ');
-
-      if (!message) {
-        console.log(`${meshColors.yellow}Usage: duck mesh broadcast <message>${meshColors.reset}`);
+      // Check if port is already in use by another process
+      const portInUse = await isPortOpen(port);
+      if (portInUse) {
+        console.log(`${c.yellow}⚠️  Port ${port} is already in use${c.reset}`);
+        console.log(`   A mesh server may already be running.`);
+        console.log(`   Check: ${c.bold}curl http://localhost:${port}/health${c.reset}`);
         return;
       }
 
-      console.log(`${meshColors.cyan}Broadcasting...${meshColors.reset}`);
-
-      const count = await mesh.broadcast(message);
-
-      console.log(`${meshColors.green}✅ Message sent to ${count} agent(s)${meshColors.reset}`);
-      break;
-    }
-
-    case 'capabilities':
-    case 'skills': {
-      // Discover capabilities
-      console.log(`${meshColors.cyan}Discovering agent capabilities...${meshColors.reset}\n`);
-
-      const agents = await mesh.discoverAgents();
-      const capabilityMap = new Map<string, string[]>();
-
-      for (const agent of agents) {
-        if (agent.capabilities) {
-          for (const cap of agent.capabilities) {
-            if (!capabilityMap.has(cap)) {
-              capabilityMap.set(cap, []);
-            }
-            capabilityMap.get(cap)!.push(agent.name);
-          }
-        }
+      // Find the server entry point
+      const serverPath = join(MESH_API_DIR, 'src', 'server.js');
+      if (!existsSync(serverPath)) {
+        console.log(`${c.red}❌ Mesh API not found at: ${serverPath}${c.reset}`);
+        console.log(`\n${c.yellow}To install mesh-api:${c.reset}`);
+        console.log(`   cd ~`);
+        console.log(`   git clone https://github.com/Franzferdinan51/agent-mesh-api.git`);
+        console.log(`   cd agent-mesh-api && npm install`);
+        console.log(`\n   Or set MESH_API_DIR environment variable to the correct path.`);
+        return;
       }
 
-      console.log(`${meshColors.bold}Available Capabilities:${meshColors.reset}\n`);
-
-      for (const [capability, agentsWithCap] of Array.from(capabilityMap.entries())) {
-        console.log(`   ${meshColors.green}${capability}${meshColors.reset}`);
-        console.log(`      Provided by: ${agentsWithCap.join(', ')}`);
-        console.log();
-      }
-      break;
-    }
-
-    case 'catastrophe': {
-      // Check catastrophe status
-      console.log(`${meshColors.cyan}Checking catastrophe status...${meshColors.reset}\n`);
-
-      const catastrophes = await mesh.listCatastrophes('active');
-
-      if (catastrophes.length === 0) {
-        console.log(`${meshColors.green}✅ No active catastrophes${meshColors.reset}`);
-      } else {
-        console.log(`${meshColors.red}⚠️  ${catastrophes.length} active catastrophe(s):${meshColors.reset}\n`);
-
-        for (const cat of catastrophes) {
-          console.log(`   ${meshColors.bold}${cat.title}${meshColors.reset}`);
-          console.log(`   Type:     ${cat.eventType}`);
-          console.log(`   Severity: ${cat.severity}`);
-          console.log(`   Reported: ${new Date(cat.timestamp).toLocaleString()}`);
-          console.log();
-        }
-      }
-      break;
-    }
-
-    case 'ping':
-    case 'status': {
-      // Check connection status
-      console.log(`${meshColors.cyan}Pinging mesh server...${meshColors.reset}`);
-
-      const online = await mesh.ping();
-
-      if (online) {
-        console.log(`${meshColors.green}✅ Mesh server is online${meshColors.reset}`);
-
-        const agentId = mesh.getAgentId();
-        if (agentId) {
-          console.log(`   Registered Agent ID: ${agentId}`);
-          console.log(`   Agent Name: ${mesh.getAgentName()}`);
-          console.log(`   Capabilities: ${mesh.getCapabilities().join(', ')}`);
-        } else {
-          console.log(`${meshColors.yellow}   Not registered - run "duck mesh register"${meshColors.reset}`);
-        }
-      } else {
-        console.log(`${meshColors.red}❌ Mesh server is offline${meshColors.reset}`);
-        console.log(`   Check that server is running at ${meshUrl}`);
-      }
-      break;
-    }
-
-    case 'help':
-    case '-h':
-    case '--help':
-    default: {
-      console.log(`${meshColors.bold}Duck Agent Mesh Commands:${meshColors.reset}
-
-${meshColors.green}duck mesh register${meshColors.reset}
-   Register this agent with the mesh network
-   - Gets unique agent ID
-   - Connects WebSocket for real-time events
-   - Enables message sending/receiving
-
-${meshColors.green}duck mesh list${meshColors.reset}
-   Discover all agents on the mesh
-   - Shows agent names, IDs, statuses
-   - Lists capabilities of each agent
-
-${meshColors.green}duck mesh send <agent> <message>${meshColors.reset}
-   Send a message to another agent
-   - Use agent ID or partial name for <agent>
-   - Message can be any text content
-
-${meshColors.green}duck mesh inbox${meshColors.reset}
-   Check for unread messages
-   - Shows messages from other agents
-   - Auto-marks messages as read
-
-${meshColors.green}duck mesh health${meshColors.reset}
-   View mesh health dashboard
-   - Shows healthy/degraded/unhealthy counts
-   - Lists any critical events
-
-${meshColors.green}duck mesh broadcast <message>${meshColors.reset}
-   Send message to all agents at once
-
-${meshColors.green}duck mesh capabilities${meshColors.reset}
-   Discover what agents can do
-   - Maps capabilities to agent names
-
-${meshColors.green}duck mesh catastrophe${meshColors.reset}
-   Check for active catastrophe events
-   - Shows any reported issues
-
-${meshColors.green}duck mesh status${meshColors.reset}
-   Check mesh server connection status
-
-${meshColors.yellow}Environment Variables:${meshColors.reset}
-   AGENT_MESH_URL     Mesh server URL (default: http://localhost:4000)
-   AGENT_MESH_API_KEY API key (default: openclaw-mesh-default-key)
-
-${meshColors.dim}Starting the mesh server:${meshColors.reset}
-   cd /Users/duckets/Desktop/agent-mesh-api
-   npm install
-   npm start
-`);
-      break;
-    }
-  }
-}
-export { meshCommand };
-
-// ============ MESH SERVER DAEMON ============
-
-async function meshServerCommand(args: string[]) {
-  const port = parseInt(args[0] || process.env.MESH_PORT || '4000');
-  const host = process.env.MESH_HOST || '0.0.0.0';
-  const { join } = await import('path');
-  const meshDir = join(process.env.HOME || '/tmp', '.duckagent', 'mesh');
-
-  const meshServerColors = {
-    reset: '\x1b[0m',
-    bold: '\x1b[1m',
-    green: '\x1b[32m',
-    cyan: '\x1b[36m',
-    yellow: '\x1b[33m',
-    red: '\x1b[31m',
-    dim: '\x1b[2m',
-  };
-
-  console.log(`\n${meshServerColors.cyan}${meshServerColors.bold}
-   ╔═══════════════════════════════════════╗
-   ║     🦆 Duck Mesh Server Daemon 🦆    ║
-   ╚═══════════════════════════════════════╝
-${meshServerColors.reset}`);
-
-  // Check if port is in use
-  try {
-    const { createConnection } = await import('net');
-    const checkPort = new Promise<boolean>((resolve) => {
-      const sock = createConnection({ port, host }, () => {
-        sock.destroy();
-        resolve(true);
-      });
-      sock.on('error', () => resolve(false));
-      sock.setTimeout(1000, () => { sock.destroy(); resolve(false); });
-    });
-    
-    const inUse = await checkPort;
-    if (inUse) {
-      console.log(`${meshServerColors.yellow}⚠️  Port ${port} is already in use${meshServerColors.reset}`);
-      console.log(`   A mesh server may already be running.`);
-      console.log(`   Check: ${meshServerColors.bold}curl http://localhost:${port}/health${meshServerColors.reset}`);
-      console.log(`   Or try a different port: ${meshServerColors.bold}duck meshd 5000${meshServerColors.reset}`);
-      return;
-    }
-  } catch (e) {
-    // Ignore port check errors
-  }
-
-  // Spawn server as detached background process
-  const { spawn } = await import('child_process');
-  const serverPath = join(process.cwd(), 'dist', 'daemons', 'mesh-server.js');
-  
-  const child = spawn('node', [serverPath], {
-    detached: true,
-    stdio: 'ignore',
-    env: {
-      ...process.env,
-      MESH_PORT: String(port),
-      MESH_HOST: host,
-    }
-  });
-
-  child.unref(); // Allow parent to exit
-
-  // Wait a moment for server to start
-  await new Promise(r => setTimeout(r, 1500));
-
-  console.log(`   🌐 Starting on: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
-  console.log(`   🔌 WebSocket:   ws://localhost:${port}/ws`);
-  console.log(`   🔑 API Key:     openclaw-mesh-default-key`);
-  console.log(`   📁 Data:       ${meshDir}/`);
-  console.log(`   📊 Health:     GET http://localhost:${port}/api/health/dashboard`);
-  console.log(`   👥 Agents:     GET http://localhost:${port}/api/agents`);
-  console.log(`   💬 Messages:   POST http://localhost:${port}/api/messages`);
-  console.log();
-
-  // Verify it started
-  try {
-    const { createConnection } = await import('net');
-    const check = new Promise<boolean>((resolve) => {
-      const sock = createConnection({ port, host }, () => {
-        sock.destroy();
-        resolve(true);
-      });
-      sock.on('error', () => resolve(false));
-      sock.setTimeout(2000, () => { sock.destroy(); resolve(false); });
-    });
-    
-    const started = await check;
-    if (started) {
-      console.log(`${meshServerColors.green}✅ Duck Mesh Server started!${meshServerColors.reset}\n`);
-      console.log(`   Register an agent:`);
-      console.log(`   ${meshServerColors.bold}curl -X POST http://localhost:${port}/api/agents/register \\${meshServerColors.reset}`);
-      console.log(`     -H "Content-Type: application/json" \\`);
-      console.log(`     -d '{"name": "MyAgent"}'`);
+      // Spawn server as detached background process
+      console.log(`   🌐 Starting on: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
+      console.log(`   🔑 API Key:     openclaw-mesh-default-key`);
       console.log();
-      console.log(`${meshServerColors.dim}Server running in background (PID: ${child.pid})`);
-      console.log(`Stop with: kill ${child.pid}${meshServerColors.reset}`);
-    } else {
-      console.log(`${meshServerColors.red}❌ Server failed to start${meshServerColors.reset}`);
-      console.log(`   Check log: ~/.duckagent/mesh/`);
+
+      const child = spawn('node', [serverPath], {
+        detached: true,
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          MESH_PORT: String(port),
+          MESH_HOST: host,
+          MESH_API_KEY: MESH_API_KEY,
+        },
+        cwd: MESH_API_DIR,
+      });
+
+      child.unref();
+      savePid(child.pid!);
+
+      // Wait a moment for server to start
+      await new Promise(r => setTimeout(r, 2000));
+
+      const started = await isPortOpen(port);
+      if (started) {
+        console.log(`${c.green}✅ Mesh server started successfully!${c.reset}`);
+        console.log(`   PID: ${child.pid}`);
+        console.log(`   Health: ${c.bold}curl http://localhost:${port}/health${c.reset}`);
+        console.log(`\n${c.dim}Server running in background. Stop with: duck mesh stop${c.reset}`);
+      } else {
+        console.log(`${c.red}❌ Server failed to start on port ${port}${c.reset}`);
+        console.log(`   Check that port ${port} is available.`);
+        clearPid();
+      }
+      break;
     }
-  } catch (e) {
-    console.log(`${meshServerColors.red}❌ Error checking server${meshServerColors.reset}`);
+
+    // -----------------------------------------------------------------------
+    // duck mesh status - Check if mesh server is running
+    // -----------------------------------------------------------------------
+    case 'status': {
+      const port = parseInt(actionArgs[0] || String(MESH_PORT));
+
+      console.log(`${c.cyan}Checking mesh server status...${c.reset}\n`);
+
+      const portOpen = await isPortOpen(port);
+      const pid = loadPid();
+      const pidRunning = pid ? isPidRunning(pid) : false;
+
+      if (portOpen) {
+        console.log(`${c.green}✅ Mesh server is RUNNING on port ${port}${c.reset}`);
+        if (pid && pidRunning) {
+          console.log(`   PID: ${pid}`);
+        }
+
+        // Try to get health info
+        try {
+          const resp = await fetch(`${MESH_URL}/health`, {
+            headers: { 'X-API-Key': MESH_API_KEY },
+            signal: AbortSignal.timeout(3000),
+          });
+          if (resp.ok) {
+            const health = await resp.json() as any;
+            console.log(`   Agents: ${health.agents?.length ?? health.totalAgents ?? '?'}`);
+          }
+        } catch { /* ignore */ }
+
+        console.log(`\n${c.green}Available commands:${c.reset}`);
+        console.log(`   ${c.bold}duck mesh list${c.reset}      - Discover agents`);
+        console.log(`   ${c.bold}duck mesh register${c.reset}  - Register this agent`);
+        console.log(`   ${c.bold}duck mesh stop${c.reset}      - Stop server`);
+      } else {
+        console.log(`${c.red}❌ Mesh server is NOT running on port ${port}${c.reset}`);
+        console.log(`   Start with: ${c.bold}duck mesh start${c.reset}`);
+      }
+
+      if (pid && !pidRunning) {
+        console.log(`\n${c.yellow}⚠️  Stale PID file (process ${pid} is dead)${c.reset}`);
+        clearPid();
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // duck mesh stop - Stop the mesh server
+    // -----------------------------------------------------------------------
+    case 'stop': {
+      console.log(`${c.cyan}Stopping mesh server...${c.reset}`);
+
+      const pid = loadPid();
+      if (!pid || !isPidRunning(pid)) {
+        console.log(`${c.yellow}⚠️  No running mesh server found${c.reset}`);
+        clearPid();
+        return;
+      }
+
+      try {
+        process.kill(pid, 'SIGTERM');
+        // Give it a moment to gracefully shut down
+        await new Promise(r => setTimeout(r, 1000));
+
+        if (!isPidRunning(pid)) {
+          console.log(`${c.green}✅ Mesh server stopped (PID: ${pid})${c.reset}`);
+        } else {
+          // Force kill if still running
+          process.kill(pid, 'SIGKILL');
+          console.log(`${c.green}✅ Mesh server killed (PID: ${pid})${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.red}❌ Failed to stop mesh server: ${e.message}${c.reset}`);
+      }
+
+      clearPid();
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // duck mesh register - Register Chat Agent with mesh
+    // -----------------------------------------------------------------------
+    case 'register': {
+      console.log(`${c.cyan}Registering with mesh...${c.reset}\n`);
+
+      const port = parseInt(actionArgs[0] || String(MESH_PORT));
+      const meshUrl = actionArgs[1] ? `http://localhost:${parseInt(actionArgs[1]) || port}` : MESH_URL;
+      const agentName = process.env.DUCK_AGENT_NAME || 'DuckCLI';
+      const endpoint = process.env.DUCK_AGENT_ENDPOINT || 'http://localhost:18797';
+      const capabilities = (process.env.DUCK_AGENT_CAPABILITIES || 'reasoning,coding,messaging,cli,chat').split(',');
+
+      const portOpen = await isPortOpen(port);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running on port ${port}${c.reset}`);
+        console.log(`   Start it first: ${c.bold}duck mesh start${c.reset}`);
+        return;
+      }
+
+      try {
+        const resp = await fetch(`${meshUrl}/api/agents/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': MESH_API_KEY,
+          },
+          body: JSON.stringify({
+            name: agentName,
+            endpoint,
+            capabilities,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+
+        const data = await resp.json() as any;
+
+        if (resp.ok && data.success !== false) {
+          const agentId = data.agentId || data.id;
+          console.log(`${c.green}✅ Registered successfully!${c.reset}`);
+          console.log(`   Agent ID: ${c.bold}${agentId}${c.reset}`);
+          console.log(`   Name:     ${agentName}`);
+          console.log(`   Endpoint: ${endpoint}`);
+          console.log(`   Skills:   ${capabilities.join(', ')}`);
+
+          console.log(`\n${c.green}Next steps:${c.reset}`);
+          console.log(`   ${c.bold}duck mesh list${c.reset}      - See other agents`);
+          console.log(`   ${c.bold}duck mesh send <id> <msg>${c.reset} - Send a message`);
+        } else {
+          console.log(`${c.red}❌ Registration failed: ${JSON.stringify(data)}${c.reset}`);
+        }
+      } catch (e: any) {
+        console.log(`${c.red}❌ Registration error: ${e.message}${c.reset}`);
+        console.log(`   Is the mesh server running? Check: ${c.bold}duck mesh status${c.reset}`);
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
+    // Unknown action - show help
+    // -----------------------------------------------------------------------
+    default: {
+      showMeshHelp();
+      break;
+    }
   }
 }
 
-export { meshServerCommand };
+// ---------------------------------------------------------------------------
+// meshServerCommand - legacy alias for duck meshd (starts server)
+// ---------------------------------------------------------------------------
+export async function meshServerCommand(args: string[]): Promise<void> {
+  await meshCommand(['start', ...args]);
+}
+
+// ---------------------------------------------------------------------------
+// Help
+// ---------------------------------------------------------------------------
+function showMeshHelp(): void {
+  console.log(`${c.bold}Duck Mesh Commands:${c.reset}
+
+${c.green}duck mesh start${c.reset} [port]
+   Start the mesh server daemon on port 4000 (or specified port)
+   - Spawns node src/server.js from agent-mesh-api directory
+   - Runs in background as detached process
+   - Saves PID to ~/.duck/mesh-server.pid
+
+${c.green}duck mesh status${c.reset} [port]
+   Check if mesh server is running
+   - Checks if port 4000 (or specified) is open
+   - Shows PID if server is running
+   - Auto-cleans stale PID files
+
+${c.green}duck mesh stop${c.reset}
+   Stop the running mesh server
+   - Sends SIGTERM for graceful shutdown
+   - Falls back to SIGKILL if needed
+   - Clears PID file
+
+${c.green}duck mesh register${c.reset} [port]
+   Register Duck CLI agent with the mesh
+   - Calls POST /api/agents/register on the mesh server
+   - Uses agent name from DUCK_AGENT_NAME env var (default: DuckCLI)
+   - Uses capabilities from DUCK_AGENT_CAPABILITIES env var
+   - Requires server to be running
+
+${c.yellow}Other mesh commands (client):${c.reset}
+${c.green}duck mesh list${c.reset}      - Discover all agents on mesh
+${c.green}duck mesh send <id> <msg>${c.reset} - Send message to agent
+${c.green}duck mesh inbox${c.reset}     - Check unread messages
+${c.green}duck mesh health${c.reset}    - Mesh health dashboard
+${c.green}duck mesh broadcast <msg>${c.reset} - Broadcast to all agents
+
+${c.yellow}Environment Variables:${c.reset}
+   MESH_PORT              Server port (default: 4000)
+   MESH_HOST              Server host (default: 0.0.0.0)
+   AGENT_MESH_URL         Mesh server URL
+   AGENT_MESH_API_KEY     API key (default: openclaw-mesh-default-key)
+   MESH_API_DIR           Path to agent-mesh-api directory
+   DUCK_AGENT_NAME        Agent name for registration
+   DUCK_AGENT_ENDPOINT    Agent endpoint URL
+   DUCK_AGENT_CAPABILITIES Comma-separated capabilities list
+
+${c.dim}Installing agent-mesh-api:${c.reset}
+   cd ~
+   git clone https://github.com/Franzferdinan51/agent-mesh-api.git
+   cd agent-mesh-api && npm install
+`);
+}

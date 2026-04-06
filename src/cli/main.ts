@@ -332,10 +332,16 @@ async function main() {
     case 'agent:meta': {
       const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
       const metaCmd = createMetaAgentCommand();
-      // Go passes: argv=["meta", "learnings"] → process.argv.slice(2)=["meta","learnings"]
-      // command="meta", args=["learnings"] — pass to Commander
       const fullArgs = ['node', 'meta', ...args].filter(a => a.length > 0);
       await metaCmd.parseAsync(fullArgs);
+      break;
+    }
+
+    case 'chat-agent': {
+      const { createChatAgentCommand } = await import('../commands/chat-agent-cmd.js');
+      const chatCmd = createChatAgentCommand();
+      const fullArgs = ['node', 'chat-agent', ...args].filter(a => a.length > 0);
+      await chatCmd.parseAsync(fullArgs);
       break;
     }
 

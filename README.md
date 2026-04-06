@@ -1,4 +1,4 @@
-# 🦆 duck-cli
+# 🦆 duck-cli v2.0.0
 
 > **🦸 Super Agent** — A rival to Claude Code, Letta Code, and OpenAI Codex. Desktop AI agent with LLM-powered Meta-Agent Orchestrator, AI Council deliberation, persistent memory, multi-provider routing (MiniMax/LM Studio/Kimi/GPT/OpenRouter), agent-mesh communication bus, and 102 built-in tools. Runs on Mac/PC/Linux/Android.
 
@@ -254,43 +254,79 @@ curl -X POST localhost:18797/chat \
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            duck run "task"                                │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     CHAT AGENT (MiniMax M2.7)                            │
-│                 Conversational, friendly, session memory                  │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │                         │
-           Simple chat                  Complex/High-stakes
-                    │                         │
-                    ▼                         ▼
-         ┌──────────────────┐    ┌───────────────────────────────────┐
-         │  Direct MiniMax  │    │       AI COUNCIL DELIBERATION     │
-         │    Response      │    │  (Ethical/High-stakes/Complex)     │
-         └──────────────────┘    │     Speaker + Technocrat +         │
-                                │     Ethicist + Sentinel +            │
-                                │     Pragmatist                      │
-                                └──────────────┬────────────────────┘
-                                               │ APPROVE / REJECT / MODIFY
-                                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     🌉 BRIDGE AGENT (qwen3.5-0.8b)                    │
-│            Connection health, routing, protocol negotiation              │
-│              Intercepts ALL tasks after AI Council approval             │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │                         │
-           Simple task                  Complex task
-                    │                         │
-                    ▼                         ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   META-AGENT ORCHESTRATOR v3                          │
+                         ┌─────────────────────────────────────┐
+                         │          You (CLI / Telegram)        │
+                         └──────────────────┬──────────────────┘
+                                            │
+                                            ▼
+                         ┌─────────────────────────────────────┐
+                         │           CHAT AGENT (Leaf)          │
+                         │      MiniMax M2.7 · Session memory   │
+                         └──────────────────┬──────────────────┘
+                                            │
+                        ┌───────────────────┴───────────────────┐
+                        │                                       │
+               Simple chat                            Complex task
+                        │                                       │
+                        ▼                                       ▼
+             ┌──────────────────┐          ┌──────────────────────────────┐
+             │  Direct Response │          │       AI COUNCIL             │
+             └──────────────────┘          │  Speaker + Technocrat +       │
+                                           │  Ethicist + Sentinel +        │
+                                           │  Pragmatist + Skeptic         │
+                                           └──────────────┬───────────────┘
+                                                          │ APPROVE / REJECT
+                                                          ▼
+                         ┌─────────────────────────────────────┐
+                         │      🌉 BRIDGE AGENT (Watchdog)     │
+                         │   Connection health · Routing ·      │
+                         │   Protocol negotiation · Health      │
+                         │   aggregation via mesh              │
+                         └──────────────────┬──────────────────┘
+                                            │
+                        ┌───────────────────┴───────────────────┐
+                        │                                       │
+               Simple task                             Complex task
+                        │                                       │
+                        ▼                                       ▼
+                         ┌─────────────────────────────────────┐
+                         │   META-AGENT ORCHESTRATOR v3        │
+                         │   Planner → Critic → Healer →        │
+                         │   Learner · 102 tools · Fallbacks    │
+                         └──────────────────┬──────────────────┘
+                                            │
+                                            ▼
+                         ┌─────────────────────────────────────┐
+                         │              TOOLS                   │
+                         │   exec · file · http · browser ·     │
+                         │   android · cron · subagent + 92    │
+                         └─────────────────────────────────────┘
+                                            │
+                                            │
+                         ┌─────────────────────────────────────┐
+                         │              MESH BUS                │
+                         │     (Coordination — not execution)   │
+                         │                                      │
+                         │  MetaAgent (hub)  ←→  Bridge (wdg)   │
+                         │  Bridge (wdg)      ←→  Chat (leaf)   │
+                         │  Chat (leaf)       ←→  Subcons (obs) │
+                         └──────────────────┬──────────────────┘
+                                            │
+                         ┌─────────────────────────────────────┐
+                         │    🌊 SUBCONSCIOUS (Observer)        │
+                         │   Pattern matching · Whisper fires   │
+                         │   Confidence < 0.5 → log            │
+                         │   Confidence ≥ 0.7 → council        │
+                         │   Learned fix → apply silently        │
+                         └─────────────────────────────────────┘
+```
+
+**The core loop:**
+```
+You → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
+              ↓                   ↓
+            Subconscious ←────────┘
+```
 │              (LLM-powered: Planner → Critic → Healer → Learner)            │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
@@ -372,12 +408,88 @@ curl -X POST localhost:18797/chat \
 │  │  ./duck mesh stop       — Stop mesh server                       │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
-**3 Meta Agents:**
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| **Bridge Agent** | qwen3.5-0.8b (LM Studio) | Connection health, routing decisions, protocol negotiation |
-| **Orchestrator** | qwen3.5-0.8b or MiniMax-M2.7 | Plan→Critic→Healer→Learner loop |
-| **Subconscious** | Pattern matching (no model) | Whisper monitoring, alerts, autonomous responses |
+**4 Super Agents:**
+| Agent | Tier | Model | Purpose |
+|-------|------|-------|---------|
+| **MetaAgent** | Hub | qwen3.5-0.8b | Coordinates all agents, owns system prompt |
+| **Bridge Agent** | Watchdog | qwen3.5-0.8b | Connection health, routing decisions, protocol negotiation |
+| **Chat Agent** | Leaf | MiniMax M2.7 | Conversational interface, session memory |
+| **Subconscious** | Observer | Pattern matching | Whisper monitoring, alerts, autonomous responses |
+
+> 📖 **Full system prompt:** See [`docs/META-AGENT-SYSTEM-PROMPT.md`](docs/META-AGENT-SYSTEM-PROMPT.md) for instructions on how to contact other agents.
+
+---
+
+## 🌉 Bridge Agent — Connection & Routing Watchdog
+
+The **Bridge Agent** sits between the AI Council and the Orchestrator, acting as a watchdog for all task routing decisions.
+
+**What it does:**
+- **Connection health** — Monitors provider endpoints (MiniMax, LM Studio, Kimi, OpenAI, OpenRouter) and routes around failures
+- **Routing decisions** — Decides whether a task takes the fast path or needs full deliberation
+- **Protocol negotiation** — Handles mesh protocol versioning and capability exchanges between agents
+- **Health aggregation** — Gathers health signals from all agents via the mesh bus and reports to MetaAgent
+
+**Where it fits:**
+```
+AI Council (verdict) → Bridge Agent (health check + routing) → Orchestrator (execution)
+```
+
+**Mesh integration:**
+```bash
+./duck mesh status          # Shows Bridge health in mesh dashboard
+./duck bridge health        # Bridge-specific health report
+```
+
+The Bridge Agent uses the mesh bus to:
+- Announce its own health every 10s
+- Subscribe to health pings from Chat Agent, Orchestrator, and Subconscious
+- Alert MetaAgent if any agent goes silent
+
+---
+
+## 🌊 Subconscious — Whisper Monitoring
+
+The subconscious is a **background whisper layer** that monitors every model response and fires alerts based on pattern recognition. It participates in the mesh as an **observer** — it receives signals but doesn't send execution commands.
+
+```
+Response comes in from model
+  │
+  ▼
+Subconscious analyzes (no model call — pure pattern matching):
+  │
+  ├── Confidence < 0.5 → Log uncertainty whisper
+  ├── Confidence ≥ 0.7 → Trigger AI Council deliberation
+  ├── Pattern match (user corrected before) → Apply learned fix
+  ├── Anomaly detected → Alert via Telegram
+  └── Learned correction available → Apply silently
+  │
+  ▼
+Whisper types:
+  • correction — user previously fixed this
+  • caution — confidence low, verify before acting
+  • escalate — AI Council needed
+  • learned — pattern match from feedback
+  • security — potential security concern
+  • resource — system resource warning
+```
+
+**Mesh participation:**
+```bash
+./duck mesh status          # Subconscious shows as "observer" tier
+```
+
+**The loop:**
+```
+User corrects duck-cli → Subconscious logs correction
+Later task matches pattern → Whisper fires → Fix applied silently
+Learning compounds over time → duck-cli gets smarter
+```
+
+```bash
+./duck subconscious status   # Check whisper stats
+./duck learn_from_feedback    # Force learning check
+```
 
 ---
 
@@ -451,46 +563,6 @@ Anomaly detected?
 ./duck kairos disable        # Pause
 ./duck kairos aggressive    # Faster polling, more proactive
 ./duck kairos conservative   # Slower, less intrusive
-```
-
----
-
-## 🌊 Subconscious — Whisper Monitoring
-
-The subconscious is a **background whisper layer** that monitors every model response and fires alerts based on pattern recognition.
-
-```
-Response comes in from model
-  │
-  ▼
-Subconscious analyzes (no model call — pure pattern matching):
-  │
-  ├── Confidence < 0.5 → Log uncertainty whisper
-  ├── Confidence ≥ 0.7 → Trigger AI Council deliberation
-  ├── Pattern match (user corrected before) → Apply learned fix
-  ├── Anomaly detected → Alert via Telegram
-  └── Learned correction available → Apply silently
-  │
-  ▼
-Whisper types:
-  • correction — user previously fixed this
-  • caution — confidence low, verify before acting
-  • escalate — AI Council needed
-  • learned — pattern match from feedback
-  • security — potential security concern
-  • resource — system resource warning
-```
-
-**The loop:**
-```
-User corrects duck-cli → Subconscious logs correction
-Later task matches pattern → Whisper fires → Fix applied silently
-Learning compounds over time → duck-cli gets smarter
-```
-
-```bash
-./duck subconscious status   # Check whisper stats
-./duck learn_from_feedback    # Force learning check
 ```
 
 ---
