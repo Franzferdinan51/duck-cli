@@ -68,7 +68,9 @@ class NotificationStore {
           digest: []
         };
       }
-    } catch {}
+    } catch (error) {
+      console.error('[NotificationStore] Failed to load:', error);
+    }
   }
 
   private save(): void {
@@ -77,7 +79,9 @@ class NotificationStore {
       const dir = require('path').dirname(this.path);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       writeFileSync(this.path, JSON.stringify({ notifications: this.store.notifications, sent: this.store.sent.slice(-100), dismissed: this.store.dismissed.slice(-500) }, null, 2), 'utf-8');
-    } catch {}
+    } catch (error) {
+      console.error('[NotificationStore] Failed to save:', error);
+    }
   }
 
   add(n: UpdateNotification): void { this.store.notifications.push(n); this.save(); }
@@ -105,7 +109,9 @@ export class SmartNotificationEngine {
       const { existsSync, readFileSync } = require('fs');
       const path = `${process.env.HOME}/.duck/update-notification-prefs.json`;
       if (existsSync(path)) this.prefs = { ...DEFAULT_PREFS, ...JSON.parse(readFileSync(path, 'utf-8')) };
-    } catch {}
+    } catch (error) {
+      console.error('[SmartNotification] Failed to load prefs:', error);
+    }
   }
 
   savePrefs(): void {
@@ -115,7 +121,9 @@ export class SmartNotificationEngine {
       const dir = require('path').dirname(path);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
       writeFileSync(path, JSON.stringify(this.prefs, null, 2), 'utf-8');
-    } catch {}
+    } catch (error) {
+      console.error('[SmartNotification] Failed to save prefs:', error);
+    }
   }
 
   createNotification(source: string, version: string, classification: ClassifiedUpdate, prediction: SuccessPrediction, strategy: UpdateStrategy): UpdateNotification | null {
