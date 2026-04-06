@@ -26,6 +26,16 @@ Telegram / CLI / Web UI
  Other agents, tools, OpenClaw-compatible systems
 ```
 
+### Native internal communication
+
+The internal background communication layer is intended to be **native**, not bolted on as an afterthought.
+
+That includes:
+- **Agent Mesh / agent-mesh-api** style background communication
+- bridge-level coordination between duck-cli and other agents
+- meta-agent delegation that can spawn real internal workers
+- separation between **public replies** (Telegram) and **internal coordination traffic**
+
 ### Important design rule
 
 **Telegram is the main public access point for duck-cli.**
