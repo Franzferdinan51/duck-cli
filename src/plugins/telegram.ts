@@ -226,56 +226,67 @@ async function getUpdates(offset: number = 0, timeout: number = 30): Promise<any
 
 // ─── Duck CLI Gateway Forwarder ──────────────────────────────────────────────
 
-async function forwardToGateway(message: string): Promise<string> {
+async function forwardToGateway(message: string, chatId?: string): Promise<string> {
   return new Promise((resolve) => {
-    // Find duck binary - check multiple possible locations
-    const duckBin = process.env.DUCK_BINARY 
-      || findDuckBinary();
-    
+    const duckBin = process.env.DUCK_BINARY || findDuckBinary();
     if (!duckBin) {
       resolve('🦆 Duck CLI not found. Install duck-cli first: https://github.com/Franzferdinan51/duck-cli');
       return;
     }
-    
-    // Escape message for shell
-    const escapedMsg = message.replace(/[\\"`'${}]/g, '\\$&').replace(/\n/g, '\\n');
-    
+
+    const timeoutMs = parseInt(process.env.DUCK_TELEGRAM_REPLY_TIMEOUT_MS || '300000', 10); // 5 min default
     const child = spawn(duckBin, ['run', message], {
       cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
       env: { ...process.env, DUCK_BOT_MODE: '1' },
-      timeout: 45000,
+      timeout: timeoutMs,
     });
-    
+
     let stdout = '';
     let stderr = '';
-    
+    let finished = false;
+
+    const typingInterval = chatId
+      ? setInterval(() => {
+          telegramRequest('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
+        }, 4000)
+      : undefined;
+
+    const finish = (text: string) => {
+      if (finished) return;
+      finished = true;
+      if (typingInterval) clearInterval(typingInterval);
+      resolve(text);
+    };
+
     child.stdout?.on('data', (data) => {
       stdout += data.toString();
     });
-    
+
     child.stderr?.on('data', (data) => {
       stderr += data.toString();
     });
-    
+
     child.on('close', (_code) => {
       if (stdout.trim()) {
-        resolve(sanitizeTelegramReply(stdout));
+        finish(sanitizeTelegramReply(stdout));
       } else if (stderr.trim()) {
-        resolve('🦆 ' + sanitizeTelegramReply(stderr).slice(-1500));
+        finish('🦆 ' + sanitizeTelegramReply(stderr).slice(-1500));
       } else {
-        resolve('🦆 Processed (no output)');
+        finish('🦆 Processed (no output)');
       }
     });
-    
+
     child.on('error', (err) => {
-      resolve(`🦆 Error running duck: ${err.message}`);
+      finish(`🦆 Error running duck: ${err.message}`);
     });
-    
-    // Timeout after 45 seconds
+
     setTimeout(() => {
-      child.kill();
-      resolve('🦆 Request timed out (45s limit)');
-    }, 45000);
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+      }, 3000);
+      finish(`🦆 Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+    }, timeoutMs);
   });
 }
 
@@ -421,7 +432,7 @@ export async function telegramStart(): Promise<void> {
         } catch {}
 
         try {
-          const response = await forwardToGateway(text);
+          const response = await forwardToGateway(text, msgChatId);
 
           // Extract [AUDIO:filepath] markers and send voice messages
           const audioMarkers = response.match(/\[AUDIO:([^\]]+)\]/g) || [];

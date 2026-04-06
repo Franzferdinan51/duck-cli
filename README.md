@@ -87,6 +87,13 @@ For launchd/macOS automation, use:
 - `tools/run-duck-telegram.sh`
 - `tools/ai.duckbot.telegram.plist`
 
+Useful Telegram env vars:
+- `DUCK_TELEGRAM_REPLY_TIMEOUT_MS=300000` (default 5 min)
+- `TELEGRAM_BOT_TOKEN=...`
+- `TELEGRAM_CHAT_ID=...`
+
+The built-in Telegram transport is buffered and sanitized, so it should send a clean final assistant reply instead of internal orchestration chatter.
+
 ---
 
 ## 🏃 Run a Task
