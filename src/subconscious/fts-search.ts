@@ -317,3 +317,131 @@ export function getFTSIndex(): FTSSearch {
   }
   return ftsInstance;
 }
+
+// ─── Session Transcript FTS ───────────────────────────────────────────────────
+
+export interface SessionSearchResult {
+  sessionId: string;
+  score: number;
+  snippet: string;
+  createdAt: string;
+}
+
+/**
+ * TF-IDF search across indexed session transcripts.
+ * Used by the Sub-Conscious daemon for cross-session search.
+ */
+export class SessionFTSSearch {
+  private sessions: Map<string, { terms: Map<string, number>; termCount: number; content: string; createdAt: string }> = new Map();
+  private idf: Map<string, number> = new Map();
+  private documentCount = 0;
+  private minTermLength = 2;
+
+  private tokenize(text: string): string[] {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length >= this.minTermLength && t.length <= 30);
+  }
+
+  /** Index a session transcript for cross-session FTS search. */
+  indexSession(sessionId: string, transcriptText: string): void {
+    const terms = this.tokenize(transcriptText);
+    const termMap = new Map<string, number>();
+    for (const term of terms) {
+      termMap.set(term, (termMap.get(term) || 0) + 1);
+    }
+
+    // Update doc frequency for IDF
+    const uniqueTerms = new Set(terms);
+    for (const term of uniqueTerms) {
+      this.idf.set(term, Math.log((this.documentCount + 2) / ((this.idf.has(term) ? this.documentCount : 0) + 2)) + 1);
+    }
+
+    // Rebuild IDF for all terms
+    const N = this.documentCount + 1;
+    const allTerms = new Set<string>();
+    for (const doc of this.sessions.values()) {
+      for (const t of doc.terms.keys()) allTerms.add(t);
+    }
+    for (const t of uniqueTerms) allTerms.add(t);
+    for (const t of allTerms) {
+      let df = 0;
+      for (const doc of this.sessions.values()) {
+        if (doc.terms.has(t)) df++;
+      }
+      if (termMap.has(t)) df++;
+      this.idf.set(t, Math.log((N + 1) / (df + 1)) + 1);
+    }
+
+    this.sessions.set(sessionId, {
+      terms: termMap,
+      termCount: terms.length,
+      content: transcriptText.slice(0, 10000),
+      createdAt: new Date().toISOString(),
+    });
+    this.documentCount++;
+  }
+
+  /** Search across all indexed session transcripts using TF-IDF. */
+  search(query: string, limit = 10): SessionSearchResult[] {
+    if (this.documentCount === 0 || !query.trim()) return [];
+
+    const queryTerms = this.tokenize(query);
+    if (queryTerms.length === 0) return [];
+
+    const scores = new Map<string, number>();
+
+    for (const [sessionId, doc] of this.sessions) {
+      let score = 0;
+      for (const qt of queryTerms) {
+        const tf = doc.terms.get(qt) || 0;
+        const idfVal = this.idf.get(qt) || 1;
+        score += tf * idfVal;
+      }
+      if (doc.termCount > 0) score = score / Math.sqrt(doc.termCount);
+      if (score > 0) scores.set(sessionId, score);
+    }
+
+    return Array.from(scores.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([sessionId, score]) => {
+        const doc = this.sessions.get(sessionId)!;
+        const q = query.toLowerCase();
+        const idx = doc.content.toLowerCase().indexOf(q);
+        let snippet = doc.content.slice(0, 200);
+        if (idx >= 0) {
+          const start = Math.max(0, idx - 50);
+          const end = Math.min(doc.content.length, idx + q.length + 100);
+          snippet = (start > 0 ? '...' : '') + doc.content.slice(start, end) + (end < doc.content.length ? '...' : '');
+        }
+        return { sessionId, score, snippet, createdAt: doc.createdAt };
+      });
+  }
+
+  /** Remove a session from the index. */
+  removeSession(sessionId: string): void {
+    this.sessions.delete(sessionId);
+    this.documentCount = Math.max(0, this.documentCount - 1);
+  }
+
+  /** Get index stats. */
+  getStats(): { indexedSessions: number; vocabularySize: number } {
+    return {
+      indexedSessions: this.sessions.size,
+      vocabularySize: this.idf.size,
+    };
+  }
+}
+
+// Singleton for daemon
+let sessionFTSInstance: SessionFTSSearch | null = null;
+
+export function getSessionFTS(): SessionFTSSearch {
+  if (!sessionFTSInstance) {
+    sessionFTSInstance = new SessionFTSSearch();
+  }
+  return sessionFTSInstance;
+}

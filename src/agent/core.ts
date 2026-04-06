@@ -1038,6 +1038,53 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── Dynamic Skill Management Tools (Agent-Friendly) ─────────────────────
+    this.registerTool({ name: 'skill_list', description: '📋 List all available skills (built-in + file-based)', schema: {}, dangerous: false,
+      handler: async () => {
+        const skills = this.skills.list();
+        return `Available skills (${skills.length}):\n${skills.map(s => `  - ${s}`).join('\n')}`;
+      }
+    });
+    this.registerTool({ name: 'skill_get', description: '📄 Get a skill\'s full content by name', 
+      schema: { name: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const skill = this.skills.get(args.name);
+        if (!skill) {
+          const byTrigger = this.skills.getByNameOrTrigger(args.name);
+          if (byTrigger) {
+            return `Skill: ${byTrigger.name}\nDescription: ${byTrigger.description}\nTriggers: ${byTrigger.triggers.join(', ')}\n\n${byTrigger.content}`;
+          }
+          return `Skill not found: ${args.name}`;
+        }
+        return `Skill: ${skill.name}\nDescription: ${skill.description}\nTriggers: ${skill.triggers.join(', ')}\n\n${skill.content}`;
+      }
+    });
+    this.registerTool({ name: 'skill_register', description: '🆕 Register a new skill dynamically (agent-created)', 
+      schema: { 
+        name: { type: 'string' }, 
+        description: { type: 'string' }, 
+        triggers: { type: 'string' },
+        content: { type: 'string' }
+      }, dangerous: false,
+      handler: async (args: any) => {
+        const triggers = args.triggers ? args.triggers.split(',').map((t: string) => t.trim()) : [];
+        const skill = {
+          name: args.name,
+          description: args.description || args.name,
+          triggers,
+          content: args.content
+        };
+        this.skills.registerSkill(skill);
+        return `Skill registered: ${args.name} with ${triggers.length} trigger(s)`;
+      }
+    });
+    this.registerTool({ name: 'skill_reload', description: '🔄 Reload skills from disk (for newly added file-based skills)', schema: {}, dangerous: false,
+      handler: async () => {
+        await this.skills.reload();
+        return `Skills reloaded: ${this.skills.list().length} total`;
+      }
+    });
+
     // ─── Duck CLI Command Tools ─────────────────────────────────
     this.registerTool({ name: 'duck_run', description: '💻 Run a task with Duck CLI (auto-routes through smart provider chain)',
       schema: { prompt: { type: 'string' }, interactive: { type: 'boolean', optional: true } }, dangerous: false,

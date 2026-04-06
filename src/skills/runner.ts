@@ -143,6 +143,44 @@ export class SkillRunner {
     return Array.from(this.skills.keys());
   }
 
+  /**
+   * Reload skills from disk without restarting the agent
+   * Clears existing file-based skills and re-scans directories
+   */
+  async reload(): Promise<void> {
+    // Keep built-in skills (registered first during load)
+    const builtinSkills = new Map(this.skills);
+    this.skills.clear();
+    // Restore built-in skills
+    for (const [name, skill] of builtinSkills) {
+      if (skill.content.includes('// builtin')) {
+        this.skills.set(name, skill);
+      }
+    }
+    // Re-scan and reload file-based skills
+    await this.load();
+    console.log(`   + Skills reloaded: ${this.skills.size} total`);
+  }
+
+  /**
+   * Register a new skill dynamically at runtime (agent-created skills)
+   */
+  registerSkill(skill: Skill): void {
+    this.skills.set(skill.name, skill);
+    console.log(`   + Skill(registered): ${skill.name}`);
+  }
+
+  /**
+   * Get skill by name - also searches by alias/trigger
+   */
+  getByNameOrTrigger(input: string): Skill | undefined {
+    // Try exact name match first
+    const exact = this.skills.get(input);
+    if (exact) return exact;
+    // Try trigger match
+    return this.find(input);
+  }
+
   async execute(skillName: string, input: string): Promise<string> {
     const skill = this.skills.get(skillName);
     if (!skill) {

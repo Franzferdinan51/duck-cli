@@ -995,28 +995,34 @@ function formatResponse(text: string): string {
 // ============ SINGLE TASK MODE ============
 
 async function runTask(task: string) {
+  const botMode = process.env.DUCK_BOT_MODE === '1';
   if (!task) {
     console.log(`${c.red}Error: No task specified${c.reset}`);
     console.log(`Usage: duck run "your task here"`);
     return;
   }
 
-  console.log(logo);
-  console.log(`${c.cyan}Executing task...${c.reset}\n`);
+  if (!botMode) {
+    console.log(logo);
+    console.log(`${c.cyan}Executing task...${c.reset}\n`);
+    console.log(`${c.yellow}Task: "${task}"${c.reset}\n`);
+  }
 
   const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
-
-  console.log(`${c.yellow}Task: "${task}"${c.reset}\n`);
   
   try {
     const result = await agent.chat(task);
-    console.log(`\n${c.green}Result:${c.reset}`);
-    console.log(formatResponse(result));
+    // Bot mode: only output the actual response, no logo/formatting
+    console.log(botMode ? formatResponse(result) : `\n${c.green}Result:${c.reset}\n${formatResponse(result)}`);
   } catch (e: any) {
-    console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
-    if (process.env.DEBUG_STACK === '1' && e?.stack) {
-      console.log(`${c.dim}${e.stack}${c.reset}`);
+    if (botMode) {
+      console.log(`Error: ${e.message}`);
+    } else {
+      console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
+      if (process.env.DEBUG_STACK === '1' && e?.stack) {
+        console.log(`${c.dim}${e.stack}${c.reset}`);
+      }
     }
   }
 

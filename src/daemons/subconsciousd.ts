@@ -10,7 +10,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { analyzeTranscript, generateWhisper, TranscriptSegment, analyzeCouncilDeliberation } from '../subconscious/persistence/llm-analyzer.js';
 import { SqliteStore, StoredMemory } from '../subconscious/persistence/sqlite-store.js';
-import { FTSSearch, getFTSIndex } from '../subconscious/fts-search.js';
+import { FTSSearch, getFTSIndex, getSessionFTS } from '../subconscious/fts-search.js';
 
 const DEFAULT_PORT = 4001;
 const DATA_DIR = `${process.env.HOME || '/tmp'}/.duckagent/subconscious`;
@@ -53,6 +53,7 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
   const store = new SqliteStore(DATA_DIR);
   const fts = getFTSIndex();
   let ftsIndexed = false;
+  const sessionFTS = getSessionFTS();
   
   // Simple in-memory queue for async analysis
   const analysisQueue: SessionPayload[] = [];
@@ -281,6 +282,32 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
         return;
       }
 
+      // Route: POST /sessions/index - Index a session transcript for cross-session FTS search
+      if (path === '/sessions/index' && method === 'POST') {
+        const payload = JSON.parse(body) as { sessionId: string; transcript: string };
+        sessionFTS.indexSession(payload.sessionId, payload.transcript);
+        console.log(`[Sub-Conscious] Session indexed: ${payload.sessionId} (${payload.transcript.length} chars)`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'indexed', sessionId: payload.sessionId, chars: payload.transcript.length }));
+        return;
+      }
+
+      // Route: GET /sessions/search - TF-IDF search across all indexed session transcripts
+      if (path === '/sessions/search' && method === 'GET') {
+        const query = url.searchParams.get('q') || '';
+        const limit = parseInt(url.searchParams.get('limit') || '10');
+        if (!query) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing query parameter: q' }));
+          return;
+        }
+        const results = sessionFTS.search(query, limit);
+        console.log(`[Sub-Conscious] Session search: "${query}" → ${results.length} results`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ results, count: results.length, query }));
+        return;
+      }
+
       // Route: DELETE /memory/:id
       if (path.startsWith('/memory/') && method === 'DELETE') {
         const id = path.split('/')[2];
@@ -369,6 +396,8 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
     console.log(`   API: http://localhost:${port}/`);
     console.log(`   Whisper: GET /whisper?message=...`);
     console.log(`   Recall: GET /recall?q=...`);
+    console.log(`   Sessions: POST /sessions/index {sessionId, transcript}`);
+    console.log(`   Sessions search: GET /sessions/search?q=...`);
     console.log(`   Session: POST /session {sessionId, transcript}`);
     console.log(`   Council: POST /council {sessionId, topic, councilorId, deliberation}`);
     console.log('');

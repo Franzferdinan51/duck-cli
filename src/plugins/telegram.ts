@@ -194,7 +194,7 @@ async function forwardToGateway(message: string): Promise<string> {
     
     const child = spawn(duckBin, ['run', message], {
       cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
-      env: { ...process.env },
+      env: { ...process.env, DUCK_BOT_MODE: '1' },
       timeout: 45000,
     });
     
