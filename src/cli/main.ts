@@ -86,6 +86,16 @@ async function main() {
   // Strip leading -- for consistency with Go wrapper
   const cmd = command?.replace(/^--/, '') || '';
 
+  // Handle duck meta [subcommand] - Go passes "meta learnings" as single string
+  if (cmd.startsWith("meta ") || cmd === "meta") {
+    const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
+    const metaCmd = createMetaAgentCommand();
+    const rawArgs = cmd === "meta" ? [] : cmd.substring(5).trim().split(' ');
+    const fullArgs = ['node', 'meta', ...rawArgs].filter((a: string) => a.length > 0);
+    await metaCmd.parseAsync(fullArgs);
+    return;
+  }
+
   // duck (no args) → interactive shell (standalone mode for humans)
   if (!command || cmd === 'shell' || cmd === 'i' || cmd === 'chat' || cmd === 'interactive') {
     await startShell();
@@ -292,6 +302,14 @@ async function main() {
     case 'ai-council':
       await councilCommand(args);
       break;
+
+    case 'meta':
+    case 'agent:meta': {
+      const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
+      const metaCmd = createMetaAgentCommand();
+      await metaCmd.parseAsync(['node', 'meta', ...args]);
+      break;
+    }
 
     case 'workflow':
     case 'flow': {

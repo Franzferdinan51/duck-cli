@@ -101,7 +101,8 @@ Features:
 		buddyCmd(),
 		teamCmd(),
 		meshCmd(),
-		meshdCmd(),
+
+	metaCmd(),		meshdCmd(),
 		rlCmd(),
 		acpServerCmd(),
 		acpSpawnCmd(),
@@ -299,6 +300,24 @@ func teamCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// metaCmd - duck meta [plan|run|learnings]
+func metaCmd() *cobra.Command {
+	metaCmd := &cobra.Command{
+		Use:   "meta",
+		Short: "🦆 duck-cli v3 Meta-Agent (LLM-powered orchestration)",
+		Long:  "Plan, execute, and learn from tasks with the Meta-Agent loop.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Pass as two args: "meta" and then rest as single string
+			metaArgs := []string{"meta"}
+			if len(args) > 0 {
+				metaArgs = append(metaArgs, strings.Join(args, " "))
+			}
+			return runNodeDirect(strings.Join(metaArgs, " "), cmd)
+		},
+	}
+	return metaCmd
 }
 
 // meshCmd - duck mesh [action]
@@ -901,6 +920,32 @@ func getFirstDevice() string {
 }
 
 // runNodeWithEnv runs node with provider/model/priority env vars
+func runNodeDirect(script string, cobraCmd *cobra.Command) error {
+	// Like runNodeWithEnv but passes script as a SINGLE argument (no space-splitting)
+	exePath, _ := os.Executable()
+	cmdDir := filepath.Dir(exePath)
+	distPath := filepath.Join(cmdDir, "dist")
+	if realDist, err := filepath.EvalSymlinks(distPath); err == nil {
+		cmdDir = filepath.Dir(realDist)
+	}
+	nodeArgs := []string{filepath.Join(cmdDir, "dist", "cli", "main.js"), script}
+	nodeCmd := exec.Command("node", nodeArgs...)
+	nodeCmd.Stdout = os.Stdout
+	nodeCmd.Stderr = os.Stderr
+	nodeCmd.Stdin = os.Stdin
+	env := os.Environ()
+	nodeModulesPath := filepath.Join(cmdDir, "node_modules")
+	if _, err := os.Stat(nodeModulesPath); err == nil {
+		env = append(env, "NODE_PATH="+nodeModulesPath)
+	}
+	if flagProvider != "" { env = append(env, "DUCK_PROVIDER="+flagProvider) }
+	if flagModel != "" { env = append(env, "DUCK_MODEL="+flagModel) }
+	if flagPriority != "" { env = append(env, "DUCK_PRIORITY="+flagPriority) }
+	nodeCmd.Env = env
+	nodeCmd.Env = append(nodeCmd.Env, "DUCK_SOURCE_DIR="+cmdDir)
+	return nodeCmd.Run()
+}
+
 func runNodeWithEnv(script string, cobraCmd *cobra.Command) error {
 	exePath, _ := os.Executable()
 	cmdDir := filepath.Dir(exePath)

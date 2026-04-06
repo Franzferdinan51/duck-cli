@@ -306,3 +306,11 @@ export async function createDemoOrchestrator(): Promise<OrchestratorCore> {
 export type { ToolRegistry as Registry } from './tool-registry.js';
 export type { ExecutionEngine as Engine } from './execution-engine.js';
 export type { TaskRouter as Router } from './task-router.js';
+
+// Meta-Agent exports (v3)
+export * from './meta-types.js';
+export { MetaPlanner } from './meta-planner.js';
+export { MetaCritic } from './meta-critic.js';
+export { MetaHealer } from './meta-healer.js';
+export { MetaLearner } from './meta-learner.js';
+export { MetaAgent, MetaAgentResult } from './meta-agent.js';

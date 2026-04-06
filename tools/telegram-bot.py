@@ -46,7 +46,8 @@ def duck_run(message):
             text=True,
             timeout=120,
             cwd=os.path.dirname(DUCK_CLI),
-            env={**os.environ, "DUCK_SOURCE_DIR": os.path.dirname(DUCK_CLI)}
+            env={**os.environ, "DUCK_SOURCE_DIR": os.path.dirname(DUCK_CLI),
+                "PATH": os.environ.get("PATH","") + ":/usr/local/bin:/opt/homebrew/bin:/opt/local/bin"}
         )
         out = result.stdout.strip() or result.stderr.strip() or "(no output)"
         return out[-4000:]  # last 4000 chars
