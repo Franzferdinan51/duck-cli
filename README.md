@@ -133,22 +133,43 @@ Task → MetaPlanner (LLM) → Structured Plan
 
 The Chat Agent is the **conversational entry point** for duck-cli. It sits between user input and the orchestrator, handling chat history and deciding when to involve AI Council or the MetaAgent.
 
-```bash
-# Start as standalone HTTP server
-./duck chat-agent start --port 18797
+**Multi-provider support** — use any model you want:
 
-# Or integrate with Telegram:
-./duck telegram start
+```bash
+# MiniMax (default)
+DUCK_CHAT_PROVIDER=minimax DUCK_CHAT_MODEL=MiniMax-M2.7 ./duck chat-agent start
+
+# LM Studio (free local!)
+DUCK_CHAT_PROVIDER=lmstudio DUCK_CHAT_MODEL=qwen3.5-0.8b ./duck chat-agent start
+
+# Kimi (Moonshot)
+DUCK_CHAT_PROVIDER=kimi DUCK_CHAT_MODEL=k2p5 ./duck chat-agent start
+
+# OpenAI (ChatGPT OAuth)
+DUCK_CHAT_PROVIDER=openai DUCK_CHAT_MODEL=gpt-5.4 ./duck chat-agent start
+
+# OpenRouter (free tier!)
+DUCK_CHAT_PROVIDER=openrouter DUCK_CHAT_MODEL=qwen/qwen3.6-plus-preview:free ./duck chat-agent start
+```
+
+**Runtime switching** (via HTTP headers or body):
+```bash
+curl -X POST localhost:18797/chat \
+  -H "X-Provider: lmstudio" \
+  -H "X-Model: qwen3.5-0.8b" \
+  -d '{"userId":"duck","message":"hello"}'
 ```
 
 **HTTP Endpoints:**
 ```
-POST /chat          — Send message, get response
-POST /chat/stream   — Streaming response
+POST /chat              — Send message, get response
+POST /chat/stream       — Streaming response
+GET  /providers         — List available providers + status
+POST /providers/switch  — Switch provider at runtime
 GET  /chat/:userId/history — Session history
-DELETE /chat/:userId — Clear session
-GET  /sessions      — List all sessions
-GET  /health        — Health check
+DELETE /chat/:userId    — Clear session
+GET  /sessions          — List all sessions
+GET  /health            — Health check
 ```
 
 **Chat flow:**
