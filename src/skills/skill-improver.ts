@@ -200,6 +200,7 @@ export class SkillImprover {
     const health = this.getSkillHealth(skillName);
 
     const provider = new ProviderManager();
+    await provider.load(); // Initialize providers before use
     const model = 'minimax/glm-5';
 
     const analysisPrompt = `Analyze this skill and suggest improvements:

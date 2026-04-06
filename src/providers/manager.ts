@@ -196,7 +196,8 @@ export class ProviderManager {
 
     const msgList = messages || [{ role: 'user', content: prompt }];
     const actualModel = fallbackModel;
-    const actualProvider = prov ? (this.providers.get(resolvedProvider) ? resolvedProvider : Object.keys(this.providers).find(k => this.providers.get(k) === prov) || resolvedProvider) : resolvedProvider;
+    const provKeys = [...this.providers.keys()];
+    const actualProvider = prov ? (this.providers.get(resolvedProvider) ? resolvedProvider : provKeys.find(k => this.providers.get(k) === prov) || resolvedProvider) : resolvedProvider;
     console.log(`[Router📡] Routing: ${actualProvider}/${actualModel}`);
 
     // Add timeout wrapper (60 second max per call)
