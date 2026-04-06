@@ -163,7 +163,9 @@ export async function meshCommand(args: string[]): Promise<void> {
       }
 
       // Find the server entry point
-      const serverPath = join(MESH_API_DIR, 'src', 'server.js');
+      const serverPath = existsSync(join(MESH_API_DIR, 'src', 'server.js'))
+        ? join(MESH_API_DIR, 'src', 'server.js')
+        : join(MESH_API_DIR, 'server.js');
       if (!existsSync(serverPath)) {
         console.log(`${c.red}❌ Mesh API not found at: ${serverPath}${c.reset}`);
         console.log(`\n${c.yellow}To install mesh-api:${c.reset}`);
