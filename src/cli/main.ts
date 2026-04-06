@@ -55,7 +55,7 @@ import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
 import { runHealthCheck, runBootDiagnostics, printHealthReport } from '../agent/health-check.js';
 import { getConfigManager, ConfigManager } from '../agent/config-manager.js';
 import { getSelfMonitor, SelfMonitor } from '../agent/self-monitor.js';
-import { DEFAULT_MCP_PORT, DEFAULT_MESH_PORT, DEFAULT_SUBCONSCIOUS_PORT } from '../config/index.js';
+import { DEFAULT_MCP_PORT, DEFAULT_MESH_PORT, DEFAULT_SUBCONSCIOUS_PORT, DEFAULT_ACP_PORT } from '../config/index.js';
 
 // Colors
 const c = {

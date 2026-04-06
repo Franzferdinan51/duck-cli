@@ -7,6 +7,7 @@ import { AgentCard, TaskPayload, TaskResult, A2AMessage, A2AResponse } from './t
 import { AgentCardManager } from '../mesh/agent-card.js';
 import { randomUUID } from 'crypto';
 import http from 'http';
+import { DEFAULT_A2A_PORT } from '../config/index.js';
 
 interface Task {
   id: string;
@@ -50,7 +51,7 @@ export class A2AServer {
   /**
    * Start the A2A HTTP server
    */
-  async start(port: number = 4001): Promise<void> {
+  async start(port: number = DEFAULT_A2A_PORT): Promise<void> {
     this.server = http.createServer(async (req, res) => {
       // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');

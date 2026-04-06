@@ -11,6 +11,7 @@ import { EventEmitter } from 'events';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, Server as HTTPServer } from 'http';
 import { Agent } from '../agent/core.js';
+import { DEFAULT_ACP_PORT } from '../config/index.js';
 
 export interface ACPServerConfig {
   port?: number;
@@ -74,7 +75,7 @@ export class ACPServer extends EventEmitter {
   constructor(agent: Agent, config: ACPServerConfig = {}) {
     super();
     this.agent = agent;
-    this.port = config.port || 18794;
+    this.port = config.port || DEFAULT_ACP_PORT;
     this.config = {
       port: this.port,
       host: config.host || '0.0.0.0',

@@ -72,6 +72,12 @@ export const DEFAULT_LIVE_ERROR_PORT = parseInt(process.env.LIVE_ERROR_PORT || '
 /** ACP server default port (for OpenClaw gateway) */
 export const DEFAULT_ACP_PORT = parseInt(process.env.ACP_PORT || '18794');
 
+/** A2A server default port */
+export const DEFAULT_A2A_PORT = parseInt(process.env.A2A_PORT || '4001');
+
+/** Telegram webhook server default port */
+export const DEFAULT_TELEGRAM_WEBHOOK_PORT = parseInt(process.env.TELEGRAM_WEBHOOK_PORT || '8443');
+
 // ─── API Keys (with fallback defaults for dev) ────────────────────────────────
 
 export const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';

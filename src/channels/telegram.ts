@@ -13,6 +13,7 @@
 import https from 'https';
 import http from 'http';
 import { Agent } from '../agent/core.js';
+import { DEFAULT_TELEGRAM_WEBHOOK_PORT } from '../config/index.js';
 
 export interface TelegramConfig {
   botToken: string;
@@ -221,7 +222,7 @@ export class TelegramChannel {
   /**
    * Create a webhook server (Express example)
    */
-  createWebhookServer(port: number = 8443): http.Server {
+  createWebhookServer(port: number = DEFAULT_TELEGRAM_WEBHOOK_PORT): http.Server {
     const server = http.createServer(async (req, res) => {
       if (req.method === 'POST') {
         let body = '';

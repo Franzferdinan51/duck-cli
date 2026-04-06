@@ -10,6 +10,7 @@
 import { getSubconscious } from '../subconscious/index.js';
 import { getAISubconscious, AISubconscious } from '../subconscious/ai-subconscious.js';
 import { SubconsciousClient, getSubconsciousClient } from '../subconscious/client.js';
+import { DEFAULT_SUBCONSCIOUS_PORT } from '../config/index.js';
 
 const c = {
   green: '\x1b[32m',
@@ -29,7 +30,7 @@ export async function subconsciousCommand(args: string[]): Promise<void> {
     case 'daemon': {
       // Start the daemon inline
       const { startDaemon } = await import('../daemons/subconsciousd.js');
-      const port = parseInt(args[1]) || parseInt(process.env.SUBCONSCIOUS_PORT || '4001');
+      const port = parseInt(args[1]) || DEFAULT_SUBCONSCIOUS_PORT;
       await startDaemon(port);
       return;
     }
