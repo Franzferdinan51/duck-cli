@@ -66,35 +66,214 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
-function sanitizeTelegramReply(text: string): string {
-  const filtered = String(text)
-    .replace(/<think>[\s\S]*?<\/think>/g, '')
-    .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .filter(line => !(
-      line.startsWith('◇ injected env') ||
-      line.startsWith('[Provider]') ||
-      line.startsWith('[Router') ||
-      line.startsWith('[LMStudio]') ||
-      line.startsWith('[MetaPlanner]') ||
-      line.startsWith('🦆 Duck Agent shutting down') ||
-      line.startsWith('Total cost:') ||
-      line.startsWith('Interactions:') ||
-      line.startsWith('Success rate:') ||
-      line.startsWith('Sessions:') ||
-      line.startsWith('Learned skills:') ||
-      line.startsWith('Cron jobs:') ||
-      line.startsWith('Active subagents:') ||
-      line.startsWith('✅ Duck Agent stopped')
-    ))
-    .join('\n')
-    .replace(/\[TOOL:.*?\]/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+// ─── Traffic-Type Message Router ─────────────────────────────────────────────
+// Separates internal duck-cli operational traffic from public Telegram replies.
+// Internal traffic (council, whispers, KAIROS, meta) stays local;
+// only PUBLIC traffic goes to the Telegram chat.
 
-  return filtered || '🦆 Processed, but no clean reply was returned.';
+export type TrafficType = 'PUBLIC' | 'INTERNAL' | 'WHISPER' | 'COUNCIL' | 'KAIROS' | 'ERROR' | 'META';
+
+export interface RoutedMessage {
+  type: TrafficType;
+  text: string;
+  timestamp: number;
+}
+
+export class MessageRouter {
+  /** Internal-only messages that should NOT appear in Telegram */
+  private internalBuffer: RoutedMessage[] = [];
+  private maxBufferSize: number;
+  private onInternal?: (msg: RoutedMessage) => void;
+
+  constructor(maxBufferSize = 200, onInternal?: (msg: RoutedMessage) => void) {
+    this.maxBufferSize = maxBufferSize;
+    this.onInternal = onInternal;
+  }
+
+  /**
+   * Classify a single output line from duck-cli.
+   * Priority: ERROR > WHISPER > COUNCIL > KAIROS > META > INTERNAL > PUBLIC
+   */
+  classify(line: string): TrafficType {
+    const l = line.trim();
+    if (!l) return 'PUBLIC';
+
+    // ERROR lines — always internal
+    if (
+      l.startsWith('[Healer]') ||
+      l.startsWith('[ERROR]') ||
+      l.startsWith('[MetaHealer]') ||
+      l.startsWith('[FallbackManager]') ||
+      l.includes('AllToolsFailedError') ||
+      l.includes('heal:') ||
+      l.startsWith('🔴') ||
+      l.startsWith('⚠️') && (l.includes('error') || l.includes('fail') || l.includes('Error'))
+    ) return 'ERROR';
+
+    // WHISPER — subconscious alerts
+    if (
+      l.startsWith('[Whisper') ||
+      l.startsWith('[Subconscious]') && l.includes('whisper') ||
+      l.startsWith('💭') ||
+      l.includes('[WHISPER]') ||
+      l.includes('whisper_confidence:')
+    ) return 'WHISPER';
+
+    // COUNCIL — AI Council deliberation
+    if (
+      l.startsWith('[Council') ||
+      l.startsWith('[CouncilBridge]') ||
+      l.startsWith('[AI Council]') ||
+      l.includes('[COUNCIL]') ||
+      l.startsWith('⚖️') && l.includes('council') ||
+      l.includes('Verdict:') ||
+      l.includes('Deliberation') ||
+      l.includes('council_reasoning:')
+    ) return 'COUNCIL';
+
+    // KAIROS — autonomous proactive mode
+    if (
+      l.startsWith('[KAIROS') ||
+      l.startsWith('[Kairos') ||
+      l.startsWith('🦆 KAIROS') ||
+      l.includes('[KAIROS]') ||
+      l.includes('[Dream') ||
+      l.includes('Dream complete') ||
+      l.includes('idle tick') ||
+      l.includes('proactive action')
+    ) return 'KAIROS';
+
+    // META — MetaPlanner, MetaCritic, MetaLearner output
+    if (
+      l.startsWith('[MetaPlanner') ||
+      l.startsWith('[MetaCritic') ||
+      l.startsWith('[MetaLearner') ||
+      l.startsWith('[MetaAgent') ||
+      l.startsWith('[Meta]') ||
+      l.includes('[META]')
+    ) return 'META';
+
+    // INTERNAL — tool/provider noise that pollutes public replies
+    if (
+      l.startsWith('◇ injected env') ||
+      l.startsWith('[Provider]') ||
+      l.startsWith('[Router]') ||
+      l.startsWith('[Router ') ||
+      l.startsWith('[LMStudio]') ||
+      l.startsWith('[MiniMax]') ||
+      l.startsWith('[Kimi]') ||
+      l.startsWith('[OpenRouter]') ||
+      l.startsWith('[Mesh') ||
+      l.startsWith('[Subconscious') && !l.includes('whisper') ||
+      l.startsWith('🦆 Duck Agent shutting down') ||
+      l.startsWith('Total cost:') ||
+      l.startsWith('Interactions:') ||
+      l.startsWith('Success rate:') ||
+      l.startsWith('Sessions:') ||
+      l.startsWith('Learned skills:') ||
+      l.startsWith('Cron jobs:') ||
+      l.startsWith('Active subagents:') ||
+      l.startsWith('✅ Duck Agent stopped') ||
+      l.startsWith('[Tool') ||
+      l.startsWith('[Healer') ||
+      l.includes('→ tool:') ||
+      l.includes('executing tool') ||
+      l.includes('fallback triggered') ||
+      l.includes('self-heal')
+    ) return 'INTERNAL';
+
+    return 'PUBLIC';
+  }
+
+  /**
+   * Route a full block of text from duck-cli.
+   * Returns { publicText, internalMessages } so callers can
+   * send PUBLIC to Telegram and log INTERNAL locally.
+   */
+  route(text: string): { publicText: string; internalMessages: RoutedMessage[] } {
+    const lines = String(text)
+      .replace(/<think>[\s\S]*?<\/think>/g, '')
+      .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
+      .split('\n');
+
+    const publicLines: string[] = [];
+    const internal: RoutedMessage[] = [];
+    const now = Date.now();
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      const type = this.classify(line);
+      const msg: RoutedMessage = { type, text: line, timestamp: now };
+
+      if (type === 'PUBLIC') {
+        publicLines.push(line);
+      } else {
+        internal.push(msg);
+      }
+    }
+
+    // Add to buffer
+    this.internalBuffer.push(...internal);
+    if (this.internalBuffer.length > this.maxBufferSize) {
+      this.internalBuffer = this.internalBuffer.slice(-this.maxBufferSize);
+    }
+
+    // Notify listener if set
+    for (const msg of internal) {
+      this.onInternal?.(msg);
+    }
+
+    const publicText = publicLines.join('\n')
+      .replace(/\[TOOL:.*?\]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    return {
+      publicText: publicText || '🦆 Processed, but no clean reply was returned.',
+      internalMessages: internal,
+    };
+  }
+
+  /** Get all buffered internal messages */
+  getInternalBuffer(): RoutedMessage[] {
+    return [...this.internalBuffer];
+  }
+
+  /** Get recent internal messages of a specific type */
+  getRecent(type: TrafficType, limit = 20): RoutedMessage[] {
+    return this.internalBuffer
+      .filter(m => m.type === type)
+      .slice(-limit);
+  }
+
+  /** Clear the internal buffer */
+  clearBuffer(): void {
+    this.internalBuffer = [];
+  }
+
+  /** Log internal messages to console (for debugging) */
+  logInternal(label = '📋 Internal Traffic'): void {
+    const counts: Partial<Record<TrafficType, number>> = {};
+    for (const m of this.internalBuffer) {
+      counts[m.type] = (counts[m.type] || 0) + 1;
+    }
+    console.log(`${label} buffered:`, counts);
+  }
+}
+
+/** Singleton router instance shared across the plugin */
+export const messageRouter = new MessageRouter();
+
+/**
+ * sanitizeTelegramReply — DEPRECATED wrapper.
+ * Use messageRouter.route() instead for traffic-type-aware routing.
+ * This function is kept for backward compatibility with direct calls.
+ */
+function sanitizeTelegramReply(text: string): string {
+  const { publicText } = messageRouter.route(text);
+  return publicText;
 }
 
 function loadUpdateOffset(): number {
@@ -328,7 +507,9 @@ async function forwardToGateway(
       const chunk = data.toString();
       stdout += chunk;
       if (opts.onChunk) {
-        const runningText = sanitizeTelegramReply(stdout);
+        // Route through MessageRouter so INTERNAL/WHISPER/COUNCIL/KAIROS/META traffic
+        // is filtered out of the progressive Telegram edit-in-place updates.
+        const { publicText: runningText } = messageRouter.route(stdout);
         opts.onChunk(chunk, runningText);
       }
     });
