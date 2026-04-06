@@ -1,7 +1,7 @@
 /**
  * 🦆 Duck CLI - Telegram Plugin
  * Full duplex Telegram bot - sends AND receives messages
- * 
+ *
  * Usage:
  *   duck telegram test        - Send test message to configured chat ID
  *   duck telegram start       - Start Telegram bot (continuous polling)
@@ -146,7 +146,10 @@ function telegramRequest(method: string, body: Record<string, any> = {}): Promis
   });
 }
 
-async function sendMessage(text: string, replyTo?: number): Promise<void> {
+/**
+ * Send a message. Returns the Telegram message_id so callers can edit it.
+ */
+async function sendMessage(text: string, replyTo?: number): Promise<number | undefined> {
   const { botToken, chatId } = getConfig();
   const payload: any = {
     chat_id: chatId,
@@ -154,7 +157,27 @@ async function sendMessage(text: string, replyTo?: number): Promise<void> {
     parse_mode: 'HTML',
   };
   if (replyTo) payload.reply_to_message_id = replyTo;
-  await telegramRequest('sendMessage', payload);
+  const result = await telegramRequest('sendMessage', payload);
+  return (result as any)?.message_id;
+}
+
+/**
+ * Edit an existing Telegram message in-place.
+ *
+ * Telegram allows editing messages within 48 hours of sending.
+ * Used for the draft/edit-in-place pattern during long-running orchestrated replies:
+ *   1. Send initial "processing..." placeholder
+ *   2. Progressively edit as chunks arrive
+ *   3. Final edit replaces placeholder with clean response
+ */
+async function editMessage(messageId: number, text: string): Promise<void> {
+  const { botToken, chatId } = getConfig();
+  await telegramRequest('editMessageText', {
+    chat_id: chatId,
+    message_id: messageId,
+    text: escapeHtml(text),
+    parse_mode: 'HTML',
+  });
 }
 
 async function sendVoice(filePath: string, caption?: string, replyTo?: number): Promise<void> {
@@ -226,7 +249,34 @@ async function getUpdates(offset: number = 0, timeout: number = 30): Promise<any
 
 // ─── Duck CLI Gateway Forwarder ──────────────────────────────────────────────
 
-async function forwardToGateway(message: string, chatId?: string): Promise<string> {
+/**
+ * Callback for progressive chunk delivery during long-running tasks.
+ * Fires each time stdout receives new data from the subprocess,
+ * enabling edit-in-place Telegram replies instead of silent waiting.
+ */
+type ChunkCallback = (rawChunk: string, runningText: string) => void;
+
+interface ForwardOptions {
+  /** Called with each stdout chunk for progressive Telegram updates */
+  onChunk?: ChunkCallback;
+}
+
+/**
+ * Forward a user message to duck-cli and return the response.
+ *
+ * For long-running orchestrated replies this supports a streaming callback (onChunk)
+ * so the Telegram message can be progressively edited as output arrives, giving the
+ * user live feedback instead of silent waiting.
+ *
+ * @param message   The user's text message
+ * @param chatId    Telegram chat ID (used for typing keepalive)
+ * @param opts      Optional: onChunk callback for progressive updates
+ */
+async function forwardToGateway(
+  message: string,
+  chatId?: string,
+  opts: ForwardOptions = {},
+): Promise<string> {
   return new Promise((resolve) => {
     const duckBin = process.env.DUCK_BINARY || findDuckBinary();
     if (!duckBin) {
@@ -235,21 +285,23 @@ async function forwardToGateway(message: string, chatId?: string): Promise<strin
     }
 
     // Support both DUCK_TIMEOUT_MS (general override) and DUCK_TELEGRAM_REPLY_TIMEOUT_MS (Telegram-specific).
-    // DUCK_TIMEOUT_MS: orchestator/plugin-level timeout
-    // DUCK_TELEGRAM_REPLY_TIMEOUT_MS: Telegram-specific outer timeout (default 5 min)
-    const envGeneral = parseInt(process.env.DUCK_TIMEOUT_MS || '0', 10);
-    const envTelegram = parseInt(process.env.DUCK_TELEGRAM_REPLY_TIMEOUT_MS || '0', 10);
-    const timeoutMs = envTelegram > 0 ? envTelegram : (envGeneral > 0 ? envGeneral : 300000);
+    // DUCK_TELEGRAM_REPLY_TIMEOUT_MS takes priority (default 5 min).
+    const envGeneral   = parseInt(process.env.DUCK_TIMEOUT_MS || '0', 10);
+    const envTelegram  = parseInt(process.env.DUCK_TELEGRAM_REPLY_TIMEOUT_MS || '0', 10);
+    const timeoutMs    = envTelegram > 0 ? envTelegram : (envGeneral > 0 ? envGeneral : 300000);
+
     const child = spawn(duckBin, ['run', message], {
       cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
       env: { ...process.env, DUCK_BOT_MODE: '1' },
-      timeout: timeoutMs,
     });
 
     let stdout = '';
     let stderr = '';
     let finished = false;
 
+    // Periodic typing keepalive every 4s — Telegram shows "typing..." to the user.
+    // Critical for long-running orchestrated tasks where the user would otherwise
+    // see nothing until the final response arrives (which can take 10+ seconds).
     const typingInterval = chatId
       ? setInterval(() => {
           telegramRequest('sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => {});
@@ -263,15 +315,23 @@ async function forwardToGateway(message: string, chatId?: string): Promise<strin
       resolve(text);
     };
 
-    child.stdout?.on('data', (data) => {
-      stdout += data.toString();
+    // Stream stdout chunks to callback for progressive Telegram reply updates.
+    // Even when the AI model returns a single blob, intermediate tool output
+    // (shell commands, file operations) arrives incrementally and benefits from this.
+    child.stdout?.on('data', (data: Buffer) => {
+      const chunk = data.toString();
+      stdout += chunk;
+      if (opts.onChunk) {
+        const runningText = sanitizeTelegramReply(stdout);
+        opts.onChunk(chunk, runningText);
+      }
     });
 
-    child.stderr?.on('data', (data) => {
+    child.stderr?.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
-    child.on('close', (_code) => {
+    child.on('close', (_code: number) => {
       if (stdout.trim()) {
         finish(sanitizeTelegramReply(stdout));
       } else if (stderr.trim()) {
@@ -281,14 +341,14 @@ async function forwardToGateway(message: string, chatId?: string): Promise<strin
       }
     });
 
-    child.on('error', (err) => {
+    child.on('error', (err: Error) => {
       finish(`🦆 Error running duck: ${err.message}`);
     });
 
     setTimeout(() => {
       child.kill('SIGTERM');
       setTimeout(() => {
-        try { child.kill('SIGKILL'); } catch {}
+        try { child.kill('SIGKILL'); } catch { /* ignore */ }
       }, 3000);
       finish(`🦆 Request timed out after ${Math.round(timeoutMs / 1000)}s`);
     }, timeoutMs);
@@ -431,13 +491,41 @@ export async function telegramStart(): Promise<void> {
 
         console.log(`📩 From ${msg.from?.first_name || 'user'}: ${text}`);
 
-        // Typing indicator
+        // ── DRAFT / EDIT-IN-PLACE PATTERN ──────────────────────────────────
+        // Send an immediate "processing" placeholder so the user gets instant
+        // acknowledgment. Then progressively edit it as chunks arrive.
+        // Finally replace it with the clean final response.
+        // ────────────────────────────────────────────────────────────────────
+        const PLACEHOLDER = '🧠 <i>Processing your request...</i>';
+        let replyMsgId: number | undefined;
         try {
-          await telegramRequest('sendChatAction', { chat_id: msgChatId, action: 'typing' });
-        } catch {}
+          const result = await telegramRequest('sendMessage', {
+            chat_id: msgChatId,
+            text: escapeHtml(PLACEHOLDER),
+            parse_mode: 'HTML',
+            reply_to_message_id: msg.message_id,
+          }) as any;
+          replyMsgId = result?.message_id;
+        } catch {
+          // Non-fatal: continue without progressive updates
+        }
 
         try {
-          const response = await forwardToGateway(text, msgChatId);
+          const response = await forwardToGateway(text, msgChatId, {
+            // Progressive edit: update Telegram message as chunks arrive.
+            // Telegram edit limit is 4096 chars; show trailing chars if over limit.
+            onChunk: async (_rawChunk: string, runningText: string) => {
+              if (!replyMsgId) return;
+              const editText = runningText.length > 4096
+                ? '📝 ' + runningText.slice(-4093)
+                : (runningText || '📝 Processing...');
+              try {
+                await editMessage(replyMsgId, editText);
+              } catch {
+                // Non-fatal: message may be >48h old or hit flood control
+              }
+            },
+          });
 
           // Extract [AUDIO:filepath] markers and send voice messages
           const audioMarkers = response.match(/\[AUDIO:([^\]]+)\]/g) || [];
@@ -456,14 +544,45 @@ export async function telegramStart(): Promise<void> {
           // Strip [AUDIO:filepath] markers from display text
           const displayText = response.replace(/\[AUDIO:[^\]]+\]/g, '').trim();
 
-          // Telegram message length limit
-          const chunks = displayText.match(/.{1,4096}/g) || [displayText];
-          for (const chunk of chunks) {
-            await sendMessage(chunk, msg.message_id);
+          if (replyMsgId) {
+            // We have a draft — replace it with the final response
+            if (displayText.length <= 4096) {
+              // Final text fits in one message — edit in-place (clean single message)
+              await editMessage(replyMsgId, displayText || '🦆 Done.');
+              console.log(`📤 Replied (1 message, edited in-place)`);
+            } else {
+              // Final text exceeds edit limit — delete draft, send as normal chunks
+              try {
+                await telegramRequest('deleteMessage', {
+                  chat_id: msgChatId,
+                  message_id: replyMsgId,
+                });
+              } catch { /* ignore */ }
+              const chunks = displayText.match(/.{1,4096}/g) || [displayText];
+              for (const chunk of chunks) {
+                await sendMessage(chunk, msg.message_id);
+              }
+              console.log(`📤 Replied (${chunks.length} message(s), draft replaced)`);
+            }
+          } else {
+            // No draft possible — fall back to normal multi-chunk reply
+            const chunks = displayText.match(/.{1,4096}/g) || [displayText];
+            for (const chunk of chunks) {
+              await sendMessage(chunk, msg.message_id);
+            }
+            console.log(`📤 Replied (${chunks.length} message(s))`);
           }
-          console.log(`📤 Replied (${chunks.length} message(s))`);
         } catch (e: any) {
           console.error(`❌ Reply failed: ${e.message}`);
+          // Clean up placeholder if it was sent
+          if (replyMsgId) {
+            try {
+              await telegramRequest('deleteMessage', {
+                chat_id: msgChatId,
+                message_id: replyMsgId,
+              });
+            } catch { /* ignore */ }
+          }
           await sendMessage(`⚠️ Error processing your message: ${e.message}`, msg.message_id);
         }
 
@@ -508,14 +627,15 @@ Commands:
 Environment Variables (set in .env or shell):
   TELEGRAM_BOT_TOKEN    Your Telegram bot token (from @BotFather)
   TELEGRAM_CHAT_ID      Your Telegram chat ID (default: 588090613)
+  DUCK_TELEGRAM_REPLY_TIMEOUT_MS  Max wait for a reply (default: 300000 = 5 min)
 
 Example:
   duck telegram test
   duck telegram send "Hello from duck-cli!"
   duck telegram start     # ← This makes the bot RESPOND to messages
 
-The bot will connect to duck-cli/OpenClaw gateway at localhost:18789
-and forward all messages for AI responses.
+The bot will connect to duck-cli via the 'duck run' command and
+forward all messages for AI responses.
 `);
   }
 }
