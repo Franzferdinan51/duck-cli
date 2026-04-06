@@ -184,7 +184,9 @@ export class ExecutionTracer {
         if (!sessionId || trace.sessionId === sessionId) {
           traces.push(trace);
         }
-      } catch {}
+      } catch (error) {
+        console.error('[ExecutionTracer] Failed to read trace file:', error);
+      }
     }
 
     return traces.sort((a, b) => 
