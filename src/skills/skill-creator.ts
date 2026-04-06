@@ -5,9 +5,30 @@
  */
 
 import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
 import { ProviderManager } from '../providers/manager.js';
 import { SkillRunner } from './runner.js';
+
+// Ensure environment variables are loaded before provider use
+function ensureEnv(): void {
+  if (!process.env.MINIMAX_API_KEY && !process.env.OPENROUTER_API_KEY) {
+    try {
+      const dotenv = require('dotenv');
+      const paths = [
+        join(process.cwd(), '.env'),
+        join(homedir(), '.openclaw', 'workspace', 'duck-cli-src', '.env'),
+        join(dirname(process.argv[1] || '/'), '..', '..', '.env'),
+      ];
+      for (const p of paths) {
+        if (existsSync(p)) {
+          dotenv.config({ path: p });
+          break;
+        }
+      }
+    } catch {}
+  }
+}
 
 export interface SkillExecution {
   id: string;
@@ -35,7 +56,7 @@ const SKILL_AUTOCREATE_DIR = join(process.env.HOME || '/tmp', '.duck', 'skills',
 export class SkillCreator {
   private skillExecutions: Map<string, SkillExecution[]> = new Map();
   private skillPatterns: Map<string, number> = new Map(); // pattern → count
-  private minPatternLength = 3; // Min tools in sequence to consider
+  private minPatternLength = 2; // Min tools in sequence to consider
   private minOccurrences = 3;   // Times a pattern must repeat to create skill
 
   constructor() {
@@ -111,10 +132,12 @@ export class SkillCreator {
     // Build context for LLM
     const context = this.buildCreationContext(pattern, executions);
 
-    // Use MiniMax for skill generation (fast + capable)
+    // Load env vars so provider can actually call the LLM
+    ensureEnv();
     const provider = new ProviderManager();
+    await provider.load();
     await provider.load(); // Initialize providers before use
-    const model = 'minimax/glm-5';
+    const model = 'minimax/MiniMax-M2.7';
 
     const systemPrompt = `You are duck-cli's Skill Creator. Given a recurring task pattern, output a properly formatted SKILL.md file.
 
@@ -191,7 +214,7 @@ Rules:
 
     const provider = new ProviderManager();
     await provider.load(); // Initialize providers before use
-    const model = 'minimax/glm-5';
+    const model = 'minimax/MiniMax-M2.7';
 
     const context = `Create a skill from this request:\n"${prompt}"\n\nSteps identified:\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
 

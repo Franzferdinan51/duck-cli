@@ -5,8 +5,29 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
 import { ProviderManager } from '../providers/manager.js';
+
+// Ensure environment variables are loaded before provider use
+function ensureEnv(): void {
+  if (!process.env.MINIMAX_API_KEY && !process.env.OPENROUTER_API_KEY) {
+    try {
+      const dotenv = require('dotenv');
+      const paths = [
+        join(process.cwd(), '.env'),
+        join(homedir(), '.openclaw', 'workspace', 'duck-cli-src', '.env'),
+        join(dirname(process.argv[1] || '/'), '..', '..', '.env'),
+      ];
+      for (const p of paths) {
+        if (existsSync(p)) {
+          dotenv.config({ path: p });
+          break;
+        }
+      }
+    } catch {}
+  }
+}
 
 export interface SkillExecutionRecord {
   skillName: string;
@@ -199,9 +220,11 @@ export class SkillImprover {
     const originalContent = readFileSync(skillPath, 'utf-8');
     const health = this.getSkillHealth(skillName);
 
+    ensureEnv();
     const provider = new ProviderManager();
+    await provider.load();
     await provider.load(); // Initialize providers before use
-    const model = 'minimax/glm-5';
+    const model = 'minimax/MiniMax-M2.7';
 
     const analysisPrompt = `Analyze this skill and suggest improvements:
 
