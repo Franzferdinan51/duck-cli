@@ -278,7 +278,10 @@ export class ACPClient extends EventEmitter {
     };
 
     return new Promise((resolve, reject) => {
-      const proc = spawn(this.acpxPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+      // Resolve acpx to its full path so it works even when PATH is minimal (e.g. OpenClaw subprocess)
+      const { execSync } = require('child_process');
+      const acpxPath = this.acpxPath === 'acpx' ? execSync('which acpx').toString().trim() : this.acpxPath;
+      const proc = spawn(process.execPath, [acpxPath, ...args], { env, stdio: ['pipe', 'pipe', 'pipe'] });
       session.process = proc;
 
       proc.stdout?.on('data', (data) => {
@@ -513,9 +516,14 @@ export class ACPClient extends EventEmitter {
 
   private async checkAcpxInstalled(): Promise<boolean> {
     return new Promise((resolve) => {
-      const proc = spawn('which', ['acpx']);
-      proc.on('close', (code) => resolve(code === 0));
-      proc.on('error', () => resolve(false));
+      // Use execSync instead of spawn('which') so it works regardless of PATH
+      try {
+        const { execSync } = require('child_process');
+        execSync('which acpx', { stdio: 'ignore' });
+        resolve(true);
+      } catch {
+        resolve(false);
+      }
     });
   }
 
