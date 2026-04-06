@@ -172,12 +172,18 @@ async function sendMessage(text: string, replyTo?: number): Promise<number | und
  */
 async function editMessage(messageId: number, text: string): Promise<void> {
   const { botToken, chatId } = getConfig();
-  await telegramRequest('editMessageText', {
-    chat_id: chatId,
-    message_id: messageId,
-    text: escapeHtml(text),
-    parse_mode: 'HTML',
-  });
+  try {
+    await telegramRequest('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: escapeHtml(text).slice(0, 4096),
+      parse_mode: 'HTML',
+    });
+  } catch (e: any) {
+    const msg = String(e?.message || e || '');
+    if (msg.includes('message is not modified')) return;
+    throw e;
+  }
 }
 
 async function sendVoice(filePath: string, caption?: string, replyTo?: number): Promise<void> {
@@ -511,6 +517,8 @@ export async function telegramStart(): Promise<void> {
         }
 
         try {
+          let lastEditText = '';
+          let lastEditAt = 0;
           const response = await forwardToGateway(text, msgChatId, {
             // Progressive edit: update Telegram message as chunks arrive.
             // Telegram edit limit is 4096 chars; show trailing chars if over limit.
@@ -519,6 +527,11 @@ export async function telegramStart(): Promise<void> {
               const editText = runningText.length > 4096
                 ? '📝 ' + runningText.slice(-4093)
                 : (runningText || '📝 Processing...');
+              const now = Date.now();
+              if (editText === lastEditText) return;
+              if (now - lastEditAt < 700) return;
+              lastEditText = editText;
+              lastEditAt = now;
               try {
                 await editMessage(replyMsgId, editText);
               } catch {
