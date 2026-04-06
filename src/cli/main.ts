@@ -320,6 +320,39 @@ async function main() {
       console.log(`${c.bold}🔐 DEFCON Status: ${c.green}DEFCON 5 - All Clear${c.reset}`);
       console.log(`${c.dim}No active security threats detected.${c.reset}`);
       break;
+
+    case 'logger': {
+      const { loggerStatusCommand, loggerLogsCommand, loggerErrorsCommand, loggerTailCommand } = await import('./logger-cmd.js');
+      const loggerCmd = args[0] || 'status';
+      if (loggerCmd === 'status') {
+        await loggerStatusCommand();
+      } else if (loggerCmd === 'logs') {
+        const opts: { limit?: number; level?: string; protocol?: string } = {};
+        const limitIdx = args.indexOf('--limit');
+        if (limitIdx !== -1 && args[limitIdx + 1]) opts.limit = parseInt(args[limitIdx + 1]);
+        const levelIdx = args.indexOf('--level');
+        if (levelIdx !== -1 && args[levelIdx + 1]) opts.level = args[levelIdx + 1];
+        const protoIdx = args.indexOf('--protocol');
+        if (protoIdx !== -1 && args[protoIdx + 1]) opts.protocol = args[protoIdx + 1];
+        await loggerLogsCommand(opts);
+      } else if (loggerCmd === 'errors') {
+        const opts: { unresolved?: boolean; protocol?: string } = {};
+        if (args.includes('--unresolved')) opts.unresolved = true;
+        const protoIdx = args.indexOf('--protocol');
+        if (protoIdx !== -1 && args[protoIdx + 1]) opts.protocol = args[protoIdx + 1];
+        await loggerErrorsCommand(opts);
+      } else if (loggerCmd === 'tail') {
+        const port = parseInt(args[1]) || 3850;
+        await loggerTailCommand(port);
+      } else {
+        console.log('Usage: duck logger <status|logs|errors|tail> [options]');
+        console.log('  status                Show logger health status');
+        console.log('  logs [--limit N] [--level L] [--protocol P]  Show recent logs');
+        console.log('  errors [--unresolved] [--protocol P]       Show errors');
+        console.log('  tail [port]           Stream logs in real-time (default port 3850)');
+      }
+      break;
+    }
     case 'security-audit':
       console.log(`${c.bold}🔍 Security Audit${c.reset}`);
       console.log(`${c.dim}Run: duck security audit${c.reset}`);
@@ -414,6 +447,11 @@ async function main() {
     case 'subconsciousd':
       // Shortcut: duck subconsciousd → starts daemon
       await subconsciousCommand(['daemon', ...args]);
+      break;
+
+    case 'dream':
+      // Shortcut: duck dream → run dreaming cycle
+      await subconsciousCommand(['dream', ...args]);
       break;
 
     case 'meshd':
