@@ -104,6 +104,7 @@ Features:
 		meshCmd(),
 
 	metaCmd(),		meshdCmd(),
+		chatAgentCmd(),
 		rlCmd(),
 		acpServerCmd(),
 		acpSpawnCmd(),
@@ -385,6 +386,35 @@ func meshdCmd() *cobra.Command {
 	}
 	return cmd
 }
+
+// chatAgentCmd - duck chat-agent [start]
+func chatAgentCmd() *cobra.Command {
+	var port string
+	var model string
+
+	cmd := &cobra.Command{
+		Use:   "chat-agent [start]",
+		Short: "🦆 Duck Chat Agent - Conversational AI (Bridge ↔ Orchestrator)",
+		Long:  "Start the Duck Chat Agent HTTP server for conversational AI with MiniMax routing.",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeArgs := []string{"chat-agent", "start"}
+			if port != "" && port != "18797" {
+				nodeArgs = append(nodeArgs, "--port", port)
+			}
+			if model != "" {
+				nodeArgs = append(nodeArgs, "--model", model)
+			}
+			return runNodeDirectMulti(nodeArgs, cmd)
+		},
+	}
+
+	cmd.Flags().StringVar(&port, "port", "18797", "Port for Chat Agent HTTP server")
+	cmd.Flags().StringVar(&model, "model", "", "MiniMax model (default: MiniMax-M2.7)")
+
+	return cmd
+}
+
 
 // rlCmd - duck rl [action]
 func rlCmd() *cobra.Command {
