@@ -5,9 +5,86 @@
  * Sits between Chat Agent and Orchestrator.
  * 
  * Flow: Chat Agent → Council Bridge → [REJECT/APPROVE/MODIFY] → Orchestrator
+ * 
+ * Features:
+ * - TTL cache for deliberation results (prevents redundant deliberations)
+ * - Normalized query keys for near-identical query deduplication
  */
 
 import { ChatSession, getOrCreateSession } from '../agent/chat-session.js';
+
+// ---------------------------------------------------------------------------
+// Deliberation Cache - prevents redundant council deliberations
+// ----------------------------------------------------------------------------
+
+interface CachedVerdict {
+  verdict: CouncilVerdict;
+  cachedAt: number;
+  queryHash: string;
+}
+
+const COUNCIL_CACHE_TTL_MS = parseInt(process.env.COUNCIL_CACHE_TTL_MS || String(5 * 60 * 1000), 10); // 5 min default
+const councilCache = new Map<string, CachedVerdict>();
+
+/**
+ * Normalize a query for cache key generation.
+ * Strips filler words, normalizes whitespace, lowercases.
+ */
+function normalizeQueryForCache(query: string): string {
+  return query
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200); // Normalize to first 200 chars
+}
+
+/**
+ * Get a cached council verdict if still fresh.
+ */
+function getCachedVerdict(query: string): CouncilVerdict | null {
+  const normalized = normalizeQueryForCache(query);
+  const cached = councilCache.get(normalized);
+  if (!cached) return null;
+  const age = Date.now() - cached.cachedAt;
+  if (age > COUNCIL_CACHE_TTL_MS) {
+    councilCache.delete(normalized);
+    return null;
+  }
+  return cached.verdict;
+}
+
+/**
+ * Cache a council verdict.
+ */
+function cacheVerdict(query: string, verdict: CouncilVerdict): void {
+  const normalized = normalizeQueryForCache(query);
+  councilCache.set(normalized, {
+    verdict,
+    cachedAt: Date.now(),
+    queryHash: normalized,
+  });
+  // Prune old entries to avoid unbounded growth
+  if (councilCache.size > 100) {
+    const oldest = [...councilCache.entries()]
+      .sort((a, b) => a[1].cachedAt - b[1].cachedAt)
+      .slice(0, 20);
+    for (const [key] of oldest) councilCache.delete(key);
+  }
+}
+
+/**
+ * Clear the council cache (useful for testing or forced re-deliberation).
+ */
+export function clearCouncilCache(): void {
+  councilCache.clear();
+}
+
+/**
+ * Get cache stats for monitoring.
+ */
+export function getCouncilCacheStats(): { size: number; ttlMs: number } {
+  return { size: councilCache.size, ttlMs: COUNCIL_CACHE_TTL_MS };
+}
 
 // ---------------------------------------------------------------------------
 // Council deliberation trigger conditions
@@ -130,6 +207,13 @@ Given the user's task, respond with a JSON verdict:
 - NEVER approve: illegal activities, harm to people, surveillance without consent, data deletion without backup`;
 
 async function askCouncil(task: string, context: string, apiKey: string): Promise<CouncilVerdict> {
+  // Check cache first
+  const cached = getCachedVerdict(task);
+  if (cached) {
+    console.log(`[CouncilBridge] Cache HIT for query: "${task.substring(0, 50)}..."`);
+    return cached;
+  }
+  console.log(`[CouncilBridge] Cache MISS - running deliberation for: "${task.substring(0, 50)}..."`);
   const userPrompt = `**Task under deliberation:**
 "${task}"
 
@@ -147,24 +231,29 @@ ${context}
     // Try to parse JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const verdict = JSON.parse(jsonMatch[0]);
-      return {
-        verdict: verdict.verdict || 'DELEGATE',
-        reasoning: verdict.reasoning || 'No reasoning provided',
-        modifications: verdict.modifications || [],
-        confidence: verdict.confidence || 0.5,
-        councilors_heard: verdict.councilors_heard || ['speaker'],
+      const parsed = JSON.parse(jsonMatch[0]);
+      const verdict: CouncilVerdict = {
+        verdict: parsed.verdict || 'DELEGATE',
+        reasoning: parsed.reasoning || 'No reasoning provided',
+        modifications: parsed.modifications || [],
+        confidence: parsed.confidence || 0.5,
+        councilors_heard: parsed.councilors_heard || ['speaker'],
       };
+      // Cache successful verdicts to avoid redundant deliberations
+      cacheVerdict(task, verdict);
+      return verdict;
     }
 
     // Fallback: treat as text
-    return {
+    const fallbackVerdict: CouncilVerdict = {
       verdict: response.toLowerCase().includes('reject') ? 'REJECT' :
                response.toLowerCase().includes('modify') ? 'MODIFY' : 'APPROVE',
       reasoning: response,
       confidence: 0.5,
       councilors_heard: ['speaker'],
     };
+    cacheVerdict(task, fallbackVerdict);
+    return fallbackVerdict;
   } catch (err) {
     console.error('[CouncilBridge] Deliberation failed:', err);
     return {

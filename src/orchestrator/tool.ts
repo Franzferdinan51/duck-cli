@@ -102,6 +102,8 @@ export interface TaskResult {
   fallbackAttempted: boolean;
   toolsAttempted: string[];
   totalExecutionTimeMs: number;
+  /** Optional metadata for recovery info, routing context, etc. */
+  metadata?: Record<string, unknown>;
 }
 
 export type ToolHandler = (

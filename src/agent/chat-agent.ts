@@ -463,10 +463,16 @@ async function processMessage(
   const complexity = scoreComplexity(message);
   const context = session.getContext(MAX_CONTEXT_TOKENS);
 
+  // === FAST PATH: Low-complexity tasks skip council deliberation ===
+  // Score 1-2 = simple greetings/facts — no need to burden the council
+  const FAST_PATH_THRESHOLD = 2;
+  const isFastPath = complexity <= FAST_PATH_THRESHOLD;
+
   // === AI COUNCIL DELIBERATION (before execution) ===
   // Use MiniMax for council (or configured council provider)
+  // Skip council for fast-path tasks (unless councilApiKey is explicitly required)
   const councilApiKey = process.env.MINIMAX_API_KEY || apiKey;
-  if (councilApiKey) {
+  if (councilApiKey && !isFastPath) {
     const councilResult = await processWithCouncil(userId, message, complexity, councilApiKey);
     
     if (councilResult.routed === 'council_rejected') {
@@ -543,10 +549,31 @@ async function processMessage(
       model: result.model,
     };
   } catch (err) {
-    console.error(`[ChatAgent] ${effectiveProvider} error:`, err);
-    const errorMsg = `🦆 Oops, something went wrong with ${effectiveProvider}: ${err.message}`;
-    session.addAssistant(errorMsg);
-    return { response: errorMsg, routed: 'direct', provider: effectiveProvider, model: effectiveModel };
+    // Classify error type for helpful error messages and potential retry logic
+    const errorMsg = err.message || String(err);
+    const isRateLimit = errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('Rate limit');
+    const isServerError = /\b5\d{2}\b/.test(errorMsg); // 500-599
+    const isAuthError = errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('unauthorized') || errorMsg.includes('Forbidden');
+    const isTimeout = errorMsg.includes('timeout') || errorMsg.includes('timed out');
+    const isNetworkError = errorMsg.includes('network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ENOTFOUND');
+
+    let action = '';
+    if (isRateLimit) {
+      action = `\n\n💡 Tip: Rate limit hit. Wait a moment and try again, or switch providers with POST /providers/switch.`;
+    } else if (isServerError) {
+      action = `\n\n💡 Tip: ${effectiveProvider} server issue. Try again shortly or use a different provider.`;
+    } else if (isAuthError) {
+      action = `\n\n💡 Tip: Auth failed for ${effectiveProvider}. Check your API key in the environment.`;
+    } else if (isTimeout) {
+      action = `\n\n💡 Tip: Request timed out. Try a smaller context or a faster model.`;
+    } else if (isNetworkError) {
+      action = `\n\n💡 Tip: Network error. Check your internet connection or try a different provider.`;
+    }
+
+    console.error(`[ChatAgent] ${effectiveProvider} error [rate_limit=${isRateLimit} server=${isServerError} auth=${isAuthError}]:`, err);
+    const fullErrorMsg = `🦆 Oops, something went wrong with ${effectiveProvider}: ${err.message}${action}`;
+    session.addAssistant(fullErrorMsg);
+    return { response: fullErrorMsg, routed: 'direct', provider: effectiveProvider, model: effectiveModel };
   }
 }
 
@@ -761,6 +788,28 @@ function startServer(port: number) {
       clearSession(userId);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // GET /council/cache - Get council deliberation cache stats
+    if (req.method === 'GET' && pathname === '/council/cache') {
+      const { getCouncilCacheStats, clearCouncilCache } = require('../council/chat-bridge.js');
+      const stats = getCouncilCacheStats();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        cacheSize: stats.size,
+        ttlMs: stats.ttlMs,
+        note: 'Cache TTL prevents redundant council deliberations for similar queries',
+      }));
+      return;
+    }
+
+    // POST /council/cache/clear - Clear council deliberation cache
+    if (req.method === 'POST' && pathname === '/council/cache/clear') {
+      const { clearCouncilCache } = require('../council/chat-bridge.js');
+      clearCouncilCache();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, message: 'Council cache cleared' }));
       return;
     }
 

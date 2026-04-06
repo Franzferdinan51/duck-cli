@@ -18,7 +18,9 @@ export interface Task {
 
 export const MODEL_MAP = {
   // Android control - Gemma 4 has vision + Android tool-calling training
-  android: 'lmstudio/google/gemma-4-e4b-it',
+  // Note: Gemma 4 is accessed via MiniMax (primary) or OpenRouter, NOT via LM Studio (local).
+  // LM Studio hosts Qwen/Llama models locally. Gemma 4 requires Google AI Studio or similar provider.
+  android: 'minimax/gemma-4-e4b-it',
 
   // Vision tasks - Kimi K2.5 has best vision
   vision: 'kimi/kimi-k2.5',
