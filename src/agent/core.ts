@@ -39,6 +39,7 @@ import {
   ToolErrorType,
   ToolRegistryEntry
 } from './tool-registry.js';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 import { scanForSecrets, redactFromResult, warnOnSecrets } from './secret-scanner.js';
 import { captureDiffSnapshot, generateDiff, formatInlineDiff } from './inline-diff.js';
 import { CredentialPoolManager } from './credential-pool.js';
@@ -2661,8 +2662,21 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
 
         const startTime = Date.now();
         try {
-          const result = await this.tools.execute(toolName, currentArgs);
+          let result = await this.tools.execute(toolName, currentArgs);
           const durationMs = Date.now() - startTime;
+
+          // Some tool handlers return { error: ... } inside a successful wrapper
+          // instead of throwing. Normalize that into a real tool failure so retry,
+          // fallback, and failure-reporting logic can actually fire.
+          if (
+            result?.success &&
+            result?.result &&
+            typeof result.result === 'object' &&
+            result.result.error &&
+            result.result.success !== true
+          ) {
+            result = { ...result, success: false, error: String(result.result.error) };
+          }
 
           if (result.success) {
             // Structured log: TOOL_SUCCESS
@@ -2696,6 +2710,7 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
             }
             // Structured log: TOOL_FAIL
             console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError}" attempts=${maxAttempts}/${maxAttempts}`);
+            try { getFailureReporter().reportTool(toolName, String(lastError), JSON.stringify(currentArgs)); } catch {}
             return { success: false, error: lastError };
           }
         } catch (e: any) {
@@ -2717,6 +2732,7 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
 
           // Structured log: TOOL_FAIL
           console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${e.message}" attempts=${attempt}/${maxAttempts}`);
+          try { getFailureReporter().reportTool(toolName, String(e.message), JSON.stringify(currentArgs)); } catch {}
           return { success: false, error: e.message };
         }
       }
@@ -2759,6 +2775,7 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
       // Structured log: TOOL_FAIL
       const totalAttempts = maxAttempts + entry.fallbacks.length;
       console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError?.message || lastError}" attempts=${totalAttempts}/${totalAttempts}`);
+      try { getFailureReporter().reportTool(toolName, String(lastError?.message || lastError), JSON.stringify(currentArgs)); } catch {}
 
       // Build a helpful summary error
       const fallbackNames = entry.fallbacks.map(f => f.tool).join(' → ');

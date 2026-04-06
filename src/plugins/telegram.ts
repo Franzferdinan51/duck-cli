@@ -644,8 +644,8 @@ export async function telegramStart(): Promise<void> {
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 
   console.log('🔄 Polling for messages...\n');
 

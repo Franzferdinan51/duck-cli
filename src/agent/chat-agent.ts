@@ -1125,7 +1125,7 @@ export async function startChatAgent(port: number = PORT) {
   
   const server = startServer(port);
 
-  process.on('SIGINT', () => {
+  process.once('SIGINT', () => {
     console.log('\n🦆 Shutting down...');
     if (meshWs) {
       meshWs.close();
@@ -1134,7 +1134,7 @@ export async function startChatAgent(port: number = PORT) {
     server.close();
     process.exit(0);
   });
-  process.on('SIGTERM', () => {
+  process.once('SIGTERM', () => {
     if (meshWs) {
       meshWs.close();
       meshWs = null;

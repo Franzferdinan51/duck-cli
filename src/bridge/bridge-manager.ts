@@ -46,6 +46,7 @@ export interface BridgeManagerConfig {
  * Bridge Manager - central manager for all bridge connections
  */
 export class BridgeManager extends EventEmitter {
+  private meshHealthInterval?: NodeJS.Timeout;
   private config: Required<BridgeManagerConfig>;
   private acpBridge: ACPBridge;
   private mcpBridge: MCPBridge;
@@ -465,6 +466,10 @@ export class BridgeManager extends EventEmitter {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
+    if (this.meshHealthInterval) {
+      clearInterval(this.meshHealthInterval);
+      this.meshHealthInterval = undefined;
+    }
 
     // Disconnect ACP
     this.acpBridge.disconnect("Shutdown");
@@ -632,13 +637,21 @@ export class BridgeManager extends EventEmitter {
     // Register first
     this.registerWithMesh(meshUrl, apiKey).catch(() => {});
 
-    // Broadcast every 30s
-    const interval = setInterval(() => {
-      this.broadcastHealthToMesh(meshUrl, apiKey);
+    // Avoid leaking duplicate intervals if called repeatedly.
+    if (this.meshHealthInterval) {
+      clearInterval(this.meshHealthInterval);
+      this.meshHealthInterval = undefined;
+    }
+
+    this.meshHealthInterval = setInterval(() => {
+      this.broadcastHealthToMesh(meshUrl, apiKey).catch(() => {});
     }, 30000);
+    if (typeof this.meshHealthInterval.unref === 'function') {
+      this.meshHealthInterval.unref();
+    }
 
     // Emit so caller can track
-    this.emit('mesh_health_broadcast_started', { interval });
+    this.emit('mesh_health_broadcast_started', { interval: 30000 });
     console.log('[BridgeManager] 🌐 Mesh health broadcast started (30s interval)');
   }
 }
