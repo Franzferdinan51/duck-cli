@@ -145,6 +145,16 @@ class BridgeLogger {
     }, 60000); // Every minute
   }
 
+  // Get error code for protocol/errorType
+  addErrorCode(protocol: keyof typeof ProtocolErrorCodes, errorType: string, metadata?: any): string {
+    const errorDef = ProtocolErrorCodes[protocol]?.[errorType as keyof typeof ProtocolErrorCodes[typeof protocol]];
+    const code = errorDef?.code || `${protocol}_UNKNOWN`;
+    if (metadata && errorDef) {
+      metadata.errorSeverity = errorDef.severity;
+    }
+    return code;
+  }
+
   log(level: LogLevel, protocol: LogEntry['protocol'], component: string, message: string, metadata?: any, error?: Error) {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
@@ -182,6 +192,7 @@ class BridgeLogger {
         protocol,
         component,
         message,
+        code: metadata?.code,
         stack: error?.stack,
         resolved: false
       });
@@ -377,7 +388,11 @@ class BridgeLogger {
     if (unresolved !== undefined) {
       filtered = filtered.filter(e => e.resolved !== unresolved);
     }
-    return filtered.reverse();
+    // Include error code in output
+    return filtered.map(e => ({
+      ...e,
+      code: e.code
+    })).reverse();
   }
 
   resolveError(timestamp: string) {
