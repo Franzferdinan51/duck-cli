@@ -4,6 +4,34 @@
 
 **OpenClaw compatible** — Can run standalone OR as an ACP/bridge endpoint that other agents invoke.
 
+## 🧠 What duck-cli actually is
+
+duck-cli is **not just a sidecar for OpenClaw**.
+
+It is:
+- a **standalone AI agent** people can talk to directly, especially through **Telegram**
+- a **custom assistant/runtime** built on OpenClaw ideas and components
+- a **bridge layer** with its own MCP, ACP, WebSocket, and meta-agent flows
+- a tool/service that **other agents can call into** through the bridge
+
+### Core architecture
+
+```text
+Telegram / CLI / Web UI
+        ↓
+   duck-cli (standalone agent)
+        ↓
+ Bridge layer (MCP / ACP / WS / meta-agent)
+        ↓
+ Other agents, tools, OpenClaw-compatible systems
+```
+
+### Important design rule
+
+**Telegram is the main public access point for duck-cli.**
+
+That means duck-cli must return **clean assistant replies** to Telegram users, while the **bridge** stays available as the access layer for you and other agents.
+
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
@@ -25,6 +53,9 @@ npm install && npm run build
 # Interactive shell
 ./duck shell
 
+# Telegram bot (main public interface)
+./duck telegram start
+
 # Check system health
 ./duck health
 
@@ -37,6 +68,24 @@ npm install && npm run build
 # Start all protocols at once
 ./duck unified
 ```
+
+---
+
+## 📱 Telegram is a first-class interface
+
+duck-cli ships with a built-in Telegram transport. It is intended to act like a real standalone assistant, not dump internal logs/tool chatter into the chat.
+
+```bash
+# Start the built-in Telegram bot
+./duck telegram start
+
+# Test Telegram send
+./duck telegram send "hello from duck-cli"
+```
+
+For launchd/macOS automation, use:
+- `tools/run-duck-telegram.sh`
+- `tools/ai.duckbot.telegram.plist`
 
 ---
 
