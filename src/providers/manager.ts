@@ -99,7 +99,7 @@ export class ProviderManager {
     const lmModel = process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || 'google/gemma-4-26b-a4b';
     let targets = [
       { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (Gemma 4 26B, local FREE)' },
-      { provider: 'minimax',   model: 'MiniMax-M2.7',        label: 'MiniMax M2.7 (fast, ~2s)' },
+      { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (Gemma 4 26B, local FREE)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
       { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'OpenClaw Gateway (Kimi k2.5)' },
       { provider: 'kimi',      model: 'k2p5',                label: 'Kimi K2.5 (direct)' },
