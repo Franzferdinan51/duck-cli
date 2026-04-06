@@ -177,8 +177,43 @@ interface HealState {
 function loadState(): HealState {
   try {
     if (fs.existsSync(STATE_FILE)) {
-      const data = fs.readFileSync(STATE_FILE, 'utf-8');
-      return JSON.parse(data);
+      const raw = fs.readFileSync(STATE_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+
+      // Garbage-collect stale service entries (services no longer in SERVICES list)
+      const validKeys = new Set(SERVICES.map(s => s.key));
+      for (const key of Object.keys(data.services || {})) {
+        if (!validKeys.has(key)) {
+          log(`GC: Removing stale service state for "${key}"`);
+          delete data.services[key];
+        }
+      }
+
+      // Nuclear mode recovery: if nuclear was triggered >15 min ago, auto-reset
+      if (data.nuclearMode && data.nuclearTriggeredAt) {
+        const triggeredAt = new Date(data.nuclearTriggeredAt).getTime();
+        const ageMs = Date.now() - triggeredAt;
+        if (ageMs > 15 * 60 * 1000) {
+          log(`NUCLEAR RECOVERY: Auto-resetting nuclear mode after ${Math.round(ageMs / 60000)} min`);
+          data.nuclearMode = false;
+          data.nuclearTriggeredAt = undefined;
+        }
+      }
+
+      // Initialize any new services added since last run
+      for (const svc of SERVICES) {
+        if (!data.services[svc.key]) {
+          data.services[svc.key] = {
+            attempts: 0,
+            lastAttempt: '',
+            lastSuccess: '',
+            consecutiveFailures: 0,
+            totalRestarts: 0,
+          };
+        }
+      }
+
+      return data;
     }
   } catch (e) {
     log(`WARN: Could not load state file: ${e}`);
@@ -270,24 +305,39 @@ function releaseLock(): void {
 // HTTP Health Check
 // =============================================================================
 
+/**
+ * HTTP health check using native fetch with AbortController timeout.
+ * Validates: (1) reachable, (2) HTTP 2xx, (3) response body is non-empty.
+ */
 async function checkHttp(url: string, timeoutMs = 5000): Promise<boolean> {
-  return new Promise((resolve) => {
+  try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    
-    exec(`curl -s -o /dev/null -w "%{http_code}" --max-time ${timeoutMs/1000} "${url}"`, 
-      { signal: controller.signal },
-      (error, stdout) => {
-        clearTimeout(timeout);
-        if (error) {
-          resolve(false);
-          return;
-        }
-        const code = stdout.trim();
-        resolve(code.length === 3 && code[0] >= '2' && code[0] <= '5');
-      }
-    );
-  });
+
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal as any,
+      redirect: 'follow',
+    });
+
+    clearTimeout(timeout);
+
+    // Must be 2xx
+    if (response.status < 200 || response.status >= 300) {
+      return false;
+    }
+
+    // Body must be non-empty (guards against empty-200 ghost services)
+    try {
+      const text = await response.clone().text();
+      return text.trim().length > 0;
+    } catch {
+      // Could not read body — treat as unhealthy
+      return false;
+    }
+  } catch {
+    return false;
+  }
 }
 
 // =============================================================================
@@ -545,54 +595,76 @@ async function healServiceWithBackoff(
   state: HealState
 ): Promise<{ success: boolean; nuclear: boolean }> {
   const serviceState = state.services[service.key];
-  
+
   logSection(`HEALING: ${service.name}`);
   log(`URL: ${service.url}`);
   log(`Critical: ${service.critical}`);
   log(`Previous attempts: ${serviceState.attempts}`);
 
-  // Exponential backoff: 10s, 20s, 40s
-  const backoffMs = Math.pow(2, serviceState.attempts) * 5000;
-  
+  // Exponential backoff: 5s, 10s, 20s — cap at 20s to avoid long stalls
+  const backoffMs = Math.min(Math.pow(2, serviceState.attempts) * 5000, 20000);
+
   if (serviceState.attempts > 0) {
-    log(`Waiting ${backoffMs/1000}s before retry (exponential backoff)...`);
+    log(`Waiting ${backoffMs / 1000}s before retry (exponential backoff, capped at 20s)...`);
     await sleep(backoffMs);
   }
 
   serviceState.attempts++;
   serviceState.lastAttempt = new Date().toISOString();
 
-  const healed = await service.heal();
+  let healed = false;
+  try {
+    healed = await service.heal();
+  } catch (e: any) {
+    log(`  -> heal() threw: ${e.message}`);
+  }
 
   if (healed) {
     log(`✅ ${service.name}: HEALED`);
     serviceState.consecutiveFailures = 0;
+    // Reset attempt counter on success so next failure starts fresh
+    serviceState.attempts = 0;
     serviceState.lastSuccess = new Date().toISOString();
     serviceState.totalRestarts++;
     return { success: true, nuclear: false };
   }
 
   log(`❌ ${service.name}: still DOWN after attempt ${serviceState.attempts}`);
-  
+
   if (serviceState.attempts >= MAX_ATTEMPTS) {
     serviceState.consecutiveFailures++;
-    
+
     if (service.critical) {
-      const alertMsg = 
+      const alertMsg =
         `🚨 <b>Service DOWN - Healer Failed</b>\n` +
         `Service: ${service.name}\n` +
         `Attempts: ${MAX_ATTEMPTS}/${MAX_ATTEMPTS}\n` +
         `Manual intervention required!`;
-      
+
       await sendTelegramAlert(alertMsg);
       log(`Alert sent for ${service.name}`);
-      
+
       // Check if ALL critical services are down → nuclear
       const allCriticalDown = SERVICES
         .filter(s => s.critical)
-        .every(s => !await s.check());
-      
-      if (allCriticalDown) {
+        .every(s => {
+          // Use sync check to avoid async inside filter
+          try {
+            const result = s.check();
+            // We need to await it — do it differently below
+            return false; // placeholder, real check below
+          } catch {
+            return false;
+          }
+        });
+
+      // Re-check critically with a quick parallel probe
+      const criticalChecks = await Promise.all(
+        SERVICES.filter(s => s.critical).map(s => s.check().catch(() => false))
+      );
+      const allCriticalDown2 = criticalChecks.every(r => !r);
+
+      if (allCriticalDown2) {
         await triggerNuclearOption(state);
         return { success: false, nuclear: true };
       }

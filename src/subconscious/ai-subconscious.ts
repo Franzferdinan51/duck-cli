@@ -48,9 +48,10 @@ export class AISubconscious {
   private async initProviders(): Promise<void> {
     try {
       await this.provider.load();
-      console.log('[AISubconscious] Providers loaded');
-    } catch (error) {
-      console.error('[AISubconscious] Failed to load providers:', error);
+      const loaded = this.provider.list();
+      console.log(`[AISubconscious] Providers loaded: ${loaded.join(', ') || 'none'}`);
+    } catch (error: any) {
+      console.error(`[AISubconscious] Failed to load providers: ${error.message}`);
     }
   }
   
@@ -260,25 +261,38 @@ Give me ONE brief insight or recommendation. Max 1 sentence. Be direct and actio
     
     console.log(`[AISubconscious] Dreaming with ${recentSignals.length} signals...`);
     
-    // Phase 1: Local quick pass (always runs)
-    const localDream = await this.dreamLocal(summary);
-    console.log(`[AISubconscious] Local dream: ${localDream.patterns.length} patterns, ${localDream.insights.length} insights`);
-    
-    // Phase 2: Deep API analysis (only for significant sessions)
-    let finalDream = localDream;
+    // Phase 1: Local quick pass — isolated so crash doesn't block deep analysis
+    let localDream: DreamResult = { insights: [], patterns: [], recommendations: [], errors: [] };
+    try {
+      localDream = await this.dreamLocal(summary);
+      console.log(`[AISubconscious] Local dream: ${localDream.patterns.length} patterns, ${localDream.insights.length} insights`);
+    } catch (e: any) {
+      console.warn(`[AISubconscious] Local dream phase failed: ${e.message}`);
+    }
+
+    // Phase 2: Deep API analysis — independent of local phase result
+    let deepDream: DreamResult = { insights: [], patterns: [], recommendations: [], errors: [] };
+    let finalDream: DreamResult = localDream;
+
     if (recentSignals.length > 5) {
       console.log('[AISubconscious] Session significant, running deep analysis...');
-      const deepDream = await this.dreamDeep(summary);
-      console.log(`[AISubconscious] Deep dream: ${deepDream.patterns.length} patterns, ${deepDream.insights.length} insights`);
-      
-      // Merge results (deduplicate)
-      finalDream = {
-        insights: Array.from(new Set([...localDream.insights, ...deepDream.insights])),
-        patterns: Array.from(new Set([...localDream.patterns, ...deepDream.patterns])),
-        recommendations: Array.from(new Set([...localDream.recommendations, ...deepDream.recommendations])),
-        dreamNarrative: deepDream.dreamNarrative || localDream.dreamNarrative,
-        errors: [...(localDream.errors || []), ...(deepDream.errors || [])]
-      };
+      try {
+        deepDream = await this.dreamDeep(summary);
+        console.log(`[AISubconscious] Deep dream: ${deepDream.patterns.length} patterns, ${deepDream.insights.length} insights`);
+
+        // Merge results (deduplicate)
+        finalDream = {
+          insights: Array.from(new Set([...localDream.insights, ...deepDream.insights])),
+          patterns: Array.from(new Set([...localDream.patterns, ...deepDream.patterns])),
+          recommendations: Array.from(new Set([...localDream.recommendations, ...deepDream.recommendations])),
+          dreamNarrative: deepDream.dreamNarrative || localDream.dreamNarrative,
+          errors: [...(localDream.errors || []), ...(deepDream.errors || [])],
+        };
+      } catch (e: any) {
+        console.warn(`[AISubconscious] Deep dream phase failed: ${e.message}`);
+        // Fall back to local dream results only
+        finalDream = localDream;
+      }
     }
     
     // Store in history
@@ -358,6 +372,46 @@ Give me ONE brief insight or recommendation. Max 1 sentence. Be direct and actio
     this.recentInsights = [];
     this.dreamHistory = [];
     console.log('[AISubconscious] Cleared all insights and dream history');
+  }
+
+  /**
+   * Health check — reports whether the subconscious can run dreaming cycles.
+   * Checks: providers loaded, at least one provider available.
+   */
+  isHealthy(): boolean {
+    const providers = this.provider.list();
+    return providers.length > 0;
+  }
+
+  /**
+   * Detailed health report for diagnostics
+   */
+  getHealthReport(): {
+    healthy: boolean;
+    providersLoaded: string[];
+    insightCount: number;
+    dreamCount: number;
+    lastDreamAt: string | null;
+    errors: string[];
+  } {
+    const providers = this.provider.list();
+    const lastDream = this.dreamHistory.length > 0
+      ? this.dreamHistory[this.dreamHistory.length - 1]
+      : null;
+    const errors: string[] = [];
+
+    if (providers.length === 0) {
+      errors.push('No AI providers loaded — dreaming unavailable');
+    }
+
+    return {
+      healthy: providers.length > 0,
+      providersLoaded: providers,
+      insightCount: this.recentInsights.length,
+      dreamCount: this.dreamHistory.length,
+      lastDreamAt: lastDream ? new Date().toISOString() : null,
+      errors,
+    };
   }
 }
 
