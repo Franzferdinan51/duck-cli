@@ -58,6 +58,60 @@ def escape(text):
         .replace("\n", "&#10;"))
 
 
+def send_voice_message(file_path, chat_id=CHAT_ID, caption=None, reply_to=None):
+    """Send an audio file as a Telegram voice message."""
+    import re
+    
+    if not os.path.exists(file_path):
+        print(f"⚠️  Voice file not found: {file_path}")
+        return False
+    
+    boundary = f"----DuckCLIBoundary{os.getpid()}{int(time.time() * 1000)}"
+    file_data = open(file_path, 'rb').read()
+    filename = os.path.basename(file_path)
+
+    body = f"--{boundary}\r\n"
+    body += f"Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n{chat_id}\r\n"
+    if reply_to:
+        body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"reply_to_message_id\"\r\n\r\n{reply_to}\r\n"
+    if caption:
+        body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"caption\"\r\n\r\n{escape(caption)}\r\n"
+    body += f"--{boundary}\r\nContent-Disposition: form-data; name=\"voice\"; filename=\"{filename}\"\r\nContent-Type: audio/mpeg\r\n\r\n"
+
+    body_start = body.encode('utf-8')
+    body_end = f"\r\n--{boundary}--\r\n".encode('utf-8')
+    full_body = body_start + file_data + body_end
+
+    options = {
+        'hostname': 'api.telegram.org',
+        'path': f'/bot{BOT_TOKEN}/sendVoice',
+        'method': 'POST',
+        'headers': {
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+            'Content-Length': str(len(full_body)),
+        },
+    }
+
+    try:
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendVoice",
+            data=full_body,
+            headers=options['headers'],
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            if result.get('ok'):
+                print(f"📤 Sent voice message: {file_path}")
+                return True
+            else:
+                print(f"❌ sendVoice failed: {result.get('description', 'unknown error')}")
+                return False
+    except Exception as e:
+        print(f"❌ sendVoice error: {e}")
+        return False
+
+
 def duck_stream(message, chat_id, reply_to_msg_id):
     """
     Run duck with PTY for unbuffered streaming output.
@@ -68,6 +122,8 @@ def duck_stream(message, chat_id, reply_to_msg_id):
 
     chunk_buf = []
     last_send = time.time()
+    # Track processed audio files to avoid sending the same one twice
+    processed_audio = set()
 
     def flush_chunk():
         nonlocal chunk_buf, last_send
@@ -75,10 +131,25 @@ def duck_stream(message, chat_id, reply_to_msg_id):
             return
         # Filter non-empty and strip ANSI
         lines_out = []
+        audio_markers = []
         for l in chunk_buf:
             l = ansi_strip(l).strip()
-            if l and "thinking..." not in l:
-                lines_out.append(l)
+            if not l or "thinking..." in l:
+                continue
+            # Detect [AUDIO:filepath] markers and extract them
+            audio_pattern = re.compile(r'\[AUDIO:([^\]]+)\]')
+            for match in audio_pattern.finditer(l):
+                filepath = match.group(1)
+                if filepath and filepath not in processed_audio:
+                    audio_markers.append(filepath)
+                    processed_audio.add(filepath)
+            # Remove [AUDIO:...] from the line for display
+            clean_line = audio_pattern.sub('', l).strip()
+            if clean_line:
+                lines_out.append(clean_line)
+        # Send voice messages for any detected audio markers
+        for filepath in audio_markers:
+            send_voice_message(filepath, chat_id=chat_id, reply_to=reply_to_msg_id)
         if not lines_out:
             chunk_buf = []
             return
@@ -95,6 +166,7 @@ def duck_stream(message, chat_id, reply_to_msg_id):
         if pid == 0:
             # Child: run duck
             os.environ["DUCK_SOURCE_DIR"] = os.path.dirname(DUCK_CLI)
+            os.environ["DUCK_BOT_MODE"] = "1"
             os.execv(DUCK_CLI, [DUCK_CLI, "run", message])
             os._exit(1)
 
