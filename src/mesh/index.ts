@@ -9,16 +9,6 @@ export {
   default as AgentMesh,
 } from './agent-mesh.js';
 
-// Re-export AgentCreator and templates for dynamic sub-agent spawning
-export {
-  AgentCreator,
-  AGENT_TEMPLATES,
-} from '../prompts/agent-creator.js';
-export type {
-  AgentSpec,
-  AgentTemplate,
-} from '../prompts/agent-creator.js';
-
 // Types
 export type {
   MeshAgent,

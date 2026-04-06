@@ -4,24 +4,9 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
-import { fileURLToPath } from 'url';
 import { SQLiteStore, MemorySearch, ToolUsage, SessionSummary } from './sqlite-store.js';
-
-// Runtime path for SOUL-template.md fallback personality
-function getSoulTemplate(): string {
-  try {
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const templatePath = join(__dirname, '..', 'prompts', 'SOUL-template.md');
-    if (existsSync(templatePath)) {
-      return readFileSync(templatePath, 'utf-8');
-    }
-  } catch (e) {
-    // Fall through to basic SOUL
-  }
-  return '';
-}
 
 export { SQLiteStore, MemorySearch, ToolUsage, SessionSummary };
 
@@ -63,11 +48,6 @@ export class MemorySystem {
   }
 
   private defaultSoul(): string {
-    // Use SOUL-template.md as fallback from prompts module
-    if (soulTemplateRaw) {
-      return soulTemplateRaw;
-    }
-    // Fallback to basic SOUL if template not available
     return `# Duck Agent SOUL
 
 ## Identity

@@ -7,7 +7,6 @@ import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
-import { DEFAULT_SKILLS as PROMPT_SKILLS, Skill as PromptSkill } from '../prompts/skills.js';
 
 export interface Skill {
   name: string;
@@ -40,21 +39,6 @@ export class SkillRunner {
   }
 
   async load(): Promise<void> {
-    // Register built-in skills from prompts/skills.ts
-    for (const promptSkill of PROMPT_SKILLS) {
-      if (!this.skills.has(promptSkill.name)) {
-        this.skills.set(promptSkill.name, {
-          name: promptSkill.name,
-          description: promptSkill.description,
-          triggers: Array.isArray(promptSkill.trigger)
-            ? promptSkill.trigger
-            : promptSkill.trigger ? [promptSkill.trigger] : [],
-          content: promptSkill.content,
-        });
-        console.log(`   + Skill(builtin): ${promptSkill.name}`);
-      }
-    }
-
     const scanDirs: string[] = [this.skillsDir];
 
     // Also scan auto-created skills dir

@@ -10,7 +10,6 @@ import { ToolRegistry } from '../tools/registry.js';
 import { logger } from './logger.js';
 import { LiveErrorStream } from './live-error-stream.js';
 import { DEFAULT_MCP_PORT } from '../config/index.js';
-import { DEFAULT_SKILLS } from '../prompts/skills.js';
 
 // MCP JSON-RPC types
 export interface MCPRequest {
@@ -240,23 +239,26 @@ export class MCPServer {
       return { contents: [{ uri, mimeType: 'text/plain', text: 'Resource not found' }] };
     });
 
-    // Prompts - dynamically enumerate from DEFAULT_SKILLS
+    // Prompts
     this.requestHandlers.set('prompts/list', async () => {
-      const prompts = DEFAULT_SKILLS.map(skill => ({
-        name: skill.name,
-        description: skill.description,
-        arguments: [] as { name: string; description: string; required?: boolean }[],
-      }));
-      return { prompts };
+      return {
+        prompts: [
+          { name: 'code_review', description: 'Review code for issues', arguments: [{ name: 'code', description: 'Code to review', required: true }] },
+          { name: 'explain_error', description: 'Explain an error message', arguments: [{ name: 'error', description: 'Error to explain', required: true }] },
+        ]
+      };
     });
 
     this.requestHandlers.set('prompts/get', async (params) => {
       const { name, arguments: args = {} } = params;
-      const skill = DEFAULT_SKILLS.find(s => s.name === name);
-      if (skill) {
-        return { messages: [{ role: 'user', content: { type: 'text', text: skill.content } }] };
+      switch (name) {
+        case 'code_review':
+          return { messages: [{ role: 'user', content: { type: 'text', text: `Review this code:\n\n${args.code}` } }] };
+        case 'explain_error':
+          return { messages: [{ role: 'user', content: { type: 'text', text: `Explain this error:\n\n${args.error}` } }] };
+        default:
+          throw new Error(`Unknown prompt: ${name}`);
       }
-      throw new Error(`Unknown prompt: ${name}`);
     });
 
     // Ping
