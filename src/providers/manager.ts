@@ -17,20 +17,29 @@ export class ProviderManager {
   private active: Provider | undefined;
 
   async load(): Promise<void> {
-    // LM Studio - local models (NO API KEY NEEDED!)
-    // Auto-detect if LM Studio is running locally
+    // LM Studio - local models (Mac/Windows PC with LM Studio running)
+    // Auto-detect if LM Studio is running; try even if health check fails (may need auth)
     const lmstudioUrl = process.env.LMSTUDIO_URL || 'http://localhost:1234';
+    const lmstudioKey = process.env.LMSTUDIO_KEY || process.env.LMSTUDIO_API_KEY || 'not-needed';
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const testRes = await fetch(`${lmstudioUrl}/v1/models`, { signal: controller.signal });
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const testRes = await fetch(`${lmstudioUrl}/v1/models`, {
+        signal: controller.signal,
+        headers: lmstudioKey !== 'not-needed' ? { 'Authorization': `Bearer ${lmstudioKey}` } : {}
+      });
       clearTimeout(timeoutId);
-      if (testRes.ok) {
-        this.providers.set('lmstudio', new LMStudioProvider(lmstudioUrl, process.env.LMSTUDIO_KEY || 'not-needed'));
-        console.log('[Provider] LM Studio loaded (local models, no API key needed!)');
+      if (testRes.ok || process.env.LMSTUDIO_URL) {
+        // Add if running OR if URL is explicitly configured
+        this.providers.set('lmstudio', new LMStudioProvider(lmstudioUrl, lmstudioKey));
+        console.log(`[Provider] LM Studio loaded (${lmstudioUrl}, ${lmstudioKey === 'not-needed' ? 'no auth' : 'auth configured'})`);
       }
     } catch {
-      // LM Studio not running, skip
+      // LM Studio not reachable, skip unless URL explicitly set
+      if (process.env.LMSTUDIO_URL) {
+        this.providers.set('lmstudio', new LMStudioProvider(lmstudioUrl, lmstudioKey));
+        console.log(`[Provider] LM Studio loaded (explicit URL: ${lmstudioUrl})`);
+      }
     }
     
     // MiniMax

@@ -135,7 +135,8 @@ export class AndroidTools {
 
   async shell(command: string, timeout = 30000): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     if (!this.serial) throw new Error("No device selected. Call refreshDevices() first.");
-    const fullCmd = `adb -s ${this.serial} shell "${command.replace(/"/g, '\\"')}"`;
+    // Use single quotes for outer wrapper to avoid quote-escaping issues with uiautomator dump
+    const fullCmd = `adb -s ${this.serial} shell '${command.replace(/'/g, "'\\''")}'`;
     try {
       const { stdout, stderr } = await execAsync(fullCmd, { timeout });
       return { stdout, stderr, exitCode: 0 };

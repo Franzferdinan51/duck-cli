@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 
+// Load .env file if it exists (for LM Studio, API keys, etc.)
+// Note: 'join' and 'existsSync' are imported below in the main imports block
+try {
+  const { config: dotenvConfig } = require('dotenv');
+  const path = require('path');
+  const fs = require('fs');
+  const envPath = process.env.DUCK_SOURCE_DIR 
+    ? path.join(process.env.DUCK_SOURCE_DIR, '.env')
+    : path.join(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    dotenvConfig({ path: envPath });
+  }
+} catch(e) {
+  // dotenv not available, skip
+}
+
 
 // Helper: get agent config from env vars (set by Go layer -p / -m flags)
 function getAgentConfig() {
