@@ -1,6 +1,6 @@
 # 🦆 duck-cli
 
-> **Desktop AI Agent** — Give a task, get a result. Powered by a hybrid orchestrator that routes to MiniMax, Gemma 4, Kimi, and OpenRouter — with 100+ built-in tools, AI Council deliberation, autonomous subagents, memory, scheduling, and optional Android control.
+> **Desktop AI Agent** — Autonomous task execution on Mac/PC/Linux. Powered by a hybrid orchestrator that combines AI Council deliberation, KAIROS proactive heartbeat, subconscious whisper monitoring, and multi-provider LLM routing — all coordinated through 100+ built-in tools with safety guards, memory, and learning.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -12,96 +12,297 @@
 ## ⚡ Quick Start
 
 ```bash
-# 1. Install
+# Install
 git clone https://github.com/Franzferdinan51/duck-cli.git
 cd duck-cli
 npm install && npm run build
 
-# 2. Run a task
+# Run a task
 ./duck run "what is the capital of Japan?"
 
-# 3. Interactive shell
+# Interactive shell
 ./duck shell
 
-# 4. Check status
+# Check status
 ./duck status
 
-# 5. Telegram bot (standalone, connects to @AgentSmithsbot)
+# Telegram bot (standalone — connects to @AgentSmithsbot)
 ./duck telegram start
-# Then message @AgentSmithsbot on Telegram
 ```
 
 ---
 
 ## 🎯 What is duck-cli?
 
-**A desktop AI agent on Mac/PC/Linux.** Give it a task, it orchestrates models, tools, memory, and subagents to get it done.
+**A desktop AI agent.** You give it a task, it decides how to accomplish it.
 
-**The core idea:** Smart routing — each task goes through a Hybrid Orchestrator that scores complexity, picks the right model, optionally triggers AI Council deliberation, executes with fallback chains, and learns from feedback.
+Unlike a chatbot, duck-cli is built for **autonomous execution** — it has memory, can spawn subagents, write and execute code, manage files, run scheduled tasks, control Android devices, delegate to AI Councils, and learn from feedback. It's designed to handle multi-step tasks while you do something else.
 
-**Desktop-first.** Android support is optional — connect via ADB when you want phone control.
+**The core loop:**
+
+```
+You: "build a REST API for my project"
+  │
+  ▼
+duck-cli:
+  1. Scores complexity → routes to best model
+  2. Plans approach (optionally triggers AI Council for complex decisions)
+  3. Executes with tools (shell, files, web, etc.)
+  4. Falls back if something fails
+  5. Learns from feedback
+  6. Reports result
+```
 
 ---
 
-## 💬 Smart Provider Routing
+## 💬 Provider Routing
 
-Automatically picks the best model. You can also override:
+Smart routing picks the right model automatically:
 
 ```bash
 ./duck -p minimax run "task"   # Force MiniMax (fastest)
 ./duck -p lmstudio run "task"  # Force local Gemma 4 (free)
+./duck -p kimi run "task"      # Force Kimi k2.5 (vision)
 ```
 
-| Priority | Provider | Model | Speed | Best For |
-|----------|----------|-------|-------|----------|
-| 1st | **MiniMax** | M2.7 | ~2s | Fast general tasks |
-| 2nd | **LM Studio** | Gemma 4 26B (local) | Free, local | High quality, free |
-| 3rd | **OpenRouter** | Various free | Free tier | Budget |
-| 4th | **OpenClaw Gateway** | Kimi k2.5 | Via gateway | Vision + coding |
-| 5th | **Kimi direct** | K2.5 | API | Vision |
+| Priority | Provider | Model | Cost | Best For |
+|----------|----------|-------|------|----------|
+| 1st | **MiniMax** | M2.7 | API credits | Fast general tasks |
+| 2nd | **LM Studio** | Gemma 4 26B | Free (local) | High quality, no API cost |
+| 3rd | **LM Studio** | Gemma 4 e4b | Free (local) | Android + tool-calling |
+| 4th | **OpenRouter** | Various | Free tier | Budget |
+| 5th | **OpenClaw Gateway** | Kimi k2.5 | Free via gateway | Vision + coding |
+| 6th | **Kimi direct** | K2.5 | Pay-per-use | Vision |
+
+**OpenRouter free models** also available:
+- `qwen/qwen3.6-plus-preview:free` — 1M context
+- `qwen/qwen3-coder:free` — 262K coding
+- `minimax/minimax-m2.5:free` — Duckets' default free tier
 
 ---
 
-## 🧠 Hybrid Orchestrator v2
-
-The brain. Routes every task through:
+## 🏗️ Architecture
 
 ```
-Task → Complexity Score (1-10)
-   │
-   ├─ Simple (1-6) → Fast path → Model Router → Execute
-   │
-   ├─ Complex (7+) → AI Council deliberation → Verdict → Execute
-   │
-   └─ Android task → Gemma 4 (tool-calling specialist) → Perceive→Reason→Act loop
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            duck run "task"                                │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     HYBRID ORCHESTRATOR v2                               │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │              TASK COMPLEXITY CLASSIFIER (1-10)                    │  │
+│  │                                                                   │  │
+│  │  Dimensions scored:                                               │  │
+│  │  • Ambiguity (how vague is the task?)                            │  │
+│  │  • Scope (how many steps/domains?)                              │  │
+│  │  • Reversibility (can we undo mistakes?)                        │  │
+│  │  • Ethical dimension (does it raise ethical flags?)             │  │
+│  │  • Stakes (what's the worst case?)                             │  │
+│  └──────────────────────────────┬───────────────────────────────────┘  │
+│                                  │                                        │
+│               ┌──────────────────┼──────────────────┐                   │
+│               ▼                  ▼                  ▼                    │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐   │
+│  │  SIMPLE (1-3)   │  │ MODERATE (4-6)  │  │  COMPLEX (7-10)    │   │
+│  │  Fast path       │  │ Best model      │  │  AI Council first  │   │
+│  │  No deliberation │  │ Optional council │  │  Then execute       │   │
+│  └────────┬────────┘  └────────┬────────┘  └──────────┬──────────┘   │
+│           │                    │                      │                │
+│           └────────────────────┼──────────────────────┘                │
+│                                ▼                                         │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                      MODEL ROUTER                                  │  │
+│  │                                                                   │  │
+│  │  Task type → Best model:                                        │  │
+│  │  • Android task → Gemma 4 e4b (tool-calling specialist)        │  │
+│  │  • Vision task → Kimi k2.5 (top-tier vision)                   │  │
+│  │  • Coding task → MiniMax M2.7 (fast, good at code)            │  │
+│  │  • Reasoning → qwen3.5-plus or gpt-5.4                        │  │
+│  │  • Budget → OpenRouter free tier                                 │  │
+│  └──────────────────────────────┬───────────────────────────────────┘  │
+│                                  │                                        │
+│  ┌──────────────────────────────▼───────────────────────────────────┐  │
+│  │                    TOOL EXECUTION                                  │  │
+│  │                                                                   │  │
+│  │  Registry of 102 tools. Each tool has:                        │  │
+│  │  • name, description, category                                  │  │
+│  │  • capability flags (shell, file, network, etc.)              │  │
+│  │  • safety level (normal ⚠️ warning, or safe)                 │  │
+│  │  • retry count + fallback behavior                              │  │
+│  │                                                                   │  │
+│  │  Execution chain:                                                │  │
+│  │  Tool → Execute → Success? → done                             │  │
+│  │              ↓ fail                                              │  │
+│  │         Fallback Manager → retry with same tool                 │  │
+│  │              ↓ still fail                                        │  │
+│  │         Fallback Manager → try alternative tool                 │  │
+│  │              ↓ exhausted                                         │  │
+│  │         Report failure + suggest alternatives                     │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                   PROVIDER MANAGER                                  │  │
+│  │                                                                   │  │
+│  │  Manages all provider connections:                               │  │
+│  │  • MiniMax (API key from env)                                  │  │
+│  │  • LM Studio (local server at 127.0.0.1:1234)                 │  │
+│  │  • Kimi/Moonshot (API key)                                      │  │
+│  │  • OpenRouter (API key)                                         │  │
+│  │  • OpenClaw Gateway (WebSocket bridge)                          │  │
+│  │                                                                   │  │
+│  │  Each provider has:                                               │  │
+│  │  • complete() — send messages, get response                     │  │
+│  │  • capabilities — { supportsImages, supportsStreaming }         │  │
+│  │  • rate limits + key rotation                                   │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────────┘
 ```
-
-**Components:**
-- **Task Complexity Classifier** — scores every task 1-10
-- **Model Router** — picks best model for the job
-- **AI Council Bridge** — triggers multi-councilor deliberation for complex tasks
-- **Tool Registry** — 102 tools with capability-based selection
-- **Fallback Manager** — retries with alternative providers on failure
 
 ---
 
-## 🏛️ AI Council
+## 🧠 AI Council Integration
 
-Complex tasks (score ≥ 7) trigger deliberation by multiple AI councilors:
+Complex tasks (score ≥ 7) trigger **AI Council deliberation** — multiple AI councilors debate the task and return a verdict before execution proceeds.
 
-- **Speaker** — moderates debate
-- **Technocrat** — technical feasibility
-- **Ethicist** — right/wrong analysis
-- **Pragmatist** — practical tradeoffs
-- **Skeptic** — challenges assumptions
-- **Sentinel** — safety and risk
+**How deliberation works:**
 
-Example deliberation triggers:
 ```
-"should I upgrade this dependency?"        → 8/10 → Council debates
-"write a security audit for this code"   → 9/10 → Council debates
-"what is 2+2?"                          → 1/10 → Fast path
-"open settings"                          → 3/10 → Fast path
+Orchestrator scores task → 8/10 (complex)
+  │
+  ▼
+AI Council Bridge fires
+  │
+  ▼
+Councilors deliberate (each sees the full context):
+  • Speaker — moderates, summarizes, keeps debate on track
+  • Technocrat — technical feasibility, risks, alternatives
+  • Ethicist — moral/ethical implications, red lines
+  • Pragmatist — practical tradeoffs, resource cost, timeline
+  • Skeptic — challenges assumptions, worst-case scenarios
+  • Sentinel — safety gates, security concerns
+  │
+  ▼
+Each councilor returns: verdict + reasoning
+  │
+  ▼
+Bridge aggregates → "APPROVE" / "REJECT" / "CONDITIONAL" / "MODIFY"
+  │
+  ▼
+Orchestrator proceeds (or modifies task based on conditions)
+```
+
+**Direct council invocation:**
+```bash
+./duck council "should I upgrade all dependencies at once?"
+```
+
+---
+
+## 🫀 KAIROS — Proactive Heartbeat
+
+KAIROS is the proactive AI layer that runs continuous monitoring tasks even when you're not interacting.
+
+```
+Every N minutes (configurable):
+  │
+  ▼
+KAIROS Heartbeat fires
+  │
+  ▼
+Checks configured monitors:
+  • System health (RAM, disk, services)
+  • Crypto prices (if configured)
+  • Grow monitoring (if phone connected)
+  • News / OSINT feeds
+  • Weather alerts
+  • GitHub activity
+  │
+  ▼
+Anomaly detected?
+  │ no → log and sleep
+  │ yes → alert + optional autonomous response
+```
+
+**KAIROS modes:**
+```bash
+./duck kairos status         # Check if running
+./duck kairos enable         # Start heartbeat
+./duck kairos disable        # Pause
+./duck kairos aggressive    # Faster polling, more proactive
+./duck kairos conservative   # Slower, less intrusive
+```
+
+---
+
+## 🌊 Subconscious — Whisper Monitoring
+
+The subconscious is a **background whisper layer** that monitors every model response and fires alerts based on pattern recognition.
+
+```
+Response comes in from model
+  │
+  ▼
+Subconscious analyzes (no model call — pure pattern matching):
+  │
+  ├── Confidence < 0.5 → Log uncertainty whisper
+  ├── Confidence ≥ 0.7 → Trigger AI Council deliberation
+  ├── Pattern match (user corrected before) → Apply learned fix
+  ├── Anomaly detected → Alert via Telegram
+  └── Learned correction available → Apply silently
+  │
+  ▼
+Whisper types:
+  • correction — user previously fixed this
+  • caution — confidence low, verify before acting
+  • escalate — AI Council needed
+  • learned — pattern match from feedback
+  • security — potential security concern
+  • resource — system resource warning
+```
+
+**The loop:**
+```
+User corrects duck-cli → Subconscious logs correction
+Later task matches pattern → Whisper fires → Fix applied silently
+Learning compounds over time → duck-cli gets smarter
+```
+
+```bash
+./duck subconscious status   # Check whisper stats
+./duck learn_from_feedback    # Force learning check
+```
+
+---
+
+## 🛡️ Safety — Secret Scanner + Guardrails
+
+Every tool execution is scanned for secrets and protected by guardrails:
+
+**Secret Scanner:**
+```
+Tool output → Secret scanner
+  │
+  ├── API keys detected → Redact + alert
+  ├── Passwords / tokens → Redact + alert
+  ├── Private keys → Redact + alert
+  └── Clean → Pass through
+```
+
+**Guard System:**
+```
+Before execution:
+  • Shell commands → Guard checks for destructive patterns (rm -rf, etc.)
+  • File writes → Guard checks for overwrite risks
+  • External calls → Guard checks for data exfiltration
+  • Internet calls → Guard checks for suspicious destinations
+
+After execution:
+  • Output scanned for secrets
+  • Anomalies flagged
+  • All events logged
 ```
 
 ---
@@ -121,164 +322,219 @@ Example deliberation triggers:
 | **Subagents** | `spawn`, `spawn_team`, `list`, `status`, `cancel`, `wait` |
 | **Android** | `devices`, `screenshot`, `tap`, `type`, `dump`, `find_and_tap`, `swipe`, `press`, `app`, `screen`, `agent` ⚠️, `notifications` |
 | **AI Systems** | `council`, `kairos`, `subconscious`, `think_parallel` |
-| **Duck tools** | `duck_status`, `duck_skills`, `duck_security`, `duck_doctor` |
+| **Duck tools** | `duck_status`, `duck_skills`, `duck_security`, `duck_doctor`, `duck_agent` |
 | **Providers** | `provider_list`, `provider_set` |
-| **Learning** | `learn_from_feedback`, `context_memory` |
+| **Learning** | `learn_from_feedback`, `context_memory`, `learning_stats` |
 | **Safety** | `guard_check`, `guard_log`, `guard_stats` |
 | **Tracing** | `trace_enable`, `trace_view`, `trace_list` |
 | **Workflows** | `workflow_run`, `flow_run` ⚠️, `flow_run_ts`, `flow_list`, `flow_replay` |
 
-⚠️ = safety-reviewed tool
+⚠️ = flagged as powerful/unsafe — requires confirmation or runs with extra guardrails
 
 ---
 
-## 🖥️ Commands Reference
+## 🤖 Subagents — Parallel Task Execution
+
+Spawn parallel subagents for complex multi-step tasks:
 
 ```bash
-# Core
-./duck run "task"                    # Run a task
-./duck shell                         # Interactive TUI shell
-./duck status                        # Agent status + diagnostics
-./duck doctor                        # Full health check
+# Spawn a research subagent
+./duck agent spawn "research quantum computing and summarize"
 
-# Provider control
-./duck -p minimax run "task"        # Force provider
-./duck -m gemma-4-e4b-it run "task" # Force model
+# Spawn a team
+./duck agent spawn_team "build a web scraper"
+# Team: planner agent + coder agent + tester agent
 
-# AI systems
-./duck council "should I refactor?" # Direct AI Council deliberation
-./duck kairos status                # KAIROS proactive AI heartbeat
-./duck subconscious status           # Subconscious whisper system
+# Check status
+./duck agent list
 
-# Scheduling
-./duck cron create "*/5 * * * *" "say hi"  # Cron job
-./duck cron list                              # List cron jobs
+# Cancel
+./duck agent cancel <agent-id>
 
-# Subagents
-./duck agent spawn "research topic"           # Spawn subagent
-./duck agent list                            # List running agents
-./duck agent cancel <id>                      # Cancel agent
-
-# Web UI
-./duck web                                    # Start web UI (port 3001)
-./duck gateway                                # Start OpenClaw gateway
-
-# Telegram bot (standalone)
-./duck telegram start                         # Start @AgentSmithsbot bot
-
-# Android (optional — requires ADB)
-./duck android devices                         # List connected devices
-./duck android screenshot                     # Screenshot
-./duck android dump                          # UI accessibility tree
-./duck android tap "Settings"               # Tap element
-./duck android agent "open WhatsApp"         # AI agent — perceive→reason→act
+# Wait for result
+./duck agent wait <agent-id>
 ```
+
+**Orchestrator delegates to subagents:**
+- Long tasks → subagent spawned
+- Parallel research → multiple subagents
+- Complex coding → subagent with full tool access
 
 ---
 
-## 🏗️ Architecture
+## 💾 Sessions & Memory
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     duck run "task"                           │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│              Hybrid Orchestrator v2                           │
-│                                                               │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │  Task Complexity Classifier (1-10)                   │    │
-│  │  Model Router ──► MiniMax / Gemma 4 / Kimi / etc.  │    │
-│  │  AI Council Bridge (triggers on score ≥ 7)         │    │
-│  │  Tool Registry (102 tools)                          │    │
-│  │  Fallback Manager (retry on failure)                 │    │
-│  └────────────────────────────────────────────────────┘    │
-└──────────────────────────────┬───────────────────────────────┘
-                               │
-          ┌────────────────────┼────────────────────┐
-          ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│   MiniMax M2.7  │  │  Gemma 4 26B   │  │  Kimi k2.5      │
-│   (API)         │  │  (LM Studio)   │  │  (API)          │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
-```
-
----
-
-## 🧠 Subconscious System
-
-A whisper layer that monitors every response and fires alerts:
-
-```
-User message → Subconscious whisper engine
-      │
-      ├─ Low confidence (< 0.5) → Log observation
-      │
-      ├─ High confidence (≥ 0.7) → AI Council deliberation
-      │
-      └─ Threshold breach → Immediate alert + autonomous response
-```
-
-Whispers trigger on: anomalous patterns, resource issues, security concerns, learned corrections.
-
----
-
-## 📊 Sessions & Memory
-
-Every interaction is logged and searchable:
+Every interaction is logged and stored in SQLite:
 
 ```bash
-./duck session list              # Recent sessions
-./duck session search "python"   # Search past sessions
-./duck memory remember "key=val"  # Store fact
-./duck memory recall "key"        # Retrieve fact
-./duck learn_from_feedback        # Learn from corrections
+# List recent sessions
+./duck session list
+
+# Search past sessions
+./duck session search "python api"
+
+# Get full log
+./duck session_log <session-id>
+
+# Remember a fact
+./duck memory remember "project=duck-cli-v2, language=TypeScript"
+
+# Recall a fact
+./duck memory recall "project"
+
+# Memory stats
+./duck memory_stats
 ```
 
-**SQLite-backed** session storage with semantic search.
+**Memory is persistent** — duck-cli remembers your preferences, past tasks, and corrections across sessions.
+
+---
+
+## ⏰ Scheduling — Cron Jobs
+
+Schedule tasks to run automatically:
+
+```bash
+# Create a cron job
+./duck cron create "*/5 * * * *" "run health check"
+./duck cron create "0 9 * * *" "send morning summary"
+./duck cron create "0 */6 * * *" "pull crypto prices"
+
+# List all cron jobs
+./duck cron list
+
+# Enable/disable
+./duck cron enable <job-id>
+./duck cron disable <job-id>
+
+# Delete
+./duck cron delete <job-id>
+
+# Stats
+./duck cron_stats
+```
+
+---
+
+## 🌐 Bridges — MCP, ACP, WebSocket, OpenClaw Gateway
+
+**MCP (Model Context Protocol):**
+```bash
+./duck mcp connect -- python3 /path/to/mcp-server.py
+```
+Connect MCP tools — extends the tool registry dynamically.
+
+**ACP (Agent Communication Protocol) — OpenClaw Gateway:**
+```bash
+./duck gateway  # Start OpenClaw gateway bridge
+openclaw acp spawn --agent duck-cli --task "research topic"
+```
+Bridge lets OpenClaw agents spawn duck-cli subagents and vice versa.
+
+**WebSocket — Real-time streaming:**
+```bash
+./duck web  # Start web UI with streaming
+```
 
 ---
 
 ## 📱 Android Agent (Optional)
 
-When connected via ADB, duck-cli can autonomously control your phone:
+When connected via ADB, duck-cli can autonomously control your Android phone:
 
 ```bash
 # Connect
 adb connect 192.168.1.251:5555
-
-# AI agent — perceive→reason→act loop
-./duck android agent "open WhatsApp"
-./duck android agent "open settings and turn on WiFi"
-./duck android agent "go home"
+./duck android devices
 
 # Direct commands
 ./duck android screenshot
 ./duck android tap "Settings"
 ./duck android dump  # Accessibility tree
+
+# AI agent — perceive→reason→act loop
+./duck android agent "open WhatsApp"
+./duck android agent "open settings and turn on WiFi"
+./duck android agent "go home"
 ```
 
-**How it works:** Dumps UI accessibility tree → sends to Gemma 4 (tool-calling specialist) → executes tap/type/swipe → repeats until goal reached.
+**How the Android agent works:**
+
+```
+Goal: "open WhatsApp"
+  │
+  ▼
+Perceive — dump UI accessibility tree via ADB
+  │
+  ▼
+Reason — send screen state + goal to Gemma 4 e4b
+  │
+  ▼
+Act — Gemma 4 decides: tap WhatsApp icon
+  │
+  ▼
+Execute — ADB tap at coordinates
+  │
+  ▼
+Loop — Perceive again, check if goal met
+  │
+  ▼
+Max 30 steps or goal achieved
+```
+
+Gemma 4 e4b is preferred for Android because it's **trained on Android Studio Agent Mode** — it has native tool-calling and vision for Android UI interpretation.
 
 ---
 
-## 🌐 Protocols & Bridges
+## 📂 Project Structure
 
-**MCP (Model Context Protocol)** — connect MCP tools:
-```bash
-./duck mcp connect <server-command>
 ```
-
-**ACP (Agent Communication Protocol)** — OpenClaw gateway bridge:
-```bash
-./duck gateway           # Start gateway
-openclaw acp spawn --agent duck-cli --task "task"
-```
-
-**WebSocket** — real-time streaming:
-```bash
-./duck web              # Web UI + streaming
+duck-cli/
+├── src/
+│   ├── orchestrator/              # Hybrid Orchestrator v2
+│   │   ├── task-complexity.ts       # 1-10 scoring across 5 dimensions
+│   │   ├── model-router.ts         # Task type → best model
+│   │   ├── council-bridge.ts      # AI Council deliberation
+│   │   ├── hybrid-core.ts          # Main orchestration loop
+│   │   └── fallback-manager.ts     # Retry + alternative chains
+│   ├── providers/                  # LLM provider system
+│   │   ├── manager.ts              # ProviderManager — load + route
+│   │   ├── minimax.ts              # MiniMax provider
+│   │   ├── lmstudio.ts            # LM Studio (local Gemma 4)
+│   │   ├── kimi.ts                # Kimi/Moonshot provider
+│   │   ├── openrouter.ts          # OpenRouter provider
+│   │   └── openclaw-gateway.ts   # OpenClaw Gateway bridge
+│   ├── agent/                     # Agent implementations
+│   │   ├── core.ts                # Core Agent with tools + memory
+│   │   ├── android-tools.ts       # Android ADB tools
+│   │   └── session-store.ts       # SQLite session storage
+│   ├── subconscious/              # Subconscious whisper system
+│   │   ├── subconscious.ts        # Main whisper engine
+│   │   ├── council-bridge.ts      # Triggers AI Council on high-confidence whispers
+│   │   └── types.ts              # Whisper types + confidence
+│   ├── kairos/                  # KAIROS proactive heartbeat
+│   │   └── heartbeat.ts          # Continuous monitoring + alerts
+│   ├── skills/                  # duck-cli skills
+│   ├── tools/                    # Tool implementations
+│   ├── commands/                 # CLI command handlers
+│   │   ├── telegram-bot.ts        # Standalone Telegram bot
+│   │   ├── council.ts             # AI Council commands
+│   │   ├── cron.ts               # Cron scheduler
+│   │   └── subconscious.ts       # Subconscious commands
+│   ├── mesh/                    # Agent mesh networking
+│   │   ├── agent-mesh.ts        # Mesh protocol
+│   │   └── agent-card.ts        # Agent discovery
+│   ├── rl/                      # Reinforcement learning
+│   │   └── openclaw-rl.ts       # Learning from feedback
+│   └── ui/                      # Web/desktop UI
+│       └── desktop/              # React/Vite desktop-style UI
+├── cmd/duck/                    # Go CLI layer
+│   └── main.go                  # Go binary — wraps Node.js
+├── tools/                      # Standalone tools
+│   ├── telegram-bot.py          # Standalone Telegram bot (Python)
+│   └── install-*.sh             # Install scripts per platform
+├── skills/                     # duck-cli skills marketplace
+└── docs/                      # Architecture docs
 ```
 
 ---
@@ -295,8 +551,9 @@ npm install && npm run build
 
 ### Telegram Bot (standalone)
 ```bash
-# Token already configured in .env
+# Token configured in .env — just start it:
 ./duck telegram start
+
 # Message @AgentSmithsbot on Telegram
 ```
 
@@ -323,13 +580,15 @@ adb devices
 
 ## 🦆 Powered By
 
-- [OpenClaw](https://github.com/openclaw/openclaw) — ACP/MCP protocols, Skills
-- [MiniMax](https://www.minimax.io/) — Fast reasoning API
-- [LM Studio](https://lmstudio.ai/) — Local LLM inference
-- [Gemma 4](https://ai.google.dev/) — Android-trained local model
-- [Kimi](https://platform.moonshot.cn/) — Vision + coding
-- [Pretext](https://github.com/chenglou/pretext) — Canvas text measurement
+- **[OpenClaw](https://github.com/openclaw/openclaw)** — ACP/MCP protocols, Skills system, agent mesh
+- **[Hermes-Agent](https://github.com/NousResearch/hermes-agent)** — Learning loops, proactive AI
+- **[NeMoClaw](https://github.com/NVIDIA/NeMoClaw)** — Security sandboxing
+- **[Gemma 4](https://ai.google.dev/)** — Android-trained local model
+- **[MiniMax](https://www.minimax.io/)** — Fast reasoning API
+- **[LM Studio](https://lmstudio.ai/)** — Local LLM inference
+- **[Kimi/Moonshot](https://platform.moonshot.cn/)** — Vision + coding
+- **[Pretext](https://github.com/chenglou/pretext)** — Canvas text measurement for generative UI
 
 ---
 
-**duck-cli — Desktop AI agent. Android is optional.**
+**duck-cli — Desktop AI agent. Autonomous. Multi-model. Self-improving.**
