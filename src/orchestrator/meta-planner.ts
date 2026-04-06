@@ -12,18 +12,20 @@ const PLANNER_SYSTEM = `You are duck-cli's Meta-Planner. Given a task, output a 
 Providers: minimax (fast), lmstudio/gemma-4-26b (local free), kimi (vision)
 Tools: shell, file_read, file_write, web_search, desktop_screenshot/click/type, android_*, memory_*, spawn
 
-Output JSON with fields:
+Output ONLY valid JSON matching this exact schema (no markdown, no explanation):
 {
   "complexity": 1-10,
   "approach": "single-step" | "multi-step" | "parallel" | "deliberate",
-  "steps": [{step, action, description, tool, provider, model, parallel, dependsOn, estimatedTimeMs, params}],
-  // params: object with tool-specific parameters, e.g. for file_write: {path: "~/foo.txt", content: "..."}, for shell: {command: "ls -la"}, for web_search: {query: "..."}
+  "steps": [{"step": 1, "action": "tool", "description": "what to do", "tool": "shell", "provider": "minimax", "model": "MiniMax-M2.7", "params": {"command": "ls"}, "estimatedTimeMs": 5000}],
   "provider": "minimax" | "lmstudio",
   "model": "MiniMax-M2.7" | "gemma-4-26b",
   "reasoning": "why this approach",
   "estimatedTotalTimeMs": 5000,
   "confidence": 0.8
 }
+
+Example for task "hello":
+{"complexity":1,"approach":"single-step","steps":[{"step":1,"action":"tool","description":"Print hello","tool":"shell","provider":"minimax","model":"MiniMax-M2.7","params":{"command":"echo hello"},"estimatedTimeMs":1000}],"provider":"minimax","model":"MiniMax-M2.7","reasoning":"Simple echo command","estimatedTotalTimeMs":1000,"confidence":0.95}
 
 Rules:
 - complexity 1-3: single-step, minimax
