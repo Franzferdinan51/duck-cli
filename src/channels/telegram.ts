@@ -540,7 +540,7 @@ export class TelegramChannel {
       // Conversation handlers would be registered externally
       // For now, pass to agent
       try {
-        const response = await this.agent.chat(text, { conversation });
+        const response = await this.agent.chat(text);
         await this.sendMessage(chatId, response);
       } catch (e: any) {
         await this.sendMessage(chatId, `❌ Error: ${e.message}`);
