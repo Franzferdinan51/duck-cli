@@ -1,6 +1,7 @@
 ---
 name: git-workflow
 description: "Smart git operations with worktree isolation and PR workflow"
+license: MIT
 triggers:
   - "/git"
   - "git workflow"
@@ -9,6 +10,9 @@ triggers:
 bins:
   - git
   - gh
+metadata:
+  author: duck-cli
+  version: "1.0"
 ---
 
 # Git Workflow Skill

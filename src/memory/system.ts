@@ -9,8 +9,19 @@ import { homedir } from 'os';
 import { fileURLToPath } from 'url';
 import { SQLiteStore, MemorySearch, ToolUsage, SessionSummary } from './sqlite-store.js';
 
-// Raw import for SOUL-template.md fallback personality
-import soulTemplateRaw from '../prompts/SOUL-template.md?raw';
+// Runtime path for SOUL-template.md fallback personality
+function getSoulTemplate(): string {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const templatePath = join(__dirname, '..', 'prompts', 'SOUL-template.md');
+    if (existsSync(templatePath)) {
+      return readFileSync(templatePath, 'utf-8');
+    }
+  } catch (e) {
+    // Fall through to basic SOUL
+  }
+  return '';
+}
 
 export { SQLiteStore, MemorySearch, ToolUsage, SessionSummary };
 

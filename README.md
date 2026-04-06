@@ -1,6 +1,8 @@
-# 🦆 duck-cli v0.4.0
+# 🦆 duck-cli v0.6.1
 
 > **Desktop AI Agent** — Smart multi-provider routing, AI Council deliberation, proactive KAIROS heartbeat, agent-mesh networking, and 50+ built-in commands. Runs on Mac/PC/Linux/Android.
+
+**OpenClaw v2026.4.5 compatible** — ACPX embedded runtime, 3-phase dreaming (light/deep/REM), subagent spawning.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -130,12 +132,53 @@ Complex tasks trigger multi-agent deliberation before execution.
 Continuous background monitoring — alerts you when something needs attention.
 
 ```bash
-./duck kairos status
-./duck kairos enable         # Start heartbeat
-./duck kairos disable        # Pause
-./duck kairos aggressive     # Faster polling
-./duck kairos conservative   # Slower, less intrusive
-./duck kairos balanced       # Default
+./duck kairos status         # Show current state, idle/sleep, last tick
+./duck kairos start         # Start autonomous heartbeat (fire first tick immediately)
+./duck kairos stop          # Pause
+./duck kairos dream         # Manually trigger dream consolidation
+./duck kairos dream --save  # Dream + save insights to Sub-Conscious daemon
+./duck kairos history       # Recent action history
+
+# Skill management (autonomous skill creation)
+./duck kairos skills --list         # List auto-created skills
+./duck kairos skills --stats       # Creator + improver stats
+./duck kairos skills --patterns    # Patterns ready for skill creation
+./duck kairos skills --create <p>  # Manually create skill from pattern
+./duck kairos skills --improve <s>  # Improve a specific skill
+./duck kairos skills --improve-all # Fix skills with poor health
+```
+
+
+### How KAIROS Works
+
+- **Tick loop** — Fires every 5 min (configurable), monitors terminal focus & idle
+- **Proactive mode** — `aggressive`/`balanced`/`conservative` controls how often it acts when idle
+- **Dream consolidation** — At `dreamTime` (default 03:00), enters sleep, runs pattern analysis
+- **Dream → Sub-Conscious** — `dream_complete` event saves insights to the Sub-Conscious daemon (`/dream` endpoint)
+- **Autonomous skill creation** — Tracks repeated tool sequences, auto-creates skills after 3+ occurrences
+
+### Dream Phases (OpenClaw v2026.4.5 compatible)
+
+KAIROS dream events map to OpenClaw's 3-phase dreaming architecture:
+
+| Phase | KAIROS Event | OpenClaw Mapping |
+|-------|-------------|-----------------|
+| Light sleep | `idle` state while `isAsleep=true` | Light dreaming |
+| Deep processing | `consolidateLearnings()` running | Deep consolidation |
+| REM complete | `dream_complete` emitted → POST `/dream` | REM → Sub-Conscious save |
+
+
+### OpenClaw ACPX Runtime (v2026.4.5+)
+
+
+duck-cli spawns ACP agents (Codex, Claude Code, Pi, etc.) via the ACPX embedded runtime. ACPX path resolution uses `process.execPath` to locate the acpx binary — works even when PATH is minimal (e.g., inside OpenClaw subprocess).
+
+
+```bash
+# ACP client starts automatically with duck-cli
+./duck acp spawn codex "build a feature"
+./duck acp sessions
+./duck acp cancel <session>
 ```
 
 ---

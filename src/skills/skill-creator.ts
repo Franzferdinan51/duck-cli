@@ -113,6 +113,7 @@ export class SkillCreator {
 
     // Use MiniMax for skill generation (fast + capable)
     const provider = new ProviderManager();
+    await provider.load(); // Initialize providers before use
     const model = 'minimax/glm-5';
 
     const systemPrompt = `You are duck-cli's Skill Creator. Given a recurring task pattern, output a properly formatted SKILL.md file.
@@ -189,6 +190,7 @@ Rules:
     }
 
     const provider = new ProviderManager();
+    await provider.load(); // Initialize providers before use
     const model = 'minimax/glm-5';
 
     const context = `Create a skill from this request:\n"${prompt}"\n\nSteps identified:\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;

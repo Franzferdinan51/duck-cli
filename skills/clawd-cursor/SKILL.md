@@ -6,6 +6,7 @@ description: >
   Send natural language tasks to the Clawd Cursor API and it handles everything:
   opening apps, clicking buttons, typing text, navigating browsers, filling forms.
   If you can click it, your agent can too.
+license: MIT
 homepage: https://clawdcursor.com
 source: https://github.com/AmrDab/clawd-cursor
 privacy: >
@@ -14,6 +15,8 @@ privacy: >
   only — never to third-party servers or skill authors. The user controls which provider is used.
   The REST API binds to 127.0.0.1 only and is not network-accessible.
 metadata:
+  author: duck-cli
+  version: "1.0"
   openclaw:
     # Note: bins check removed — OpenClaw's hasBinary() doesn't handle Windows
     # PATHEXT (.exe/.cmd), causing false "missing" on Windows even when node is

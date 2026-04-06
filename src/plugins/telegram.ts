@@ -9,7 +9,7 @@
  */
 
 import https from 'https';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
 
@@ -107,6 +107,65 @@ async function sendMessage(text: string, replyTo?: number): Promise<void> {
   };
   if (replyTo) payload.reply_to_message_id = replyTo;
   await telegramRequest('sendMessage', payload);
+}
+
+async function sendVoice(filePath: string, caption?: string, replyTo?: number): Promise<void> {
+  const { botToken, chatId } = getConfig();
+  return new Promise((resolve, reject) => {
+    const boundary = '----DuckCLIBoundary' + Date.now();
+    const fileData = readFileSync(filePath);
+    const filename = filePath.split('/').pop() || 'voice.mp3';
+
+    // Build multipart form-data body manually
+    let body = '';
+    body += `--${boundary}\r\n`;
+    body += `Content-Disposition: form-data; name="chat_id"\r\n\r\n${chatId}\r\n`;
+
+    if (replyTo) {
+      body += `--${boundary}\r\n`;
+      body += `Content-Disposition: form-data; name="reply_to_message_id"\r\n\r\n${replyTo}\r\n`;
+    }
+
+    if (caption) {
+      body += `--${boundary}\r\n`;
+      body += `Content-Disposition: form-data; name="caption"\r\n\r\n${escapeHtml(caption)}\r\n`;
+    }
+
+    body += `--${boundary}\r\n`;
+    body += `Content-Disposition: form-data; name="voice"; filename="${filename}"\r\n`;
+    body += `Content-Type: audio/mpeg\r\n\r\n`;
+
+    const bodyStart = Buffer.from(body, 'utf-8');
+    const bodyEnd = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
+    const fullBody = Buffer.concat([bodyStart, fileData, bodyEnd]);
+
+    const options: https.RequestOptions = {
+      hostname: 'api.telegram.org',
+      path: `/bot${botToken}/sendVoice`,
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': fullBody.length,
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.ok) resolve();
+          else reject(new Error(parsed.description || 'Telegram sendVoice error'));
+        } catch (e: any) {
+          reject(new Error(`Failed to parse sendVoice response: ${e.message}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(fullBody);
+    req.end();
+  });
 }
 
 async function getMe(): Promise<{ username: string; first_name: string }> {
@@ -325,8 +384,26 @@ export async function telegramStart(): Promise<void> {
 
         try {
           const response = await forwardToGateway(text);
+
+          // Extract [AUDIO:filepath] markers and send voice messages
+          const audioMarkers = response.match(/\[AUDIO:([^\]]+)\]/g) || [];
+          for (const marker of audioMarkers) {
+            const filePath = marker.match(/\[AUDIO:([^\]]+)\]/)?.[1];
+            if (filePath) {
+              try {
+                await sendVoice(filePath, undefined, msg.message_id);
+                console.log(`📤 Sent voice message: ${filePath}`);
+              } catch (e: any) {
+                console.error(`❌ Voice send failed: ${e.message}`);
+              }
+            }
+          }
+
+          // Strip [AUDIO:filepath] markers from display text
+          const displayText = response.replace(/\[AUDIO:[^\]]+\]/g, '').trim();
+
           // Telegram message length limit
-          const chunks = response.match(/.{1,4096}/g) || [response];
+          const chunks = displayText.match(/.{1,4096}/g) || [displayText];
           for (const chunk of chunks) {
             await sendMessage(chunk, msg.message_id);
           }

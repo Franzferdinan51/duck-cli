@@ -31,7 +31,7 @@ export interface KAIROSConfig {
 
 export const DEFAULT_KAIROS_CONFIG: KAIROSConfig = {
   enabled: true,
-  tickInterval: 21600000,    // 6 hours (4x daily)
+  tickInterval: 300000,      // 5 minutes (was 6 hours)
   idleThreshold: 30000,       // 30 seconds idle
   maxActionsPerTick: 3,
   proactiveMode: 'balanced',
@@ -190,6 +190,9 @@ export class KAIROS extends EventEmitter {
     this.isRunning = true;
     this.emit('wake');
     
+    // Fire first tick immediately so heartbeat/dream logic runs right away
+    this.tick();
+    
     // Start tick loop
     this.tickInterval = setInterval(() => {
       this.tick();
@@ -342,7 +345,7 @@ export class KAIROS extends EventEmitter {
         this.emit('dream_complete', this.currentDream);
         this.currentDream = undefined;
       }
-    }, 60000); // 1 minute dream
+    }, 30000); // 30 seconds dream (was 60s, reduced for testing)
   }
   
   /**

@@ -1,6 +1,7 @@
 ---
 name: security-audit
 description: "Security vulnerability scanning for dependencies, secrets, and supply chain"
+license: MIT
 triggers:
   - "/security"
   - "security audit"
@@ -13,6 +14,9 @@ bins:
   - pip
 env:
   SNYK_TOKEN: "Optional Snyk API token for enhanced scanning"
+metadata:
+  author: duck-cli
+  version: "1.0"
 ---
 
 # Security Audit Skill

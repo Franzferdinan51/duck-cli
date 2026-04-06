@@ -280,7 +280,42 @@ export class ACPClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       // Resolve acpx to its full path so it works even when PATH is minimal (e.g. OpenClaw subprocess)
       const { execSync } = require('child_process');
-      const acpxPath = this.acpxPath === 'acpx' ? execSync('which acpx').toString().trim() : this.acpxPath;
+      
+      // Strategy 1: use `which acpx` if available in PATH
+      let acpxPath: string;
+      try {
+        acpxPath = execSync('which acpx', { stdio: 'pipe' }).toString().trim();
+      } catch {
+        acpxPath = '';
+      }
+      
+      // Strategy 2: if not in PATH, resolve via process.execPath (same trick as OpenClaw acpx plugin)
+      // This handles the OpenClaw v2026.4.5 embedded ACP runtime case where acpx is a peer of node
+      if (!acpxPath) {
+        try {
+          const nodeDir = require('path').dirname(process.execPath);
+          const candidate = `${nodeDir}/acpx`;
+          require('fs').accessSync(candidate);
+          acpxPath = candidate;
+        } catch {
+          // Not found at nodeDir/acpx either
+        }
+      }
+      
+      // Strategy 3: try node_modules resolution
+      if (!acpxPath) {
+        try {
+          acpxPath = require.resolve('acpx');
+        } catch {
+          // acpx not installed as npm module
+        }
+      }
+      
+      if (!acpxPath) {
+        reject(new Error('acpx not found - install it or set backend=direct'));
+        return;
+      }
+      
       const proc = spawn(process.execPath, [acpxPath, ...args], { env, stdio: ['pipe', 'pipe', 'pipe'] });
       session.process = proc;
 
@@ -514,16 +549,37 @@ export class ACPClient extends EventEmitter {
     return '';
   }
 
-  private async checkAcpxInstalled(): Promise<boolean> {
+  private async checkAcpxInstalled(): Promise<boolean | string> {
     return new Promise((resolve) => {
-      // Use execSync instead of spawn('which') so it works regardless of PATH
+      // Try which first, then fall back to process.execPath approach
       try {
         const { execSync } = require('child_process');
-        execSync('which acpx', { stdio: 'ignore' });
-        resolve(true);
+        const acpxPath = execSync('which acpx', { stdio: 'pipe' }).toString().trim();
+        if (acpxPath) {
+          resolve(acpxPath);
+          return;
+        }
       } catch {
-        resolve(false);
+        // which failed - acpx not in PATH, try process.execPath resolution
       }
+      
+      // Try resolving via node module path (works even in OpenClaw subprocess)
+      try {
+        const { execSync } = require('child_process');
+        // Use node to resolve acpx module path
+        const acpxPath = execSync(
+          `node -e "try{require.resolve('acpx')}catch(e){console.log('')}" 2>/dev/null || echo ""`,
+          { stdio: 'pipe' }
+        ).toString().trim();
+        if (acpxPath) {
+          resolve(acpxPath);
+          return;
+        }
+      } catch {
+        // Node resolution failed
+      }
+      
+      resolve(false);
     });
   }
 

@@ -175,25 +175,41 @@ export class ProviderManager {
     const resolvedProvider = provider || this.detectProvider(model);
     const resolvedModel = provider && !modelId.includes('/') ? model : (modelParts.length > 1 ? modelParts.join('/') : model);
 
-    const prov = this.providers.get(resolvedProvider);
+    let prov = this.providers.get(resolvedProvider);
+    let fallbackModel = resolvedModel;
+    // Fallback: if requested provider unavailable, use first available with a capable model
     if (!prov) {
-      throw new Error(`Provider '${resolvedProvider}' not available. Available: ${this.list().join(', ')}`);
+      const available = this.list();
+      if (available.length === 0) {
+        throw new Error(`No AI providers available. Set MINIMAX_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, LMSTUDIO_URL, or OPENROUTER_API_KEY`);
+      }
+      // Prefer openclaw > lmstudio > openrouter > others
+      const preferred = ['openclaw', 'lmstudio', 'openrouter', 'openai', 'anthropic', 'minimax', 'kimi'].find(p => available.includes(p)) || available[0];
+      prov = this.providers.get(preferred)!;
+      // Use a model this provider is likely to support
+      if (preferred === 'openclaw') fallbackModel = 'kimi-k2.5';
+      else if (preferred === 'lmstudio') fallbackModel = 'qwen3.5-9b';
+      else if (preferred === 'openrouter') fallbackModel = 'minimax/minimax-m2.5:free';
+      else fallbackModel = resolvedModel;
+      console.log(`[Router📡] ${resolvedProvider}/${resolvedModel} unavailable, falling back to ${preferred}/${fallbackModel}`);
     }
 
     const msgList = messages || [{ role: 'user', content: prompt }];
-    console.log(`[Router📡] Direct routing: ${resolvedProvider}/${resolvedModel}`);
+    const actualModel = fallbackModel;
+    const actualProvider = prov ? (this.providers.get(resolvedProvider) ? resolvedProvider : Object.keys(this.providers).find(k => this.providers.get(k) === prov) || resolvedProvider) : resolvedProvider;
+    console.log(`[Router📡] Routing: ${actualProvider}/${actualModel}`);
 
     // Add timeout wrapper (60 second max per call)
     const timeoutMs = 90000;
     const result = await Promise.race([
-      prov.complete({ model: resolvedModel, messages: msgList }),
+      prov.complete({ model: actualModel, messages: msgList }),
       new Promise<{ text?: string; toolCalls?: any[]; error?: string }>((_, reject) =>
         setTimeout(() => reject({ error: 'Request timed out after 90s' }), timeoutMs)
       )
     ]).catch((e: any) => ({ error: e?.error || e?.message || 'Unknown error' })) as { text?: string; toolCalls?: any[]; error?: string };
 
-    if (result.error) throw new Error(`Model ${resolvedProvider}/${resolvedModel} failed: ${result.error}`);
-    return { text: result.text || '', provider: resolvedProvider, model: resolvedModel };
+    if (result.error) throw new Error(`Model ${actualProvider}/${actualModel} failed: ${result.error}`);
+    return { text: result.text || '', provider: actualProvider, model: actualModel };
   }
 
   /**

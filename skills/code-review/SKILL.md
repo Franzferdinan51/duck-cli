@@ -1,6 +1,7 @@
 ---
 name: code-review
 description: "Automated code review with multi-agent verification"
+license: MIT
 triggers:
   - "/review"
   - "code review"
@@ -11,6 +12,9 @@ bins:
   - npm
   - eslint
   - ruff
+metadata:
+  author: duck-cli
+  version: "1.0"
 ---
 
 # Code Review Skill

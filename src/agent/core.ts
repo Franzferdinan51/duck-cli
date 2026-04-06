@@ -46,6 +46,7 @@ import { MemoryManager } from './memory-provider.js';
 import { WhisperEngine, MemoryBridge } from '../subconscious/index.js';
 import type { Whisper } from '../subconscious/index.js';
 import { compileSystemPrompt, SystemPromptOptions } from '../prompts/index.js';
+import { getTTS } from '../tools/tts.js';
 
 // Raw import for SOUL-template.md fallback personality
 import soulTemplateRaw from '../prompts/SOUL-template.md?raw';
@@ -1818,6 +1819,30 @@ export class Agent extends EventEmitter {
         if (args.description) updates.description = args.description;
         if (args.skills) updates.skills = args.skills;
         return agentCardManager.updateCard(updates);
+      }
+    });
+
+    // ─── TTS / Speak ──────────────────────────────────────────
+    this.registerTool({
+      name: 'speak',
+      description: '🎤 Convert text to speech using MiniMax TTS',
+      schema: {
+        text: { type: 'string', description: 'Text to convert to speech' },
+        voice: { type: 'string', optional: true, description: 'Voice name (e.g. narrator, casual, sad)' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const outputPath = `/tmp/tts_${Date.now()}.mp3`;
+        const result = await getTTS().speak({
+          text: args.text,
+          voice: args.voice,
+          outputPath
+        });
+        if (!result.success) {
+          return { error: result.error };
+        }
+        // Include [AUDIO:filepath] marker so Telegram can pick it up
+        return { output: `Spoke: ${args.text} [AUDIO:${result.path}]` };
       }
     });
   }

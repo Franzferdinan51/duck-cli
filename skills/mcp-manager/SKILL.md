@@ -1,6 +1,7 @@
 ---
 name: mcp-manager
 description: "Manage MCP servers, tools, and resource access"
+license: MIT
 triggers:
   - "/mcp"
   - "mcp server"
@@ -9,6 +10,9 @@ bins:
   - npx
   - python
   - node
+metadata:
+  author: duck-cli
+  version: "1.0"
 ---
 
 # MCP Manager Skill
