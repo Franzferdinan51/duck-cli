@@ -527,8 +527,125 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── Skills (Autonomous + Self-Improving) ──────────────────────
+    this.registerTool({ name: 'skill_create', description: 'Create a new skill from description and steps',
+      schema: { prompt: { type: 'string' }, steps: { type: 'string[]', description: 'Array of step descriptions' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSkillCreator } = await import('../skills/skill-creator.js');
+        const creator = getSkillCreator();
+        const result = await creator.createSkillFromPrompt(args.prompt, args.steps || []);
+        if (result) return { success: true, skill: result.name, triggers: result.triggers, description: result.description };
+        return { success: false, error: 'Skill creation failed (may already exist)' };
+      }
+    });
+    this.registerTool({ name: 'skill_list', description: 'List all auto-created skills with health',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { getSkillCreator } = await import('../skills/skill-creator.js');
+        const { getSkillImprover } = await import('../skills/skill-improver.js');
+        const creator = getSkillCreator();
+        const improver = getSkillImprover();
+        return creator.listAutoSkills().map((name: string) => ({ name, health: improver.getSkillHealth(name) }));
+      }
+    });
+    this.registerTool({ name: 'skill_health', description: 'Get health stats for a skill',
+      schema: { skillName: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSkillImprover } = await import('../skills/skill-improver.js');
+        return getSkillImprover().getSkillHealth(args.skillName);
+      }
+    });
+    this.registerTool({ name: 'skill_improve', description: 'Trigger improvement for a skill',
+      schema: { skillName: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSkillImprover } = await import('../skills/skill-improver.js');
+        const result = await getSkillImprover().improveSkillManual(args.skillName);
+        if (result) return { success: true, changes: result.changes, reason: result.reason };
+        return { success: false, error: 'Improvement failed' };
+      }
+    });
+    this.registerTool({ name: 'skill_patterns', description: 'Get patterns ready for skill creation',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { getSkillCreator } = await import('../skills/skill-creator.js');
+        return getSkillCreator().getReadyPatterns();
+      }
+    });
+
+    // ─── Dream / KAIROS ──────────────────────────────────────────
+    this.registerTool({ name: 'dream_status', description: 'Check KAIROS dream system status',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { getKAIROS } = await import('../kairos/orchestrator.js');
+        const k = getKAIROS();
+        return { running: k.isActive(), state: k.getState(), config: k.getConfig(), dream: k.getCurrentDream() };
+      }
+    });
+    this.registerTool({ name: 'dream_trigger', description: 'Manually trigger KAIROS dream consolidation',
+      schema: { save: { type: 'boolean', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getKAIROS } = await import('../kairos/orchestrator.js');
+        const { getSubconsciousClient } = await import('../subconscious/client.js');
+        const k = getKAIROS();
+        (k as any).state.isAsleep = true;
+        (k as any).state.dreamEnabled = true;
+        await (k as any).tick();
+        const dream = k.getCurrentDream();
+        if (dream && args.save) {
+          try { await getSubconsciousClient().saveDream({ sessionId: `dream_${Date.now()}`, startedAt: dream.startedAt, endedAt: dream.endedAt, topics: dream.topics, insights: dream.insights }); } catch {}
+        }
+        return { started: !!dream, insights: dream?.insights || [], topics: dream?.topics || [] };
+      }
+    });
+    this.registerTool({ name: 'dream_results', description: 'Get recent dream/consolidation results',
+      schema: { limit: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSubconsciousClient } = await import('../subconscious/client.js');
+        try {
+          const result = await getSubconsciousClient().getRecent(args.limit || 5);
+          return result.memories.filter((m: any) => m.tags?.includes('dream'));
+        } catch { return []; }
+      }
+    });
+    this.registerTool({ name: 'kairos_start', description: 'Start KAIROS autonomous heartbeat',
+      schema: { mode: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { startKAIROS } = await import('../kairos/orchestrator.js');
+        const k = startKAIROS({ proactiveMode: (args.mode as any) || 'balanced' });
+        return { started: true, mode: k.getConfig().proactiveMode };
+      }
+    });
+    this.registerTool({ name: 'kairos_stop', description: 'Stop KAIROS autonomous heartbeat',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { stopKAIROS } = await import('../kairos/orchestrator.js');
+        stopKAIROS();
+        return { stopped: true };
+      }
+    });
+
+    // ─── FTS Memory + Session Search ───────────────────────────────
+    this.registerTool({ name: 'memory_fts_search', description: 'Full-text search memories via TF-IDF',
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSubconsciousClient } = await import('../subconscious/client.js');
+        try { const r = await getSubconsciousClient().recall(args.query, args.limit || 10); return { results: r.memories, count: r.count }; }
+        catch (e: any) { return { error: e.message }; }
+      }
+    });
+    this.registerTool({ name: 'sessions_search', description: 'TF-IDF search across session transcripts',
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const { getSessionFTS } = await import('../subconscious/fts-search.js');
+          const fts = getSessionFTS();
+          return fts.search(args.query, args.limit || 10);
+        } catch (e: any) { return { error: e.message }; }
+      }
+    });
+
     // ─── Voice / TTS ────────────────────────────────────
-    this.registerTool({ name: 'speak', description: '🎤 Convert text to speech using MiniMax TTS. Use when user asks to "say X", "read this aloud", or when voice output is needed.',
+    this.registerTool({ name: 'speak', description: '🎤 Convert text to speech using MiniMax TTS. When user asks to "say X", "read this aloud", "generate speech", or "speak this", ALWAYS call this tool first. IMPORTANT: After calling speak, you MUST include the [AUDIO:filepath] marker in your text response so Telegram can send it as a voice message. Format: the marker should appear as a SEPARATE LINE in your response, not inside JSON.',
       schema: { text: { type: 'string', description: 'Text to convert to speech' }, voice: { type: 'string', optional: true, description: 'Voice: narrator, casual, sad, chinese, japanese, korean' } }, dangerous: false,
       handler: async (args: any) => {
         const { text, voice } = args;
@@ -539,7 +656,11 @@ export class Agent extends EventEmitter {
           const outPath = `/tmp/tts_${Date.now()}.mp3`;
           const result = await tts.speak({ text, outputPath: outPath });
           if (!result.success) return { error: result.error, success: false };
-          return { success: true, path: outPath, chars: result.chars, spoken: text, audio_marker: `[AUDIO:${outPath}]` };
+          // Return as string with audio_marker as a SEPARATE LINE so PTY/Telegram bot can detect it
+          const marker = `[AUDIO:${outPath}]`;
+          return `SUCCESS
+Chars: ${result.chars} | Voice: ${voice || 'narrator'}
+${marker}`;
         } catch (err: any) {
           return { error: err.message, success: false };
         }
@@ -2234,6 +2355,16 @@ ${capabilities.join('\n')}
 - Silent successes: shell/file_write often succeed without output
 - Multi-step: use plan_create for clarity
 - Parallel: agent_spawn_team for independent tasks (faster)
+
+# Voice / TTS (Telegram Voice Messages)
+When user asks you to "say X", "read this aloud", "generate speech", or "speak this":
+1. ALWAYS call the speak tool first with the text to convert
+2. IMPORTANT: After the speak tool returns [AUDIO:filepath], you MUST include that exact marker as a SEPARATE LINE in your final text response (not inside JSON, not buried in text — on its own line)
+3. Example correct response:
+   "Hello! How are you doing today?"
+   [AUDIO:/tmp/tts_1234567890.mp3]
+4. The [AUDIO:...] marker will be automatically detected and sent as a Telegram voice message
+5. Keep the spoken text concise (under 1000 chars for best TTS quality)
 `;
   }
 
