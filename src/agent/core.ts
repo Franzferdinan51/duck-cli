@@ -2243,6 +2243,9 @@ ${marker}`;
       try {
         const cleanedDraft = response
           .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+          .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+          .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
           .trim();
         const synthesisPrompt = [
           'Answer the user directly using the tool results below.',
@@ -2257,12 +2260,20 @@ ${marker}`;
         const synthesized = await this.providers.route(synthesisPrompt);
         const finalText = (synthesized?.text || '')
           .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+          .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+          .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
           .trim();
 
         response = finalText || (cleanedDraft + toolSummary);
       } catch (e: any) {
         console.log('[ToolSynth] Final synthesis failed, falling back to raw tool summary');
-        response = response.replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '').trim() + toolSummary;
+        response = response
+          .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+          .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+          .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
+          .trim() + toolSummary;
       }
 
       // DroidClaw-style: Check for stuck loops and inject recovery hints
@@ -2448,18 +2459,42 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
 
   private parseToolCalls(text: string): Array<{ name: string; args: any }> {
     const calls: Array<{ name: string; args: any }> = [];
+    const normalizeToolName = (rawName: string): string | null => {
+      const name = String(rawName || '').trim();
+      if (!name) return null;
+      if (this.tools.has(name)) return name;
+      const lower = name.toLowerCase();
+      const aliases: Record<string, string> = {
+        bash: 'shell',
+        shell: 'shell',
+        command: 'shell',
+        websearch: 'web_search',
+        web_search: 'web_search',
+        webfetch: 'web_fetch',
+        web_fetch: 'web_fetch',
+        fileread: 'file_read',
+        file_read: 'file_read',
+        filewrite: 'file_write',
+        file_write: 'file_write',
+      };
+      const mapped = aliases[lower] || lower;
+      return this.tools.has(mapped) ? mapped : null;
+    };
+
     const pattern1 = /\[TOOL:\s*(\w+)\s*\|\s*args:\s*(\{[^}]+\})\]/g;
     let match;
     while ((match = pattern1.exec(text)) !== null) {
-      try { calls.push({ name: match[1], args: JSON.parse(match[2]) }); } catch {}
+      const name = normalizeToolName(match[1]);
+      if (!name) continue;
+      try { calls.push({ name, args: JSON.parse(match[2]) }); } catch {}
     }
 
     const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
     let match2;
     while ((match2 = pattern2.exec(text)) !== null) {
-      if (this.tools.has(match2[1])) {
-        try { calls.push({ name: match2[1], args: JSON.parse(match2[2]) }); } catch {}
-      }
+      const name = normalizeToolName(match2[1]);
+      if (!name) continue;
+      try { calls.push({ name, args: JSON.parse(match2[2]) }); } catch {}
     }
 
     // Support model outputs like:
@@ -2467,14 +2502,39 @@ When user asks you to "say X", "read this aloud", "generate speech", or "speak t
     const pattern3 = /\{\s*tool\s*=>\s*"([^"]+)"\s*,\s*args\s*=>\s*\{([\s\S]*?)\}\s*\}/g;
     let match3;
     while ((match3 = pattern3.exec(text)) !== null) {
-      const name = match3[1];
+      const name = normalizeToolName(match3[1]);
       const rawArgs = match3[2] || '';
-      if (!this.tools.has(name)) continue;
+      if (!name) continue;
       const args: Record<string, any> = {};
       const argPattern = /--([a-zA-Z0-9_-]+)\s+"([^"]*)"/g;
       let argMatch;
       while ((argMatch = argPattern.exec(rawArgs)) !== null) {
         args[argMatch[1]] = argMatch[2];
+      }
+      calls.push({ name, args });
+    }
+
+    // Support MiniMax/XML-style tool calls like:
+    // <minimax:tool_call><invoke name="Bash"><parameter name="command">ls -la</parameter></invoke></minimax:tool_call>
+    const pattern4 = /<(?:minimax:)?tool_call>[\s\S]*?<invoke\s+name="([^"]+)"\s*>([\s\S]*?)<\/invoke>[\s\S]*?<\/(?:minimax:)?tool_call>/gi;
+    let match4;
+    while ((match4 = pattern4.exec(text)) !== null) {
+      const name = normalizeToolName(match4[1]);
+      if (!name) continue;
+      const rawParams = match4[2] || '';
+      const args: Record<string, any> = {};
+      const paramPattern = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/gi;
+      let paramMatch;
+      while ((paramMatch = paramPattern.exec(rawParams)) !== null) {
+        const key = String(paramMatch[1] || '').trim();
+        const value = String(paramMatch[2] || '')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .trim();
+        if (key) args[key] = value;
       }
       calls.push({ name, args });
     }

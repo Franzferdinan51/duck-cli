@@ -1,6 +1,6 @@
 # 🦆 Duck Agent Update Strategy & Changelog
 
-> **Duck Agent v0.4.0** — Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, OpenClaw v2026.3.31 compat
+> **Duck Agent v2.0.0** — Current release line with Desktop UI, Sub-Conscious, CopilotKit/Pretext Canvas, orchestration, mesh, and bridge work
 
 ---
 

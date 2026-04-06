@@ -451,7 +451,7 @@ class BridgeLogger {
 
   // HTTP handler for log queries
   async handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    const url = new URL(req.url, 'http://localhost');
+    const url = new URL(req.url || '/', 'http://localhost');
     const path = url.pathname;
 
     // CORS

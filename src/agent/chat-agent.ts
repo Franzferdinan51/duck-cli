@@ -780,7 +780,7 @@ async function processMessage(
 // ---------------------------------------------------------------------------
 function startServer(port: number) {
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, `http://localhost:${port}`);
+    const url = new URL(req.url || '/', `http://localhost:${port}`);
     const pathname = url.pathname;
 
     // CORS

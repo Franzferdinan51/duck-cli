@@ -180,6 +180,12 @@ export class MessageRouter {
       l.startsWith('[TOOL_SUCCESS]') ||
       l.startsWith('[TOOL_FAIL]') ||
       l.startsWith('[Healer') ||
+      l.startsWith('<minimax:tool_call>') ||
+      l.startsWith('</minimax:tool_call>') ||
+      l.startsWith('<invoke name=') ||
+      l.startsWith('</invoke>') ||
+      l.startsWith('<parameter name=') ||
+      l.startsWith('</parameter>') ||
       l.includes('→ tool:') ||
       l.includes('executing tool') ||
       l.includes('fallback triggered') ||
@@ -200,6 +206,9 @@ export class MessageRouter {
       .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
       .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
       .replace(/^\[TOOL_(CALL|SUCCESS|FAIL)\].*$/gm, '')
+      .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+      .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+      .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
       .split('\n');
 
     const publicLines: string[] = [];
@@ -489,6 +498,7 @@ async function forwardToGateway(
     let stdout = '';
     let stderr = '';
     let finished = false;
+    let timeoutHandle: NodeJS.Timeout | undefined;
 
     // Periodic typing keepalive every 4s — Telegram shows "typing..." to the user.
     // Critical for long-running orchestrated tasks where the user would otherwise
@@ -503,6 +513,7 @@ async function forwardToGateway(
       if (finished) return;
       finished = true;
       if (typingInterval) clearInterval(typingInterval);
+      if (timeoutHandle) clearTimeout(timeoutHandle);
       resolve(text);
     };
 
@@ -538,7 +549,7 @@ async function forwardToGateway(
       finish(`🦆 Error running duck: ${err.message}`);
     });
 
-    setTimeout(() => {
+    timeoutHandle = setTimeout(() => {
       child.kill('SIGTERM');
       setTimeout(() => {
         try { child.kill('SIGKILL'); } catch { /* ignore */ }

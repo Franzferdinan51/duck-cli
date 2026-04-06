@@ -108,7 +108,8 @@ export class Gateway extends EventEmitter {
    * Handle HTTP requests
    */
   private handleRequest(req: any, res: any): void {
-    const url = new URL(req.url, `http://${req.headers.host}`);
+    const host = req.headers?.host || `localhost:${this.config.port}`;
+    const url = new URL(req.url || '/', `http://${host}`);
     const path = url.pathname;
 
     // CORS

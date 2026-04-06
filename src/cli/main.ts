@@ -1010,6 +1010,12 @@ function formatResponse(text: string): string {
         trimmed.startsWith('[/TOOL_CALL]') ||
         trimmed.startsWith('[TOOL_SUCCESS]') ||
         trimmed.startsWith('[TOOL_FAIL]') ||
+        trimmed.startsWith('<minimax:tool_call>') ||
+        trimmed.startsWith('</minimax:tool_call>') ||
+        trimmed.startsWith('<invoke name=') ||
+        trimmed.startsWith('</invoke>') ||
+        trimmed.startsWith('<parameter name=') ||
+        trimmed.startsWith('</parameter>') ||
         trimmed.startsWith('🦆 Duck Agent shutting down') ||
         trimmed.startsWith('Total cost:') ||
         trimmed.startsWith('Interactions:') ||
@@ -1028,6 +1034,9 @@ function formatResponse(text: string): string {
     .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
     .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
     .replace(/^\[TOOL_(CALL|SUCCESS|FAIL)\].*$/gm, '')
+    .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+    .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+    .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
     .replace(/\[TOOL:.*?\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -1487,7 +1496,7 @@ async function startWebUI(args: string[] = []) {
   };
   
   const server = createServer(async (req: any, res: any) => {
-    const url = new URL(req.url, `http://localhost:${port}`);
+    const url = new URL(req.url || '/', `http://localhost:${port}`);
     const path = url.pathname;
     
     res.setHeader('Access-Control-Allow-Origin', '*');
