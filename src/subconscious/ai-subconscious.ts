@@ -141,7 +141,7 @@ Be thoughtful, insightful, and slightly philosophical about patterns.`;
       // Fallback to Kimi
       try {
         const result = await this.provider.routeWithModel(
-          'kimi/k2p5',
+          'kimi/kimi-k2p5',
           prompt
         );
         return this.parseDreamResponse(result.text);

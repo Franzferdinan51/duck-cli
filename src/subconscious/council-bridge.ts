@@ -18,7 +18,7 @@ const DEFAULT_COUNCIL_CONFIG: CouncilBridgeConfig = {
   enabled: true,
   autoDeliberate: true,
   threshold: 0.7, // Only deliberate for high-confidence triggers
-  councilUrl: 'http://localhost:3001/api/deliberate',
+  councilUrl: process.env.COUNCIL_URL || 'http://localhost:3001/api/deliberate',
   mode: 'deliberation',
   timeout: 30000
 };

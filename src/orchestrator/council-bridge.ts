@@ -132,7 +132,7 @@ export class CouncilBridge {
       timeout: config.timeout ?? 30000,
       minConsensus: config.minConsensus ?? 0.6,
       autoSelectPerspectives: config.autoSelectPerspectives ?? true,
-      councilEndpoint: config.councilEndpoint ?? 'http://localhost:3000',
+      councilEndpoint: config.councilEndpoint ?? (process.env.COUNCIL_URL || 'http://localhost:3001'),
     };
 
     this.perspectives = new Map();
