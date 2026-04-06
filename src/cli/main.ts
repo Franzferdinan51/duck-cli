@@ -51,6 +51,7 @@ import { meshCommand, meshServerCommand } from './mesh-cmd.js';
 import { toolsCommand as showToolsCommand } from './tools-command.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
+import { createKairosCommand } from '../commands/kairos.js';
 import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
 import { runHealthCheck, runBootDiagnostics, printHealthReport } from '../agent/health-check.js';
 import { getConfigManager, ConfigManager } from '../agent/config-manager.js';
@@ -2648,6 +2649,15 @@ async function teamCommand(args: string[]) {
 // ============ KAIROS AUTONOMOUS ============
 
 async function kairosCommand(args: string[]) {
+  // If kairos has subcommands (start, stop, status, skills, etc.), use commander
+  const subCommands = ['start', 'stop', 'status', 'history', 'dream', 'skills'];
+  if (args.length > 0 && subCommands.includes(args[0])) {
+    const cmd = createKairosCommand();
+    await cmd.parseAsync(['node', 'duck', 'kairos', ...args]);
+    return;
+  }
+
+  // Otherwise start KAIROS autonomous mode
   const mode = args[0] || 'balanced';
   console.log(`${c.cyan}Starting KAIROS autonomous mode: ${mode}${c.reset}`);
   console.log(`${c.green}KAIROS heartbeat system activated${c.reset}`);

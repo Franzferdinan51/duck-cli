@@ -6,6 +6,7 @@
 import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
+import { homedir } from 'os';
 
 export interface Skill {
   name: string;
@@ -38,25 +39,37 @@ export class SkillRunner {
   }
 
   async load(): Promise<void> {
-    if (!existsSync(this.skillsDir)) {
-      return;
+    const scanDirs: string[] = [this.skillsDir];
+
+    // Also scan auto-created skills dir
+    const autoDir = join(homedir(), '.duck', 'skills', 'auto');
+    if (existsSync(autoDir) && !scanDirs.includes(autoDir)) {
+      scanDirs.push(autoDir);
     }
 
-    const entries = await readdir(this.skillsDir, { withFileTypes: true });
-    
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      
-      const skillPath = join(this.skillsDir, entry.name, 'SKILL.md');
-      if (!existsSync(skillPath)) continue;
+    for (const dir of scanDirs) {
+      if (!existsSync(dir)) continue;
 
-      try {
-        const content = await readFile(skillPath, 'utf-8');
-        const skill = this.parseSkill(entry.name, content);
-        this.skills.set(skill.name, skill);
-        console.log(`   + Skill: ${skill.name}`);
-      } catch (e) {
-        // Skip invalid skills
+      const entries = await readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+
+        const skillPath = join(dir, entry.name, 'SKILL.md');
+        if (!existsSync(skillPath)) continue;
+
+        try {
+          const content = await readFile(skillPath, 'utf-8');
+          const skill = this.parseSkill(entry.name, content);
+          // Don't override manual skills with auto ones of same name
+          if (!this.skills.has(skill.name)) {
+            this.skills.set(skill.name, skill);
+            const tag = dir.includes('.duck') ? '(auto)' : '';
+            console.log(`   + Skill${tag}: ${skill.name}`);
+          }
+        } catch (e) {
+          // Skip invalid skills
+        }
       }
     }
   }

@@ -10,6 +10,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { analyzeTranscript, generateWhisper, TranscriptSegment, analyzeCouncilDeliberation } from '../subconscious/persistence/llm-analyzer.js';
 import { SqliteStore, StoredMemory } from '../subconscious/persistence/sqlite-store.js';
+import { FTSSearch, getFTSIndex } from '../subconscious/fts-search.js';
 
 const DEFAULT_PORT = 4001;
 const DATA_DIR = `${process.env.HOME || '/tmp'}/.duckagent/subconscious`;
@@ -50,6 +51,8 @@ interface DreamPayload {
  */
 export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
   const store = new SqliteStore(DATA_DIR);
+  const fts = getFTSIndex();
+  let ftsIndexed = false;
   
   // Simple in-memory queue for async analysis
   const analysisQueue: SessionPayload[] = [];
@@ -168,15 +171,34 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
         return;
       }
 
-      // Route: GET /recall - Recall memories by query
+      // Route: GET /recall - TF-IDF powered recall (FTS)
       if (path === '/recall' && method === 'GET') {
         const query = url.searchParams.get('q') || '';
         const limit = parseInt(url.searchParams.get('limit') || '20');
+        const ftsMode = url.searchParams.get('fts') !== 'false'; // FTS on by default
         const since = url.searchParams.get('since') || undefined;
-        
-        const memories = await store.search({ query, limit, since });
+
+        // Lazy-build FTS index on first recall
+        if (ftsMode && !ftsIndexed) {
+          const allMemories = await store.recent(1000);
+          fts.buildIndex(allMemories);
+          ftsIndexed = true;
+          console.log(`[Sub-Conscious] FTS index built: ${fts.getStats().indexedDocs} docs`);
+        }
+
+        let results;
+        if (ftsMode && query) {
+          // Use TF-IDF FTS search
+          const allMemories = await store.search({ query: '', limit: 1000, since });
+          const ftsResults = fts.search(query, allMemories, limit);
+          results = ftsResults.map(r => r.memory);
+        } else {
+          // Fallback to basic search
+          results = await store.search({ query, limit, since });
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ memories, count: memories.length }));
+        res.end(JSON.stringify({ memories: results, count: results.length, fts: ftsMode }));
         return;
       }
 
