@@ -162,11 +162,11 @@ export class ACPServer extends EventEmitter {
             jsonrpc: '2.0',
             id: msg.id,
             result: {
-              protocolVersion: '2024-11-05',
+              protocolVersion: '2025-01-10',
               capabilities: this.getCapabilities(),
               serverInfo: {
                 name: 'duck-agent-acp',
-                version: '0.4.0',
+                version: '0.6.1',
                 description: 'Duck Agent ACP Backend'
               }
             }
