@@ -98,7 +98,8 @@ export class MetaAgent {
         const toolParams = step.params || { prompt: task.prompt, description: step.description };
         result = await this.executeTool(step.tool, toolParams);
       } else if (step.action === 'subagent') {
-        const id = await this.spawnAgent(step.description);
+        const subagentTask = `${step.description}\n\nOriginal user task: ${task.prompt}`;
+        const id = await this.spawnAgent(subagentTask);
         result = { step: step.step, action: step.action, success: true, output: id, durationMs: 1000 };
       } else if (step.action === 'council') {
         console.log(`[MetaAgent] 🏛️ Delegating to AI Council...`);

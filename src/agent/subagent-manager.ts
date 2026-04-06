@@ -219,42 +219,50 @@ export class SubagentManager extends EventEmitter {
     const timeout = config.timeout || 300000; // 5 min default
     const startTime = Date.now();
 
-    // Try duck-cli gateway first (lightweight, uses Moonshot kimi-k2.5)
-    // DUCK_GATEWAY_URL takes priority; OPENCLAW_GATEWAY_URL is accepted for
-    // backward compatibility when duck-cli is bridged to an OpenClaw install.
-    // Default (http://localhost:18792) is duck-cli's own built-in gateway.
+    // Try duck-cli gateway only when explicitly desired.
+    // For local/meta subagents, prefer the subprocess path so provider/model
+    // selection actually respects the requested orchestration settings.
     const gatewayUrl = process.env.DUCK_GATEWAY_URL ||
       process.env.OPENCLAW_GATEWAY_URL ||
       'http://localhost:18792';
     const rolePrompt = this.buildRolePrompt(agent.role, agent.task, config.memory);
+    const requestedProvider = config.provider || '';
+    const forceGateway = process.env.DUCK_SUBAGENT_USE_GATEWAY === '1';
+    const shouldTryGateway = forceGateway || requestedProvider === 'openclaw' || requestedProvider === 'gateway';
 
-    try {
-      // Try duck-cli gateway (lightweight, parallel subagent execution)
-      const model = config.model || 'kimi-k2.5';
-      const messages = [
-        { role: 'system', content: rolePrompt },
-        { role: 'user', content: agent.task }
-      ];
+    if (shouldTryGateway) {
+      try {
+        const model = config.model || 'kimi-k2.5';
+        const messages = [
+          { role: 'system', content: rolePrompt },
+          { role: 'user', content: agent.task }
+        ];
+        const controller = new AbortController();
+        const gatewayTimeoutMs = parseInt(process.env.DUCK_SUBAGENT_GATEWAY_TIMEOUT_MS || '20000', 10);
+        const gatewayTimer = setTimeout(() => controller.abort(), gatewayTimeoutMs);
 
-      const res = await fetch(`${gatewayUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: false })
-      });
+        const res = await fetch(`${gatewayUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages, stream: false }),
+          signal: controller.signal,
+        });
+        clearTimeout(gatewayTimer);
 
-      if (res.ok) {
-        const data: any = await res.json();
-        const content = data.choices?.[0]?.message?.content;
-        if (content && !content.includes('All providers failed')) {
-          agent.progress = 100;
-          agent.status = 'completed';
-          agent.result = content;
-          agent.toolsUsed = ['duck-gateway'];
-          return { output: content, cost: data.usage?.total_tokens ? Number(data.usage.total_tokens) : undefined, toolsUsed: agent.toolsUsed };
+        if (res.ok) {
+          const data: any = await res.json();
+          const content = data.choices?.[0]?.message?.content;
+          if (content && !content.includes('All providers failed')) {
+            agent.progress = 100;
+            agent.status = 'completed';
+            agent.result = content;
+            agent.toolsUsed = ['duck-gateway'];
+            return { output: content, cost: data.usage?.total_tokens ? Number(data.usage.total_tokens) : undefined, toolsUsed: agent.toolsUsed };
+          }
         }
+      } catch (e) {
+        // Fall through to Node.js subprocess
       }
-    } catch (e) {
-      // Fall through to Node.js subprocess
     }
 
     // Fallback: spawn Node.js subprocess
@@ -262,13 +270,15 @@ export class SubagentManager extends EventEmitter {
       const child = spawn(process.execPath, [
         'dist/cli/main.js',
         'run',
-        '--model', config.model || 'minimax',
-        '--provider', config.provider || 'minimax',
-        '--timeout', String(timeout),
         rolePrompt
       ], {
         cwd: process.cwd(),
-        env: { ...process.env },
+        env: {
+          ...process.env,
+          DUCK_BOT_MODE: '1',
+          DUCK_MODEL: config.model || 'qwen3.5-0.8b',
+          DUCK_PROVIDER: config.provider || 'lmstudio',
+        },
       });
 
       // Set up timeout to kill process - spawn() timeout option is IGNORED!
@@ -337,14 +347,15 @@ export class SubagentManager extends EventEmitter {
   }
 
   private buildRolePrompt(role: SubagentRole, task: string, memory?: string): string {
+    const resultDiscipline = 'Complete the assigned task directly. Return the useful result only, with no greeting, no meta-commentary, and no questions back unless blocked.';
     const roleDescriptions: Record<SubagentRole, string> = {
-      general: 'You are a helpful assistant.',
-      researcher: `You are a research specialist. Focus on gathering information, analyzing sources, and providing comprehensive answers. Your task: ${task}`,
-      coder: `You are an expert programmer. Write clean, efficient code. Follow best practices. Your task: ${task}`,
-      reviewer: `You are a code reviewer. Critically analyze code for bugs, security issues, style, and improvements. Your task: ${task}`,
-      qa: `You are a QA engineer. Test thoroughly, find edge cases, verify functionality. Your task: ${task}`,
-      writer: `You are a technical writer. Write clear, concise documentation. Your task: ${task}`,
-      planner: `You are a planning specialist. Break down complex goals into actionable steps. Your task: ${task}`,
+      general: `You are a helpful internal subagent. Your task: ${task}. ${resultDiscipline}`,
+      researcher: `You are a research specialist. Focus on gathering information, analyzing sources, and providing comprehensive answers. Your task: ${task}. ${resultDiscipline}`,
+      coder: `You are an expert programmer. Write clean, efficient code. Follow best practices. Your task: ${task}. ${resultDiscipline}`,
+      reviewer: `You are a code reviewer. Critically analyze code for bugs, security issues, style, and improvements. Your task: ${task}. ${resultDiscipline}`,
+      qa: `You are a QA engineer. Test thoroughly, find edge cases, verify functionality. Your task: ${task}. ${resultDiscipline}`,
+      writer: `You are a technical writer. Write clear, concise documentation. Your task: ${task}. ${resultDiscipline}`,
+      planner: `You are a planning specialist. Break down complex goals into actionable steps. Your task: ${task}. ${resultDiscipline}`,
     };
 
     let prompt = roleDescriptions[role] || roleDescriptions.general;
@@ -541,22 +552,31 @@ export class SubagentManager extends EventEmitter {
         this.off('cancelled', onCancelled);
       };
 
-      const onComplete = (a: Subagent) => {
-        if (a.id === id) {
+      const unwrapAgent = (payload: any): Subagent | undefined => {
+        if (!payload) return undefined;
+        if (payload.agent && typeof payload.agent === 'object') return payload.agent as Subagent;
+        return payload as Subagent;
+      };
+
+      const onComplete = (payload: any) => {
+        const a = unwrapAgent(payload);
+        if (a?.id === id) {
           cleanup();
           resolve(a);
         }
       };
 
-      const onError = (a: Subagent) => {
-        if (a.id === id) {
+      const onError = (payload: any) => {
+        const a = unwrapAgent(payload);
+        if (a?.id === id) {
           cleanup();
           reject(new Error(`Subagent failed: ${a.error || 'Unknown error'}`));
         }
       };
 
-      const onCancelled = (a: Subagent) => {
-        if (a.id === id) {
+      const onCancelled = (payload: any) => {
+        const a = unwrapAgent(payload);
+        if (a?.id === id) {
           cleanup();
           reject(new Error('Subagent was cancelled'));
         }
