@@ -582,13 +582,30 @@ func skillsCmd() *cobra.Command {
 func securityCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "security [action]",
-		Short: "Security operations (audit|defcon)",
-		Args:  cobra.MaximumNArgs(1),
+		Short: "Security operations (scan|audit|check|logs|status|history|defcon|threat)",
+		Long: `Security operations with DEFCON integration.
+
+Commands:
+  duck security scan <target>     Scan for vulnerabilities
+  duck security audit             Full system security audit
+  duck security check <path>      Check file/directory permissions
+  duck security logs              Analyze logs for security events
+  duck security status            Show security status summary
+  duck security history           Show scan history
+  duck security defcon [level]    Show or set DEFCON level (1-5)
+  duck security threat            Report a security threat`,
+		Args: cobra.MinimumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 || args[0] == "audit" {
-				return runNode("security-audit")
+			if len(args) == 0 {
+				return cmd.Help()
 			}
-			return runNode("security-defcon")
+			action := args[0]
+			switch action {
+			case "scan", "audit", "check", "logs", "status", "history", "defcon", "threat":
+				return runNodeWithEnv("security "+strings.Join(args, " "), cmd)
+			default:
+				return fmt.Errorf("unknown security command: %s. Run 'duck security' for help.", action)
+			}
 		},
 	}
 	return cmd
