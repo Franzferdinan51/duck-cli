@@ -280,9 +280,9 @@ export class MetaAgentSystem extends EventEmitter {
         id: 'meta-security',
         type: 'security',
         name: 'Security Agent',
-        model: 'qwen3.5-2b-claude-4.6-opus-reasoning-distilled',
-        capabilities: ['threat_detection', 'access_control', 'audit_logging'],
-        tools: ['get_time', 'get_agent_status', 'execute_shell', 'broadcast_mesh'],
+        model: 'foundation-sec-8b-reasoning',
+        capabilities: ['threat_detection', 'access_control', 'audit_logging', 'vulnerability_scanning', 'security_analysis', 'intrusion_detection'],
+        tools: ['get_time', 'get_agent_status', 'execute_shell', 'broadcast_mesh', 'scan_vulnerabilities', 'audit_system', 'check_permissions', 'analyze_logs'],
         meshEnabled: true,
         autoStart: true,
         priority: 'critical'

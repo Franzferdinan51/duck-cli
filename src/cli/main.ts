@@ -354,9 +354,20 @@ async function main() {
       break;
 
     case 'security-defcon':
-      console.log(`${c.bold}🔐 DEFCON Status: ${c.green}DEFCON 5 - All Clear${c.reset}`);
-      console.log(`${c.dim}No active security threats detected.${c.reset}`);
+    case 'defcon': {
+      const { createSecurityCommand } = await import('../commands/security-cmd.js');
+      const secCmd = createSecurityCommand();
+      await secCmd.parseAsync(['node', 'duck', 'security', 'status']);
       break;
+    }
+
+    case 'security':
+    case 'sec': {
+      const { createSecurityCommand } = await import('../commands/security-cmd.js');
+      const secCmd = createSecurityCommand();
+      await secCmd.parseAsync(['node', 'duck', 'security', ...args]);
+      break;
+    }
 
     case 'logger': {
       const { loggerStatusCommand, loggerLogsCommand, loggerErrorsCommand, loggerTailCommand } = await import('./logger-cmd.js');
