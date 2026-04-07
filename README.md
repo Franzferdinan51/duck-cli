@@ -135,8 +135,9 @@ It is:
 | **Access** | Telegram (public), CLI, Web UI | End users |
 | **Agent Core** | Orchestration, tools, providers, council, KAIROS | All requests |
 | **Bridge** | MCP (3850), ACP (18794), WS (18796), **Live Logger (3851)** | Two-way with mesh |
+| **Meta Agents** | 9 internal agents with tools & time context | System coordination |
 | **Mesh Bus** | **Required** internal communication layer | All internal agents |
-| **Internal Agents** | AI Council, Sub-Conscious, KAIROS, Meta-Agent, Skill Creator | Mesh-connected |
+| **Internal Agents** | AI Council, Sub-Conscious, KAIROS, Skill Creator | Mesh-connected |
 | **External** | OpenClaw, CannaAI, Codex, other agents | Bridge/MCP/ACP |
 
 ### Key Design Principles
