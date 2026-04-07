@@ -480,6 +480,13 @@ async function main() {
       await meshCommand(args);
       break;
 
+    case 'node': {
+      const { createRemoteNodeCommand } = await import('../commands/node-cmd.js');
+      const nodeCmd = createRemoteNodeCommand();
+      await nodeCmd.parseAsync(['node', 'duck', 'node', ...args]);
+      break;
+    }
+
     case 'clawhub':
     case 'skills':
       await clawhubCommand(args);
