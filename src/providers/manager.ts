@@ -18,6 +18,13 @@ export class ProviderManager {
   private active: Provider | undefined;
 
   /**
+   * Get a provider by name
+   */
+  getProvider(name: string): Provider | undefined {
+    return this.providers.get(name);
+  }
+
+  /**
    * 🧠 Smart model auto-selection based on task content
    * Analyzes prompt keywords to select the best provider/model
    */

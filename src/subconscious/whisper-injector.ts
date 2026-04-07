@@ -26,7 +26,7 @@ export interface WhisperContext {
 export interface WhisperResult {
   whisper: string | null;
   confidence: number;
-  source: 'memory_blocks' | 'session_analysis' | 'pattern_match' | 'none';
+  source: 'memory_blocks' | 'session_analysis' | 'pattern_match' | 'none' | 'full';
   timestamp: number;
 }
 

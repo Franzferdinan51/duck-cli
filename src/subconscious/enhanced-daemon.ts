@@ -9,7 +9,7 @@ import { EventEmitter } from 'events';
 import { MemoryStore } from './memory-store.js';
 import { MemoryBlocksManager } from './memory-blocks.js';
 import { FullTextSearch } from './fts.js';
-import { AgentMeshClient } from '../mesh/client.js';
+import { AgentMeshClient } from '../mesh/agent-mesh.js';
 import { analyzeTranscript } from './analyzer.js';
 import type { WhisperSource } from './types.js';
 
@@ -136,12 +136,12 @@ export class SubconsciousDaemon extends EventEmitter {
     await this.memoryBlocks.initialize();
 
     // Connect to mesh
-    this.mesh = new AgentMeshClient('ws://localhost:4000');
-    await this.mesh.register({
-      id: 'subconscious-daemon',
-      name: 'Sub-Conscious Daemon',
+    this.mesh = new AgentMeshClient({
+      serverUrl: 'ws://localhost:4000',
+      agentName: 'Sub-Conscious Daemon',
       capabilities: ['memory', 'analysis', 'whisper']
     });
+    await this.mesh.register();
 
     // Start background processing
     this.startBackgroundProcessing();

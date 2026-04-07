@@ -1,137 +1,150 @@
 # Duck CLI - Kanban Board
 
-**Last Updated:** 2026-04-01
+**Last Updated:** 2026-04-07
+**Version:** v0.9.0
 **Repo:** https://github.com/Franzferdinan51/duck-cli
-**Status:** SUPER AGENT UPGRADES COMPLETE ✅
 
 ---
 
-## ✅ DONE
+## 🔴 CRITICAL - Fix Immediately
 
-| # | Card | Fix | Priority |
-|---|------|-----|----------|
-| 1 | Duplicate tools bug | Fixed: removed duplicate log in `ToolRegistry.register()` | P0 |
-| 2 | `duck status` missing | Added `statusCmd()` to Go wrapper | P0 |
-| 3 | Go path wrong | Fixed Go wrapper to use `dist/cli/main.js` | P0 |
-| 4 | Go return type bug | Fixed `return "--run " + prompt` | P0 |
-| 5 | Web UI `/v1/*` routes missing | Added `/v1/` aliases for all `/api/` routes | P0 |
-| 6 | Chat timeout hanging | Added 30s timeout to `/v1/chat` | P0 |
-| 7 | Go `--` prefix broke commands | Removed `--` from all `runNode()` calls | P0 |
-| 8 | Security commands fell through | Added `security-defcon/audit` cases to CLI switch | P0 |
-| 9 | No persistent config | Added godotenv auto-load from `.env` | P1 |
-| 10 | Go binary path broken | Fixed `os.Args[0]`-relative path resolution | P1 |
-| 11 | API key exposed in git | Removed `.env` from git history, added to .gitignore | P0 |
-| 12 | Docs for agents missing | Added `AGENTS.md`, `TOOLS.md`, `INSTALL.md` | P1 |
-| 13 | Skills lacked setup instructions | Updated `skills/SKILL.md` with setup + usage | P1 |
-| 14 | README missing agent docs | Added "For OpenClaw Agents" section | P1 |
-| 15 | **Memory was JSON-only** | Upgraded to SQLite-backed (better-sqlite3) | P0 |
-| 16 | **No planning system** | Built autonomous planner with goal decomposition | P0 |
-| 17 | **Shell was unguarded** | Built dangerous tool guard (35+ patterns) | P0 |
-| 18 | Tool telemetry missing | Tool usage logged to SQLite (success, duration, errors) | P1 |
-| 19 | No self-correction | Planner auto-retries/skips failed steps | P1 |
+| # | Card | Issue | Status |
+|---|------|-------|--------|
+| 1 | **Telegram Processing Indicator** | Still showing 🧠 <i>Processing...</i> instead of 🦆 Processing... | 🔴 IN PROGRESS |
+| 2 | **Chat Agent Context Loss** | Losing context after 3-4 messages | 🔴 IN PROGRESS |
+| 3 | **TypeScript Build Errors** | Multiple type errors preventing build | 🔴 IN PROGRESS |
+| 4 | **DEFCON Integration** | Security agent should control DEFCON mode | 🔴 TODO |
 
 ---
 
-## 📋 TODO
+## 🟡 HIGH PRIORITY
 
-### P1 — Core Integration
-
-| # | Card | Priority |
-|---|------|----------|
-| 20 | Test AI Council deliberation end-to-end | P1 |
-| 21 | Test web UI chat with real provider | P1 |
-| 22 | Test interactive shell (TTY) | P1 |
-| 23 | Test MCP server end-to-end | P1 |
-
-### P2 — Feature Completion
-
-| # | Card | Priority |
-|---|------|----------|
-| 24 | Verify `duck agent spawn` works | P2 |
-| 25 | Verify `duck mcp add/list` | P2 |
-| 26 | Test `plan_create` with real AI decomposition | P2 |
-| 27 | Test `guard_check` interactive confirmation | P2 |
-| 28 | Verify desktop-control tools work | P2 |
-| 29 | Add vector embeddings for semantic memory search | P2 |
-| 30 | Add session resume from plan history | P2 |
-
-### P3 — Enhancement
-
-| # | Card | Priority |
-|---|------|----------|
-| 31 | Add `./duck run` flags (--model, --provider) | P3 |
-| 32 | Add `./duck shell` tab-completion | P3 |
-| 33 | Verify web UI serves on port 0 (random) | P3 |
-| 34 | Add health check script for CI | P3 |
-| 35 | Streaming SSE for web UI chat | P3 |
+| # | Card | Description | Status |
+|---|------|-------------|--------|
+| 5 | **Web UI Testing** | Test the new React Web UI thoroughly | 🟡 TODO |
+| 6 | **Security Agent Enhancement** | Integrate Foundation-Sec-8B-Reasoning fully | 🟡 TODO |
+| 7 | **Session Management Testing** | Test cross-session persistence | 🟡 TODO |
+| 8 | **Meta Agent Integration** | Ensure all 9 meta agents work together | 🟡 TODO |
+| 9 | **OpenClaw Security Features** | Analyze and integrate OpenClaw security | 🟡 TODO |
+| 10 | **Real-World Testing** | Test all commands with actual usage | 🟡 TODO |
 
 ---
 
-## 🔴 IN PROGRESS
+## 🟢 MEDIUM PRIORITY
 
-| Card | Notes |
-|------|-------|
-| (none) | |
+| # | Card | Description | Status |
+|---|------|-------------|--------|
+| 11 | **README Updates** | Keep README current with all features | 🟢 DONE |
+| 12 | **Architecture Documentation** | Update architecture diagrams | 🟢 DONE |
+| 13 | **CLI Command Testing** | Test all 60+ commands | 🟢 IN PROGRESS |
+| 14 | **Mesh Integration** | Test agent mesh communication | 🟢 TODO |
+| 15 | **KAIROS Testing** | Test proactive heartbeat system | 🟢 TODO |
 
 ---
 
-## Notes
+## ✅ COMPLETED (Today)
 
-### System Status (2026-04-01)
+| # | Card | Description | Commit |
+|---|------|-------------|--------|
+| 1 | Security Agent | Created with foundation-sec-8b-reasoning | e4206e8 |
+| 2 | Web UI Upgrade | React + TypeScript + Tailwind | e4206e8 |
+| 3 | README v0.9.0 | Complete rewrite with all features | e4206e8 |
+| 4 | Session Management | Cross-session persistence | 75da339 |
+| 5 | Architecture Update | Hub & spoke diagram | 5f8793b |
+| 6 | Mesh Auto-Register | Auto-registration system | 5f8793b |
+| 7 | Meta Agent Tools | Added tools and time context | b5c9e6f |
+| 8 | Node Command | Wired duck node into CLI | 8345779 |
+| 9 | Processing Indicator | Changed to 🦆 | b5c9e6f |
+| 10 | Security Commands | duck security scan/audit/check | 1d2f6fc |
 
-```
-$ ./duck status
-✅ Providers: 1   ← MiniMax API key loaded from .env
-✅ Tools: 22      ← 9 new super agent tools added
-✅ Skills: 10     ← All skills loaded correctly
-✅ Memory: SQLite  ← better-sqlite3, FTS5 search
-✅ Planning: Active ← Goal decomposition + progress
-✅ Guard: Quiet     ← Auto-approve low risk
-```
+---
 
-### Files Added for Super Agent
+## 📋 BACKLOG
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `src/agent/planner.ts` | 354 | Autonomous planning state machine |
-| `src/memory/sqlite-store.ts` | 476 | SQLite memory engine |
-| `src/tools/approval.ts` | 351 | Dangerous tool guard |
-| `src/agent/core.ts` | +360 | Wired in all 3 systems |
+| # | Card | Description | Priority |
+|---|------|-------------|----------|
+| 16 | Multi-Channel Support | Add WhatsApp, Discord, etc. | P2 |
+| 17 | OAuth Integration | Add OAuth flows like OpenClaw | P2 |
+| 18 | Plugin Marketplace | Unified plugin system | P3 |
+| 19 | Canvas Rendering | Advanced UI rendering | P3 |
+| 20 | Backup System | Built-in backup/restore | P3 |
 
-### Key Paths
+---
 
-```
-src/agent/core.ts        ← Agent engine (initialize, think, chat, tools)
-src/agent/planner.ts    ← Planning state machine
-src/memory/sqlite-store.ts ← SQLite memory engine
-src/memory/system.ts     ← Memory system (SQLite-backed)
-src/tools/approval.ts   ← Dangerous tool guard
-src/tools/registry.ts   ← Tool registration
-cmd/duck/main.go        ← Go wrapper (cobra commands)
-```
+## 🔧 CURRENT WORK
 
-### Common Commands
+### Active Tasks
 
-```bash
-# Rebuild everything
-npm run build && go build -o duck ./cmd/duck/
+1. **Fix Telegram Processing Indicator**
+   - Location: `src/plugins/telegram.ts:703`
+   - Expected: `🦆 Processing your request...`
+   - Actual: `🧠 <i>Processing your request...</i>`
+   - Action: Check gateway and all entry points
 
-# Quick test
-./duck status
+2. **Fix Chat Agent Context Loss**
+   - Issue: Context lost after 3-4 messages
+   - Expected: Persistent context like OpenClaw
+   - Action: Review session management in chat-agent.ts
 
-# Test planning
-./duck run "Create a plan to build a REST API"
+3. **Fix TypeScript Build Errors**
+   - Files: subconscious/types.ts, whisper-injector.ts
+   - Action: Add missing types and fix imports
 
-# Test guard
-./duck run "Check risk of: rm -rf /"
+4. **Security Agent DEFCON Control**
+   - Add DEFCON level management to security agent
+   - Integrate with `duck defcon` command
+   - Auto-escalate based on threat detection
 
-# Test memory
-./duck run "Remember: user prefers TypeScript"
+---
 
-# Web UI
-./duck web 3001
-```
+## 🧪 TESTING PLAN
 
-### API Key Note
+### Phase 1: Critical Fixes
+- [ ] Fix Telegram processing indicator
+- [ ] Fix chat agent context loss
+- [ ] Fix TypeScript build errors
+- [ ] Test security agent with real scans
 
-⚠️ The `.env` with actual MiniMax API key was committed to GitHub. **Rotate the key at platform.minimax.io.**
+### Phase 2: Integration Testing
+- [ ] Test all meta agents together
+- [ ] Test session persistence
+- [ ] Test mesh communication
+- [ ] Test Web UI end-to-end
+
+### Phase 3: Real-World Testing
+- [ ] Run duck security audit
+- [ ] Run duck council "test question"
+- [ ] Run duck kairos start
+- [ ] Run duck meshd and test
+- [ ] Run duck web and test UI
+
+---
+
+## 📝 NOTES
+
+### Foundation-Sec-8B-Reasoning
+- **Model:** https://huggingface.co/fdtn-ai/Foundation-Sec-8B-Reasoning
+- **Purpose:** Specialized security AI
+- **Status:** Integrated but needs testing
+
+### OpenClaw Integration
+- **Base:** duck-cli is built on OpenClaw concepts
+- **Security:** Should analyze OpenClaw security features
+- **Context:** Should work like OpenClaw session handling
+
+### Current Issues
+1. Telegram showing old processing message
+2. Chat context not persisting properly
+3. Build errors preventing full testing
+4. DEFCON not integrated with security agent
+
+### Next Actions
+1. Fix build errors
+2. Test and verify all fixes
+3. Run comprehensive real-world tests
+4. Update Kanban with results
+
+---
+
+**Last Updated:** 2026-04-07 00:00 EDT
+**Status:** 17 commits today, critical fixes in progress
