@@ -22,6 +22,7 @@ import { SubconsciousClient } from '../subconscious/client.js';
 import { getClassifier, analyzeTask } from '../orchestrator/task-complexity.js';
 import { getRouter } from '../orchestrator/model-router.js';
 import { WhisperInjector } from '../subconscious/whisper-injector.js';
+import { ChatAgentModelRouter } from './chat-agent-model-router.js';
 
 // ---------------------------------------------------------------------------
 // Config - Multi-provider setup
@@ -768,12 +769,13 @@ async function processMessage(
 
   // === FAST PATH: Low-complexity tasks skip council deliberation ===
   // Score 1-2 = simple greetings/facts — no need to burden the council
-  const FAST_PATH_THRESHOLD = 2;
+  const FAST_PATH_THRESHOLD = 1; // Lowered from 2 to ensure more tasks get proper routing
   const isFastPath = complexity <= FAST_PATH_THRESHOLD;
 
   // === META-AGENT ORCHESTRATION THRESHOLD ===
-  // Lowered from 7 to 5 so more tasks get proper orchestration
-  const META_AGENT_THRESHOLD = 5;
+  // Lowered from 7 to 4 so more tasks get proper orchestration
+  // Tasks with complexity >= 4 should use MetaAgent for better planning
+  const META_AGENT_THRESHOLD = 4;
 
   // === AI COUNCIL DELIBERATION (before execution) ===
   // Use MiniMax for council (or configured council provider)
