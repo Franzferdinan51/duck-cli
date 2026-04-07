@@ -700,7 +700,7 @@ export async function telegramStart(): Promise<void> {
         // acknowledgment. Then progressively edit it as chunks arrive.
         // Finally replace it with the clean final response.
         // ────────────────────────────────────────────────────────────────────
-        const PLACEHOLDER = '🧠 <i>Processing your request...</i>';
+        const PLACEHOLDER = '🦆 Processing your request...';
         let replyMsgId: number | undefined;
         try {
           const result = await telegramRequest('sendMessage', {
