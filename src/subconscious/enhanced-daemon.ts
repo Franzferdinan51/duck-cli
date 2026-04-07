@@ -1,304 +1,169 @@
 /**
- * 🦆 Duck Agent - Enhanced Sub-Conscious Daemon
- * Letta-inspired features: background watching, whisper injection, memory blocks
- * Uses MiniMax/Kimi/LM Studio - NO Letta endpoints
+ * Duck Agent Subconscious - Enhanced Daemon
+ * Claude Subconscious-style but WITHOUT Letta - WITH AI Council integration
+ * Port 3090, SQLite persistence, FTS search, memory blocks
  */
 
-import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { MemoryBlocksManager, MemoryBlockType } from './memory-blocks.js';
-import { analyzeTranscript, generateWhisper, TranscriptSegment } from './persistence/llm-analyzer.js';
-import { SqliteStore } from './persistence/sqlite-store.js';
-import { FTSSearch, getFTSIndex, getSessionFTS } from './fts-search.js';
-import { AgentMeshClient } from '../mesh/agent-mesh.js';
-
-const DEFAULT_PORT = 4001;
-const DATA_DIR = `${process.env.HOME || '/tmp'}/.duckagent/subconscious`;
+import express from 'express';
+import { EventEmitter } from 'events';
+import { MemoryStore } from './memory-store.js';
+import { MemoryBlocksManager } from './memory-blocks.js';
+import { FullTextSearch } from './fts.js';
+import { AgentMeshClient } from '../mesh/client.js';
+import { analyzeTranscript } from './analyzer.js';
+import type { WhisperSource } from './types.js';
 
 interface SessionPayload {
   sessionId: string;
-  transcript: TranscriptSegment[];
-  cwd?: string;
-  topics?: string[];
-}
-
-interface WhisperRequest {
-  message?: string;
-  recentTopics?: string[];
-  sessionHistory?: string[];
-  count?: number;
+  transcript: string[];
+  timestamp: string;
 }
 
 interface CouncilPayload {
-  sessionId: string;
   topic: string;
-  councilorId: string;
   deliberation: string;
+  councilorId: string;
+  sessionId: string;
 }
 
 interface DreamPayload {
-  sessionId: string;
-  startedAt: number;
-  endedAt?: number;
   topics: string[];
   insights: string[];
-  actionSummary?: string;
-  patternsSeen?: string[];
+  actionSummary: string;
+  startedAt: string;
 }
 
-/**
- * Enhanced Sub-Conscious Daemon
- * - Watches all sessions
- * - Maintains memory blocks
- * - Generates whispers
- * - Connects to mesh for inter-agent communication
- */
-export class SubconsciousDaemon {
-  private port: number;
-  private store: SqliteStore;
-  private memoryBlocks: MemoryBlocksManager;
-  private fts: FTSSearch;
-  private mesh: AgentMeshClient | null = null;
-  private analysisQueue: SessionPayload[] = [];
-  private processing = false;
-  private server?: ReturnType<typeof createServer>;
+interface AnalysisPayload {
+  type: 'session' | 'council' | 'dream';
+  sessionId?: string;
+  topic?: string;
+  content?: string;
+  timestamp: string;
+}
 
-  constructor(port = DEFAULT_PORT) {
+export class SubconsciousDaemon extends EventEmitter {
+  private app: express.Application;
+  private server: any;
+  private port: number;
+  private store: MemoryStore;
+  private memoryBlocks: MemoryBlocksManager;
+  private fts: FullTextSearch;
+  private mesh?: AgentMeshClient;
+  private analysisQueue: AnalysisPayload[] = [];
+  private processing = false;
+
+  constructor(port = 3090) {
+    super();
+    this.app = express();
     this.port = port;
-    this.store = new SqliteStore(DATA_DIR);
+    this.store = new MemoryStore();
     this.memoryBlocks = new MemoryBlocksManager();
-    this.fts = getFTSIndex();
+    this.fts = new FullTextSearch();
+
+    this.setupMiddleware();
+    this.setupRoutes();
+  }
+
+  private setupMiddleware(): void {
+    this.app.use(express.json({ limit: '10mb' }));
+  }
+
+  private setupRoutes(): void {
+    // Health check
+    this.app.get('/health', (_req, res) => {
+      res.json({
+        status: 'ok',
+        service: 'subconscious-daemon',
+        port: this.port,
+        meshConnected: this.mesh?.isConnected() || false
+      });
+    });
+
+    // POST /analyze - Analyze session transcript
+    this.app.post('/analyze', async (req, res) => {
+      const payload: SessionPayload = req.body;
+      this.analysisQueue.push({
+        type: 'session',
+        sessionId: payload.sessionId,
+        content: payload.transcript.join('\n'),
+        timestamp: payload.timestamp
+      });
+      res.json({ status: 'queued', sessionId: payload.sessionId });
+    });
+
+    // POST /council - Store council deliberation
+    this.app.post('/council', async (req, res) => {
+      const payload: CouncilPayload = req.body;
+      await this.processCouncil(payload);
+      res.json({ status: 'stored', topic: payload.topic });
+    });
+
+    // POST /dream - Store KAIROS dream
+    this.app.post('/dream', async (req, res) => {
+      const payload: DreamPayload = req.body;
+      await this.processDream(payload);
+      res.json({ status: 'stored', insightCount: payload.insights.length });
+    });
+
+    // GET /whisper - Get whisper for current context
+    this.app.get('/whisper', async (req, res) => {
+      const context = req.query.context as string;
+      const whisper = await this.generateWhisper(context);
+      res.json(whisper);
+    });
+
+    // GET /memories - Search memories
+    this.app.get('/memories', async (req, res) => {
+      const query = req.query.q as string;
+      const memories = await this.searchMemories(query);
+      res.json(memories);
+    });
+
+    // GET /blocks/:name - Get memory block
+    this.app.get('/blocks/:name', async (req, res) => {
+      const block = await this.memoryBlocks.getBlock(req.params.name);
+      if (!block) {
+        res.status(404).json({ error: 'Block not found' });
+        return;
+      }
+      res.json(block);
+    });
   }
 
   async start(): Promise<void> {
-    // Initialize memory blocks
+    // Initialize stores
+    await this.store.initialize();
     await this.memoryBlocks.initialize();
 
-    // Connect to mesh if available
-    await this.connectToMesh();
-
-    // Start HTTP server
-    this.server = createServer((req, res) => this.handleRequest(req, res));
-
-    await new Promise<void>((resolve) => {
-      this.server!.listen(this.port, () => {
-        console.log(`[Sub-Conscious] 🧠 Daemon running on port ${this.port}`);
-        console.log(`[Sub-Conscious] Memory blocks initialized`);
-        if (this.mesh) {
-          console.log(`[Sub-Conscious] Connected to mesh`);
-        }
-        resolve();
-      });
+    // Connect to mesh
+    this.mesh = new AgentMeshClient('ws://localhost:4000');
+    await this.mesh.register({
+      id: 'subconscious-daemon',
+      name: 'Sub-Conscious Daemon',
+      capabilities: ['memory', 'analysis', 'whisper']
     });
 
     // Start background processing
     this.startBackgroundProcessing();
-  }
 
-  private async connectToMesh(): Promise<void> {
-    try {
-      this.mesh = new AgentMeshClient({
-        serverUrl: process.env.AGENT_MESH_URL || 'http://localhost:4000',
-        agentName: 'Sub-Conscious',
-        capabilities: ['memory', 'whisper', 'analysis', 'background']
+    // Start server
+    return new Promise((resolve) => {
+      this.server = this.app.listen(this.port, () => {
+        console.log(`[Sub-Conscious] Daemon running on port ${this.port}`);
+        console.log(`[Sub-Conscious] Connected to mesh at ws://localhost:4000`);
+        resolve();
       });
-
-      const agentId = await this.mesh.register();
-      if (agentId) {
-        await this.mesh.connect();
-
-        // Subscribe to mesh events
-        this.mesh.on('error', (event) => {
-          console.log('[Sub-Conscious] Mesh error:', event);
-        });
-
-        // Broadcast that we're online
-        await this.mesh.broadcast(JSON.stringify({
-          type: 'subconscious_online',
-          capabilities: ['memory_blocks', 'whispers', 'session_analysis']
-        }));
-      }
-    } catch (e) {
-      console.log('[Sub-Conscious] Mesh not available:', e);
-      this.mesh = null;
-    }
-  }
-
-  private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const url = new URL(req.url || '/', `http://localhost:${this.port}`);
-    const path = url.pathname;
-    const method = req.method || 'GET';
-
-    // CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (method === 'OPTIONS') {
-      res.writeHead(200);
-      res.end();
-      return;
-    }
-
-    // Parse body
-    let body = '';
-    for await (const chunk of req) {
-      body += chunk;
-    }
-
-    try {
-      // Health check
-      if (path === '/health' && method === 'GET') {
-        const stats = await this.store.stats();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          status: 'running',
-          memoryBlocks: true,
-          meshConnected: this.mesh?.isConnected() || false,
-          queueSize: this.analysisQueue.length,
-          stats
-        }));
-        return;
-      }
-
-      // Receive session transcript (async analysis)
-      if (path === '/session' && method === 'POST') {
-        const payload: SessionPayload = JSON.parse(body);
-        this.analysisQueue.push(payload);
-        res.writeHead(202, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ queued: true, queueSize: this.analysisQueue.length }));
-        return;
-      }
-
-      // Get whisper (synchronous)
-      if (path === '/whisper' && method === 'POST') {
-        const request: WhisperRequest = JSON.parse(body);
-        const whisper = await this.generateWhisper(request);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ whisper }));
-        return;
-      }
-
-      // Get guidance (from memory blocks)
-      if (path === '/guidance' && method === 'GET') {
-        const guidance = await this.memoryBlocks.getGuidance();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ guidance }));
-        return;
-      }
-
-      // Clear guidance
-      if (path === '/guidance' && method === 'DELETE') {
-        await this.memoryBlocks.clearGuidance();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ cleared: true }));
-        return;
-      }
-
-      // Get memory block
-      if (path.startsWith('/blocks/') && method === 'GET') {
-        const type = path.split('/')[2] as MemoryBlockType;
-        const block = await this.memoryBlocks.getBlock(type);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(block || { error: 'Block not found' }));
-        return;
-      }
-
-      // Update memory block
-      if (path.startsWith('/blocks/') && method === 'POST') {
-        const type = path.split('/')[2] as MemoryBlockType;
-        const { content } = JSON.parse(body);
-        await this.memoryBlocks.updateBlock(type, content);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ updated: true }));
-        return;
-      }
-
-      // Get all blocks for context
-      if (path === '/blocks' && method === 'GET') {
-        const context = await this.memoryBlocks.getAllBlocksForContext();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ context }));
-        return;
-      }
-
-      // Store council deliberation
-      if (path === '/council' && method === 'POST') {
-        const payload: CouncilPayload = JSON.parse(body);
-        await this.storeCouncilMemory(payload);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ stored: true }));
-        return;
-      }
-
-      // Save dream
-      if (path === '/dream' && method === 'POST') {
-        const payload: DreamPayload = JSON.parse(body);
-        await this.processDream(payload);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ saved: true }));
-        return;
-      }
-
-      // Search memories
-      if (path === '/search' && method === 'GET') {
-        const query = url.searchParams.get('q') || '';
-        const results = await this.searchMemories(query);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ results }));
-        return;
-      }
-
-      // Stats
-      if (path === '/stats' && method === 'GET') {
-        const stats = await this.store.stats();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(stats));
-        return;
-      }
-
-      res.writeHead(404);
-      res.end(JSON.stringify({ error: 'Not found' }));
-    } catch (e) {
-      console.error('[Sub-Conscious] Request error:', e);
-      res.writeHead(500);
-      res.end(JSON.stringify({ error: String(e) }));
-    }
-  }
-
-  private async generateWhisper(request: WhisperRequest): Promise<string | null> {
-    // Get relevant memories
-    const memories = await this.store.search({
-      query: request.message || '',
-      limit: 5
     });
-
-    // Get guidance from memory blocks
-    const guidance = await this.memoryBlocks.getGuidance();
-
-    // Generate whisper using LLM
-    const whisper = await generateWhisper({
-      message: request.message,
-      memories,
-      recentTopics: request.recentTopics,
-      sessionHistory: request.sessionHistory
-    });
-
-    // If we have guidance, prepend it
-    if (guidance && whisper) {
-      return `${guidance}\n\n${whisper}`;
-    }
-
-    return whisper || guidance || null;
   }
 
-  private async storeCouncilMemory(payload: CouncilPayload): Promise<void> {
+  private async processCouncil(payload: CouncilPayload): Promise<void> {
     // Store in SQLite
     await this.store.save({
       content: payload.deliberation,
       context: `council:${payload.topic}`,
       tags: ['council', payload.councilorId, payload.topic],
       importance: 0.8,
-      source: 'council_deliberation',
+      source: 'council_deliberation' as WhisperSource,
       sessionId: payload.sessionId
     });
 
@@ -327,12 +192,12 @@ export class SubconsciousDaemon {
       context: 'dream',
       tags: ['dream', ...payload.topics],
       importance: 0.7,
-      source: 'kairos_dream'
+      source: 'kairos_dream' as WhisperSource
     });
 
     // Update guidance block with dream insights
     if (payload.insights.length > 0) {
-      const guidance = payload.insights.map(i => `- ${i}`).join('\n');
+      const guidance = payload.insights.map((i: string) => `- ${i}`).join('\n');
       await this.memoryBlocks.updateBlock('guidance', guidance);
     }
 
@@ -357,6 +222,50 @@ export class SubconsciousDaemon {
     return this.store.search({ query, limit: 10 });
   }
 
+  private async generateWhisper(context: string): Promise<any> {
+    // Search relevant memories
+    const memories = await this.searchMemories(context);
+
+    // Get recent blocks
+    const blocks = await this.memoryBlocks.getAllBlocks();
+
+    // Generate whisper based on context
+    const whisper = {
+      message: this.buildWhisperMessage(memories, blocks, context),
+      confidence: this.calculateConfidence(memories),
+      timestamp: new Date().toISOString(),
+      source: 'memory_blocks_manager' as WhisperSource
+    };
+
+    return whisper;
+  }
+
+  private buildWhisperMessage(memories: any[], blocks: any[], context: string): string {
+    // Build contextual whisper from memories and blocks
+    const relevantMemories = memories.slice(0, 3);
+    const recentBlocks = blocks.filter(b => b.updatedAt > Date.now() - 86400000);
+
+    let message = '';
+
+    if (relevantMemories.length > 0) {
+      message += `Based on ${relevantMemories.length} relevant memories. `;
+    }
+
+    if (recentBlocks.length > 0) {
+      message += `Recent activity in ${recentBlocks.length} memory blocks. `;
+    }
+
+    message += `Context: ${context}`;
+
+    return message;
+  }
+
+  private calculateConfidence(memories: any[]): number {
+    if (memories.length === 0) return 0.3;
+    const avgImportance = memories.reduce((sum, m) => sum + (m.importance || 0.5), 0) / memories.length;
+    return Math.min(0.9, avgImportance + 0.2);
+  }
+
   private startBackgroundProcessing(): void {
     setInterval(async () => {
       if (this.processing || this.analysisQueue.length === 0) return;
@@ -365,7 +274,13 @@ export class SubconsciousDaemon {
       const payload = this.analysisQueue.shift()!;
 
       try {
-        await this.analyzeSession(payload);
+        if (payload.type === 'session' && payload.sessionId) {
+          await this.analyzeSession({
+            sessionId: payload.sessionId,
+            transcript: payload.content?.split('\n') || [],
+            timestamp: payload.timestamp
+          });
+        }
       } catch (e) {
         console.error('[Sub-Conscious] Analysis error:', e);
       } finally {
@@ -393,7 +308,7 @@ export class SubconsciousDaemon {
     }
 
     if (analysis.insights.length > 0) {
-      const guidance = analysis.insights.map(i => `- ${i}`).join('\n');
+      const guidance = analysis.insights.map((i: string) => `- ${i}`).join('\n');
       await this.memoryBlocks.updateBlock('guidance', guidance);
     }
 
