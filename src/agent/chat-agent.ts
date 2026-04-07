@@ -21,11 +21,23 @@ import { logger } from '../server/logger.js';
 import { SubconsciousClient } from '../subconscious/client.js';
 import { getClassifier, analyzeTask } from '../orchestrator/task-complexity.js';
 import { getRouter } from '../orchestrator/model-router.js';
+import { WhisperInjector } from '../subconscious/whisper-injector.js';
 
 // ---------------------------------------------------------------------------
 // Config - Multi-provider setup
 // ---------------------------------------------------------------------------
 const PORT = parseInt(process.env.DUCK_CHAT_PORT || '18797');
+
+// ---------------------------------------------------------------------------
+// Whisper Injection (Letta-inspired)
+// ---------------------------------------------------------------------------
+const whisperInjector = new WhisperInjector({
+  mode: (process.env.WHISPER_MODE as any) || 'whisper',
+  maxWhisperLength: parseInt(process.env.WHISPER_MAX_LENGTH || '500'),
+  confidenceThreshold: parseFloat(process.env.WHISPER_CONFIDENCE || '0.7'),
+  injectBeforePrompt: true,
+  injectBeforeTool: true
+});
 
 // ---------------------------------------------------------------------------
 // Agent Mesh Integration (optional)
@@ -721,8 +733,38 @@ async function processMessage(
     session.addSystem(SYSTEM_PROMPT);
   }
 
+  // === WHISPER INJECTION (Letta-inspired) ===
+  // Get contextual guidance from Sub-Conscious before processing
+  let whisperContext = '';
+  try {
+    const recentHistory = session.getMessages().slice(-5).map((m: any) => m.content);
+    const whisperResult = await whisperInjector.getPromptWhisper({
+      sessionId: userId,
+      message,
+      recentHistory
+    });
+    
+    if (whisperResult.whisper && whisperResult.confidence >= whisperInjector['config'].confidenceThreshold) {
+      whisperContext = whisperInjector.formatWhisper(whisperResult.whisper);
+      console.log(`[ChatAgent] 🧠 Whisper injected (confidence: ${whisperResult.confidence.toFixed(2)})`);
+    }
+  } catch (e) {
+    // Non-fatal: continue without whisper
+    console.log('[ChatAgent] Whisper injection failed:', e);
+  }
+
   const complexity = scoreComplexity(message);
-  const context = session.getContext(MAX_CONTEXT_TOKENS);
+  
+  // Build context with whisper injection
+  let context = session.getContext(MAX_CONTEXT_TOKENS);
+  
+  // Inject whisper into system message if present
+  if (whisperContext && context.length > 0 && context[0].role === 'system') {
+    context[0].content = context[0].content + whisperContext;
+  } else if (whisperContext) {
+    // Prepend as system message
+    context.unshift({ role: 'system', content: whisperContext });
+  }
 
   // === FAST PATH: Low-complexity tasks skip council deliberation ===
   // Score 1-2 = simple greetings/facts — no need to burden the council
