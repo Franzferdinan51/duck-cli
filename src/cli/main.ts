@@ -365,7 +365,7 @@ async function main() {
     case 'sec': {
       const { createSecurityCommand } = await import('../commands/security-cmd.js');
       const secCmd = createSecurityCommand();
-      await secCmd.parseAsync(['node', 'duck', 'security', ...args]);
+      await secCmd.parseAsync(['node', 'security', ...args]);
       break;
     }
 

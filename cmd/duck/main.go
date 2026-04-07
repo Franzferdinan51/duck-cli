@@ -581,8 +581,8 @@ func skillsCmd() *cobra.Command {
 // securityCmd - duck security
 func securityCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "security [action]",
-		Short: "Security operations (scan|audit|check|logs|status|history|defcon|threat)",
+		Use:                "security [action]",
+		Short:              "Security operations (scan|audit|check|logs|status|history|defcon|threat)",
 		Long: `Security operations with DEFCON integration.
 
 Commands:
@@ -594,18 +594,10 @@ Commands:
   duck security history           Show scan history
   duck security defcon [level]    Show or set DEFCON level (1-5)
   duck security threat            Report a security threat`,
-		Args: cobra.MinimumNArgs(0),
+		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
-			action := args[0]
-			switch action {
-			case "scan", "audit", "check", "logs", "status", "history", "defcon", "threat":
-				return runNodeWithEnv("security "+strings.Join(args, " "), cmd)
-			default:
-				return fmt.Errorf("unknown security command: %s. Run 'duck security' for help.", action)
-			}
+			// Pass all args directly to TypeScript
+			return runNodeDirectMulti(append([]string{"security"}, args...), cmd)
 		},
 	}
 	return cmd
