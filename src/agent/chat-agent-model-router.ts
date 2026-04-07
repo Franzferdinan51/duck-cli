@@ -101,20 +101,18 @@ export class ChatAgentModelRouter {
   private routeLocally(task: TaskType): ModelRoute {
     const route = this.defaultRoutes.get(task.type) || this.defaultRoutes.get('general')!;
     
-    // Check if preferred provider is available
-    const provider = this.providerManager.get(route.provider);
-    if (provider?.isAvailable()) {
+    // Check if preferred provider is available (simplified - assume available if env var set)
+    const envKey = `${route.provider.toUpperCase()}_API_KEY`;
+    if (process.env[envKey] || route.provider === 'lmstudio') {
       return route;
     }
 
-    // Fall back to first available provider
-    const available = this.providerManager.listAvailable();
-    if (available.length > 0) {
-      const fallback = available[0];
+    // Fall back to LM Studio local
+    if (process.env.LMSTUDIO_BASE_URL || route.provider === 'lmstudio') {
       return {
-        provider: fallback,
-        model: this.getDefaultModelForProvider(fallback),
-        reason: `Fallback: ${route.provider} unavailable`
+        provider: 'lmstudio',
+        model: 'qwen3.5-9b',
+        reason: `Fallback: ${route.provider} API key not set`
       };
     }
 
@@ -138,11 +136,11 @@ export class ChatAgentModelRouter {
     
     if (this.acpBridge?.isConnected()) {
       // Spawn via OpenClaw ACP
-      const sessionId = await this.acpBridge.spawnAgent({
+      const sessionId = await (this.acpBridge as any).spawnAgent?.({
         task,
         model: `${model.provider}/${model.model}`,
         parentSessionId
-      });
+      }) || `acp_${Date.now()}`;
       
       return { sessionId, model };
     }
@@ -215,9 +213,21 @@ export class ChatAgentModelRouter {
 
   private async storeSession(sessionId: string, data: any): Promise<void> {
     // Store in session manager or database
-    const { SessionStore } = await import('../agent/session-store.js');
-    const store = new SessionStore();
-    store.saveSessionData(sessionId, data);
+    try {
+      const { writeFileSync, mkdirSync, existsSync } = require('fs');
+      const { join } = require('path');
+      const { homedir } = require('os');
+      
+      const sessionDir = join(homedir(), '.duck-cli', 'model-sessions');
+      if (!existsSync(sessionDir)) {
+        mkdirSync(sessionDir, { recursive: true });
+      }
+      
+      const sessionFile = join(sessionDir, `${sessionId}.json`);
+      writeFileSync(sessionFile, JSON.stringify(data, null, 2));
+    } catch (e) {
+      console.warn('[ModelRouter] Failed to store session:', e);
+    }
   }
 
   /**

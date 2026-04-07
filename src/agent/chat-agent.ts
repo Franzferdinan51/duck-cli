@@ -16,6 +16,7 @@
 import http from 'http';
 import { Url } from 'url';
 import { ChatSession, getOrCreateSession } from './chat-session.js';
+import { processWithOrchestration, classifyTaskForOrchestration } from './chat-agent-orchestrator.js';
 import { processWithCouncil } from '../council/chat-bridge.js';
 import { logger } from '../server/logger.js';
 import { SubconsciousClient } from '../subconscious/client.js';
@@ -756,15 +757,48 @@ async function processMessage(
 
   const complexity = scoreComplexity(message);
   
+  // === ORCHESTRATOR INTEGRATION ===
+  // Check if we should use orchestration for this task
+  const context = {
+    messageCount: session.size(),
+    hasToolCalls: session.getMessages().some((m: any) => 
+      m.content.includes('[Tool') || m.content.includes('tool_call')
+    )
+  };
+  const classification = classifyTaskForOrchestration(message, context);
+  
+  console.log(`[ChatAgent] Task classified: complexity=${classification.complexity}, orchestration=${classification.useOrchestration}, reason="${classification.reason}"`);
+  
+  // Use orchestration for complex tasks
+  if (classification.useOrchestration) {
+    console.log(`[ChatAgent] Routing to orchestrator for complex task...`);
+    const orchResult = await processWithOrchestration(userId, message, {
+      overrideProvider,
+      overrideModel
+    });
+    
+    if (orchResult.routed === 'meta' || orchResult.response) {
+      session.addAssistant(orchResult.response);
+      await persistSessionToSubconscious(userId, session);
+      
+      return {
+        response: orchResult.response,
+        routed: orchResult.routed,
+        provider: effectiveProvider,
+        model: effectiveModel,
+      };
+    }
+  }
+  
   // Build context with whisper injection
-  let context = session.getContext(MAX_CONTEXT_TOKENS);
+  let chatContext = session.getContext(MAX_CONTEXT_TOKENS);
   
   // Inject whisper into system message if present
-  if (whisperContext && context.length > 0 && context[0].role === 'system') {
-    context[0].content = context[0].content + whisperContext;
+  if (whisperContext && chatContext.length > 0 && chatContext[0].role === 'system') {
+    chatContext[0].content = chatContext[0].content + whisperContext;
   } else if (whisperContext) {
     // Prepend as system message
-    context.unshift({ role: 'system', content: whisperContext });
+    chatContext.unshift({ role: 'system', content: whisperContext });
   }
 
   // === FAST PATH: Low-complexity tasks skip council deliberation ===
@@ -853,7 +887,7 @@ async function processMessage(
   }
 
   try {
-    const result = await chatComplete(effectiveProvider, effectiveModel, context, apiKey);
+    const result = await chatComplete(effectiveProvider, effectiveModel, chatContext, apiKey);
     session.addAssistant(result.content);
     
     // Persist session to Sub-Conscious for long-term memory

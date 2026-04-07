@@ -13,6 +13,26 @@ import { existsSync, readFileSync, writeFileSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
 
+// Import command handler (lazy loaded to avoid circular deps)
+let commandHandler: any = null;
+async function getCommandHandler() {
+  if (!commandHandler) {
+    const mod = await import('./telegram-commands.js');
+    commandHandler = mod.processCommand;
+  }
+  return commandHandler;
+}
+
+// Process a command message using the command handler
+async function processCommand(
+  text: string,
+  ctx: { chatId: string; userId: string; messageId: number; username?: string }
+): Promise<boolean> {
+  const handler = await getCommandHandler();
+  if (!handler) return false;
+  return handler(text, ctx);
+}
+
 // ─── Env Loading ────────────────────────────────────────────────────────────────
 
 function loadEnv(): Record<string, string> {
@@ -664,28 +684,21 @@ export async function telegramStart(): Promise<void> {
 
         // Skip commands for now
         if (text?.startsWith('/')) {
-          if (text === '/help' || text === '/start') {
-            await sendMessage(
-              '🦆 <b>Duck CLI Bot Commands:</b>\n\n' +
-              '/help - Show this message\n' +
-              '/status - Check bot status\n' +
-              '/tools - List available tools\n' +
-              '<b>Or just send any message!</b>',
-              msg.message_id
-            );
-          } else if (text === '/status') {
-            await sendMessage('🦆 Bot is running and connected to duck-cli!', msg.message_id);
-          } else if (text === '/tools') {
-            await sendMessage(
-              '🦆 Available categories:\n' +
-              '• Android control\n• Desktop automation\n• Crypto / Web3\n• Grow automation\n• Memory & agents\n' +
-              '• Cron & skills\n' +
-              'Use the Tools tab in DuckBot New app to browse all 100+ tools.',
-              msg.message_id
-            );
-          } else {
-            await sendMessage(`Unknown command: ${text}\nSend /help for available commands.`, msg.message_id);
+          const handled = await processCommand(text, {
+            chatId: msgChatId,
+            userId: String(msg.from?.id || ''),
+            messageId: msg.message_id,
+            username: msg.from?.username
+          });
+          
+          if (handled) {
+            updateOffset = update.update_id + 1;
+            saveUpdateOffset(updateOffset);
+            continue;
           }
+          
+          // Fallback for unknown commands
+          await sendMessage(`Unknown command: ${text}\nSend /help for available commands.`, msg.message_id);
           updateOffset = update.update_id + 1;
           saveUpdateOffset(updateOffset);
           continue;
