@@ -262,7 +262,27 @@ The security agent uses **foundation-sec-8b-reasoning**, a specialized security 
 
 # View security status
 ./duck security status
+
+# DEFCON level management
+./duck security defcon              # Show current status
+./duck security defcon 3            # Elevate to DEFCON 3
+./duck security defcon 5            # Return to normal
+./duck security defcon --auto true  # Enable auto-escalation
 ```
+
+### DEFCON System
+
+5-level defense readiness with auto-escalation:
+
+| Level | Color | Status | Description |
+|-------|-------|--------|-------------|
+| 1 | 🔴 | CRITICAL | Maximum alert - immediate action required |
+| 2 | 🔴 | HIGH | Elevated security - active threat |
+| 3 | 🟠 | ELEVATED | Increased readiness - potential threat |
+| 4 | 🟡 | NORMAL | Standard security posture |
+| 5 | 🟢 | LOW | All clear - normal operations |
+
+Auto-escalation automatically adjusts DEFCON based on threat assessments from the security agent.
 
 ---
 
