@@ -23,14 +23,16 @@ try {
 // ============================================================================
 if (process.env.DUCK_BOT_MODE === '1') {
   // Redirect process.stdout.write() → stderr (console.log internally uses stdout)
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   process.stdout.write = (chunk: string | Uint8Array) => {
     process.stderr.write(typeof chunk === 'string' ? chunk : String(chunk));
     return true;
   };
   // Also redirect console methods to stderr so shutdown stats don't leak
-  console.log = (...args: any[]) => { console.error(...args); };
-  console.warn = (...args: any[]) => { console.error(...args); };
-  console.error = (...args: any[]) => { console.error(...args); };
+  const originalConsoleError = console.error.bind(console);
+  console.log = (...args: any[]) => { originalConsoleError(...args); };
+  console.warn = (...args: any[]) => { originalConsoleError(...args); };
+  // console.error stays as-is (already writes to stderr)
 }
 
 
