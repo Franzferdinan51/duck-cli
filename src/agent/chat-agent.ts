@@ -31,6 +31,18 @@ import { ChatAgentModelRouter } from './chat-agent-model-router.js';
 const PORT = parseInt(process.env.DUCK_CHAT_PORT || '18797');
 
 // ---------------------------------------------------------------------------
+// Agent Identity
+// ---------------------------------------------------------------------------
+/**
+ * DUCK_CHAT_AGENT_ID — optional identifier for multi-agent mesh setups.
+ * When set, this ID is included in mesh broadcasts and health responses so
+ * other agents can distinguish this ChatAgent from siblings.
+ *
+ * Example: DUCK_CHAT_AGENT_ID=chat-primary ./duck chat-agent start
+ */
+const AGENT_IDENTITY = process.env.DUCK_CHAT_AGENT_ID || 'chat-agent';
+
+// ---------------------------------------------------------------------------
 // Whisper Injection (Letta-inspired)
 // ---------------------------------------------------------------------------
 const whisperInjector = new WhisperInjector({
@@ -756,6 +768,12 @@ async function processMessage(
   }
 
   const complexity = scoreComplexity(message);
+
+  // Tool supervision: detect and broadcast tool calls for monitoring
+  const toolCallMatches = (message.match(/\[Tool\s+(\w+)/g) || []);
+  if (toolCallMatches.length > 0) {
+    broadcastToMesh('tool-supervision', { event: 'tool-calls-detected', count: toolCallMatches.length, tools: toolCallMatches });
+  }
   
   // === ORCHESTRATOR INTEGRATION ===
   // Check if we should use orchestration for this task
@@ -954,7 +972,13 @@ function startServer(port: number) {
     // Logger status endpoints
     if (req.method === 'GET' && pathname === '/health') {
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(logger.getHealth()));
+      res.end(JSON.stringify({
+        ...logger.getHealth(),
+        agentId: AGENT_IDENTITY,
+        port: PORT,
+        meshRegistered,
+        whisperInjectorMode: whisperInjector.config.mode,
+      }));
       return;
     }
     if (req.method === 'GET' && pathname === '/logs') {
@@ -1165,6 +1189,63 @@ function startServer(port: number) {
       clearCouncilCache();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, message: 'Council cache cleared' }));
+      return;
+    }
+
+
+    // ---- Command & Control endpoint ----
+    // POST /control { action: "shutdown" | "restart" | "status" | "stats" }
+    if (req.method === 'POST' && pathname === '/control') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { action } = JSON.parse(body);
+          if (!action) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'action required: shutdown | restart | status | stats' }));
+            return;
+          }
+          if (action === 'stats') {
+            const sessions = require('./chat-session.js');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              agentId: AGENT_IDENTITY,
+              meshRegistered,
+              registeredAgentId,
+              sessionCount: sessions.listSessions().length,
+              whisperMode: whisperInjector.config.mode,
+              whisperConfidence: whisperInjector.config.confidenceThreshold,
+              providers: { current: PROVIDER, model: MODEL },
+            }));
+            return;
+          }
+          if (action === 'status') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ agentId: AGENT_IDENTITY, status: 'running', port: PORT, meshRegistered, uptime: process.uptime() }));
+            return;
+          }
+          if (action === 'shutdown') {
+            console.log('[ChatAgent] Shutdown requested via /control');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, message: 'Shutting down...' }));
+            setTimeout(() => process.exit(0), 500);
+            return;
+          }
+          if (action === 'restart') {
+            console.log('[ChatAgent] Restart requested via /control');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, message: 'Restarting...' }));
+            setTimeout(() => process.exit(42), 500);
+            return;
+          }
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Unknown action: \${action}` }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
       return;
     }
 
