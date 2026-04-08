@@ -228,6 +228,15 @@ adb connect 192.168.1.251:5555   # Your Android phone
                               └───────────────────────────────┘
 ```
 
+**Model Assignments by Component:**
+| Component | Model | Provider | Purpose |
+|-----------|-------|----------|---------|
+| **Chat Agent** | MiniMax-M2.7 | MiniMax | Primary user-facing chat |
+| **Orchestrator** | qwen3.5-0.8b | LM Studio | Fast task routing (complexity ≤2) |
+| **Bridge** | qwen3.5-0.8b | LM Studio | ACP/MCP protocol handling |
+| **Subconscious** | qwen3.5-9b | LM Studio | Whisper generation & analysis |
+| **Security** | N/A | N/A | RegExp-based scanning (no LLM) |
+
 **Provider routing:**
 | Provider | Best For | Models |
 |----------|----------|--------|
@@ -236,6 +245,11 @@ adb connect 192.168.1.251:5555   # Your Android phone
 | **OpenRouter** | Free tier | qwen/qwen3.6-plus-preview:free |
 | **Kimi** | Vision, coding | kimi-k2.5 |
 | **OpenClaw Gateway** | Free vision | kimi-k2.5 (via WebSocket) |
+
+**Notes:**
+- SecurityAgent is **on-demand only** (not auto-spawned) to save RAM
+- qwen3.5-0.8b auto-spawns for fast tasks when LM Studio is available
+- ACP Server currently ignores `model` parameter from spawn messages (known issue)
 
 ---
 
