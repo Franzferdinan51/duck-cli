@@ -135,8 +135,14 @@ export class AndroidTools {
 
   async shell(command: string, timeout = 30000): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     if (!this.serial) throw new Error("No device selected. Call refreshDevices() first.");
-    // Use single quotes for outer wrapper to avoid quote-escaping issues with uiautomator dump
-    const fullCmd = `adb -s ${this.serial} shell '${command.replace(/'/g, "'\\''")}'`;
+    // Double-quote wrapping with POSIX escaping for Android /system/bin/sh.
+    // Single quotes are LITERAL inside double quotes (no escaping needed).
+    const escaped = command
+      .replace(/\\/g, "\\\\")
+      .replace(/\$/g, "\\$")
+      .replace(/`/g, "\\`")
+      .replace(/"/g, '\\"');
+    const fullCmd = `adb -s ${this.serial} shell "${escaped}"`;
     try {
       const { stdout, stderr } = await execAsync(fullCmd, { timeout });
       return { stdout, stderr, exitCode: 0 };

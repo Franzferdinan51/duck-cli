@@ -1923,16 +1923,6 @@ async function androidCommand(args: string[]) {
       }
       break;
     }
-    case 'push': {
-      await android.refreshDevices();
-      if (payload.serial) android.setDevice(payload.serial);
-      const local = payload.local ?? actionArgs[0];
-      const remote = payload.remote ?? actionArgs[1];
-      if (!local || !remote) { console.log(`${c2.red}Usage: duck android push <local-path> <remote-path>${c2.reset}`); return; }
-      const ok = await android.pushFile(local, remote);
-      console.log(ok ? `${c2.green}✓ Pushed${c2.reset}` : `${c2.red}✗ Push failed${c2.reset}`);
-      break;
-    }
     case 'pull': {
       await android.refreshDevices();
       if (payload.serial) android.setDevice(payload.serial);
