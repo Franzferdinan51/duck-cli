@@ -60,18 +60,28 @@ export class BrowserOSIntegration {
    * Get info about BrowserOS
    */
   async getInfo(): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'browseros_info',
-        params: {}
-      }),
-    });
-    const data = await response.json() as any;
-    return data.result?.text || data;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(`${this.baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'browseros_info',
+          params: {}
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const data = await response.json() as any;
+      return data.result?.text || data;
+    } catch (e: any) {
+      clearTimeout(timeout);
+      console.warn(`[BrowserOS] getInfo failed: ${e.message}`);
+      return null;
+    }
   }
 
   // ============ Navigation Tools ============
@@ -413,29 +423,60 @@ export class BrowserOSIntegration {
    * Call a BrowserOS MCP tool
    */
   private async callTool(toolName: string, params: Record<string, any>): Promise<any> {
-    try {
-      const response = await fetch(`${this.baseUrl}/mcp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: toolName,
-          params
-        }),
-      });
+    const retryDelays = [500, 1000, 2000];
+    let lastError = '';
 
-      const data = await response.json() as any;
-      
-      if (data.error) {
-        throw new Error(data.error.message || 'BrowserOS tool error');
+    for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = retryDelays[attempt - 1];
+        console.log(`[BrowserOS] ${toolName} retry ${attempt}/${retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
 
-      return data.result || data;
-    } catch (error) {
-      console.error(`BrowserOS tool error: ${toolName}`, error);
-      throw error;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(`${this.baseUrl}/mcp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: toolName,
+            params
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        let data: any;
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(`BrowserOS ${toolName} returned invalid JSON (HTTP ${response.status}): ${await response.text().catch(() => 'empty')}`);
+        }
+
+        if (data?.error) {
+          throw new Error(data.error.message || `BrowserOS ${toolName} error`);
+        }
+
+        return data.result || data;
+      } catch (e: any) {
+        lastError = e.message || 'Unknown error';
+        const isRetryable = e.name === 'AbortError' || e.message?.includes('ECONNRESET') ||
+                           e.message?.includes('ETIMEDOUT') || e.message?.includes('ENOTFOUND') ||
+                           e.message?.includes('Connection') || e.message?.includes('fetch') ||
+                           e.message?.includes('network') || e.message?.includes('Invalid JSON');
+        if (!isRetryable) {
+          console.error(`[BrowserOS] ${toolName} failed (non-retryable): ${lastError}`);
+          throw e;
+        }
+        console.warn(`[BrowserOS] ${toolName} failed (retryable): ${lastError}`);
+      }
     }
+
+    throw new Error(`BrowserOS ${toolName} failed after ${retryDelays.length} retries: ${lastError}`);
   }
 
   /**

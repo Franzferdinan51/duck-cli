@@ -766,59 +766,191 @@ ${marker}`;
     });
 
     // ─── Web ──────────────────────────────────────────────
-    this.registerTool({ name: 'web_search', description: 'Search the web', 
-      schema: { query: { type: 'string' } }, dangerous: false,
+    this.registerTool({ name: 'web_search', description: 'Search the web',
+      schema: { query: { type: 'string' }, provider: { type: 'string', optional: true } }, dangerous: false,
       handler: async (args: any) => {
         const query = String(args.query || '').trim();
-        if (!query) return { error: 'Missing query' };
+        if (!query) return { error: 'Missing required argument: query' };
 
-        try {
-          const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-          const res = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-            }
-          });
-          if (!res.ok) return { error: `Search HTTP ${res.status}` };
-          const html = await res.text();
+        // Retry config: 3 retries with exponential backoff
+        const retryDelays = [1000, 2000, 4000];
+        let lastError = '';
 
-          const results: Array<{ title: string; url: string; snippet?: string }> = [];
-          const blocks = html.split('<div class="result results_links');
-          for (const block of blocks.slice(1)) {
-            const titleMatch = block.match(/class="result__a"[^>]*>([\s\S]*?)<\/a>/i);
-            const hrefMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/i);
-            const snippetMatch = block.match(/class="result__snippet">([\s\S]*?)<\/a>|class="result__snippet">([\s\S]*?)<\/div>/i);
-            const clean = (s: string) => s
-              .replace(/<[^>]+>/g, ' ')
-              .replace(/&amp;/g, '&')
-              .replace(/&quot;/g, '"')
-              .replace(/&#39;/g, "'")
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>')
-              .replace(/\s+/g, ' ')
-              .trim();
-            if (titleMatch && hrefMatch) {
-              results.push({
-                title: clean(titleMatch[1]),
-                url: hrefMatch[1],
-                snippet: snippetMatch ? clean(snippetMatch[1] || snippetMatch[2] || '') : ''
-              });
-            }
-            if (results.length >= 5) break;
+        for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+          if (attempt > 0) {
+            const delay = retryDelays[attempt - 1];
+            console.log(`[web_search] Retry ${attempt}/${retryDelays.length} after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
 
-          if (results.length === 0) {
-            return { query, results: [], note: 'No results found' };
-          }
+          try {
+            // 15-second timeout per attempt
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
 
-          return {
-            query,
-            results,
-            summary: results.map((r, i) => `${i + 1}. ${r.title} — ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`).join('\n')
-          };
-        } catch (e: any) {
-          return { error: `Web search failed: ${e.message}` };
+            const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+            const res = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+              },
+              signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (res.status === 429) {
+              lastError = 'Rate limited by search engine (429). Will retry with backoff.';
+              console.warn(`[web_search] Rate limited (429)`);
+              continue; // retry
+            }
+            if (!res.ok) {
+              lastError = `Search HTTP ${res.status}`;
+              if (res.status >= 500) {
+                console.warn(`[web_search] Server error ${res.status}, will retry`);
+                continue;
+              }
+              return { error: lastError };
+            }
+
+            const html = await res.text();
+            const results: Array<{ title: string; url: string; snippet?: string }> = [];
+            const blocks = html.split('<div class="result results_links');
+            for (const block of blocks.slice(1)) {
+              const titleMatch = block.match(/class="result__a"[^>]*>([\s\S]*?)<\/a>/i);
+              const hrefMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/i);
+              const snippetMatch = block.match(/class="result__snippet">([\s\S]*?)<\/a>|class="result__snippet">([\s\S]*?)<\/div>/i);
+              const clean = (s: string) => s
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (titleMatch && hrefMatch) {
+                results.push({
+                  title: clean(titleMatch[1]),
+                  url: hrefMatch[1],
+                  snippet: snippetMatch ? clean(snippetMatch[1] || snippetMatch[2] || '') : ''
+                });
+              }
+              if (results.length >= 5) break;
+            }
+
+            if (results.length === 0) {
+              return { query, results: [], note: 'No results found. Try a different search query.' };
+            }
+
+            return {
+              query,
+              results,
+              summary: results.map((r, i) => `${i + 1}. ${r.title} — ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`).join('\n')
+            };
+          } catch (e: any) {
+            lastError = e.message || 'Unknown fetch error';
+            const isRetryable = e.name === 'AbortError' || e.message?.includes('ECONNRESET') ||
+                               e.message?.includes('ETIMEDOUT') || e.message?.includes('ENOTFOUND') ||
+                               e.message?.includes('Connection') || e.message?.includes('fetch');
+            if (!isRetryable) {
+              return { error: `Web search failed: ${lastError}\n💡 Check your internet connection and try again.` };
+            }
+            console.warn(`[web_search] Network error: ${lastError}, retrying...`);
+          }
         }
+
+        return { error: `Web search failed after retries: ${lastError}\n💡 Tip: DuckDuckGo may be blocked or rate-limited. Try again in 30 seconds, or use BrowserOS/PinchTab for web access.` };
+      }
+    });
+
+    // ─── Web Fetch ────────────────────────────────────────
+    this.registerTool({ name: 'web_fetch', description: 'Fetch content from a URL',
+      schema: { url: { type: 'string' }, maxChars: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const url = String(args.url || '').trim();
+        if (!url) return { error: 'Missing required argument: url' };
+
+        // Basic URL validation
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(url);
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            return { error: `Unsupported protocol: ${parsedUrl.protocol}. Only http and https are supported.` };
+          }
+        } catch {
+          return { error: `Invalid URL: "${url}". Please provide a valid http or https URL.` };
+        }
+
+        const retryDelays = [1000, 2000, 4000];
+        let lastError = '';
+        const maxChars = args.maxChars || 50000;
+
+        for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+          if (attempt > 0) {
+            const delay = retryDelays[attempt - 1];
+            console.log(`[web_fetch] Retry ${attempt}/${retryDelays.length} after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+
+            const res = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+              },
+              signal: controller.signal,
+              redirect: 'follow'
+            });
+            clearTimeout(timeout);
+
+            if (res.status === 429) {
+              lastError = 'Rate limited (429). Will retry with backoff.';
+              console.warn(`[web_fetch] Rate limited (429)`);
+              continue;
+            }
+            if (res.status >= 500) {
+              lastError = `Server error ${res.status}`;
+              console.warn(`[web_fetch] Server error ${res.status}, will retry`);
+              continue;
+            }
+            if (res.status === 403 || res.status === 401) {
+              return { error: `Fetch blocked by ${parsedUrl.hostname} (HTTP ${res.status}). The site may require authentication or blocks automated access.` };
+            }
+            if (!res.ok) {
+              return { error: `Fetch HTTP ${res.status} for ${url}` };
+            }
+
+            const ct = res.headers.get('content-type') || '';
+            let content = await res.text();
+
+            // Truncate if needed
+            if (content.length > maxChars) {
+              content = content.slice(0, maxChars) + `\n\n[... truncated, ${content.length - maxChars} chars cut ...]`;
+            }
+
+            return {
+              url,
+              content,
+              contentType: ct,
+              truncated: content.length > maxChars || undefined,
+              summary: `Fetched ${content.length} chars from ${url} (${ct.split(';')[0]})`
+            };
+          } catch (e: any) {
+            lastError = e.message || 'Unknown fetch error';
+            const isRetryable = e.name === 'AbortError' || e.message?.includes('ECONNRESET') ||
+                               e.message?.includes('ETIMEDOUT') || e.message?.includes('ENOTFOUND') ||
+                               e.message?.includes('Connection') || e.message?.includes('fetch');
+            if (!isRetryable) {
+              return { error: `Web fetch failed: ${lastError}\n💡 Check the URL is correct and the site is accessible.` };
+            }
+            console.warn(`[web_fetch] Network error: ${lastError}, retrying...`);
+          }
+        }
+
+        return { error: `Web fetch failed after retries: ${lastError}\n💡 The site may be down or blocking requests. Try again later or use BrowserOS for browser-based access.` };
       }
     });
 
