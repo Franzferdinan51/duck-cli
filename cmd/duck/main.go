@@ -1502,8 +1502,8 @@ Other models: set GEMMA_MODEL, DUCK_PRIORITY, or DUCK_CLI_MODEL env vars.`,
 					return fmt.Errorf("Usage: duck android shell <command>")
 				}
 				shellCmd := strings.Join(args[1:], " ")
-				payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(shellCmd, `"`, `\"`))
-				return runNodeWithEnv("android shell "+payload, cmd)
+				// Pass command directly so it survives Go strings.Split()
+				return runNodeWithEnv("android shell-cmd " + shellCmd, cmd)
 			case "dump":
 				query := ""
 				if len(args) > 1 {
