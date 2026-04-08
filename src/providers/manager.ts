@@ -159,14 +159,23 @@ export class ProviderManager {
     if (providerOverride) {
       // -p flag: use that provider first, then fallback chain
       const overrideLabel = providerOverride.toUpperCase();
-      const overrideModel = providerOverride === 'kimi' ? 'k2p5' :
-                            providerOverride === 'minimax' ? 'MiniMax-M2.7' :
-                            providerOverride === 'openclaw' ? 'kimi-k2.5' : undefined;
+      // Model map for explicit -p provider overrides; DUCK_MODEL env var overrides all
+      const modelMap: Record<string, string | undefined> = {
+        kimi: 'k2p5',
+        minimax: 'MiniMax-M2.7',
+        openclaw: 'kimi-k2.5',
+        lmstudio: process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || undefined,
+        openrouter: undefined,
+        openai: undefined,
+        anthropic: undefined,
+      };
+      const mappedModel = modelMap[providerOverride];
+      const overrideModel = process.env.DUCK_MODEL || mappedModel;
       targets = [
         { provider: providerOverride, model: overrideModel, label: overrideLabel + ' [PRIORITY]' },
         ...targets.filter(t => t.provider !== providerOverride)
       ];
-      console.log(`[Router📡] Provider override: ${overrideLabel}`);
+      console.log(`[Router📡] Provider override: ${overrideLabel}` + (overrideModel ? ` (model: ${overrideModel})` : ''));
     } else if (priorityEnv) {
       const names = priorityEnv.split(',').map(s => s.trim());
       targets = names.map(name => {

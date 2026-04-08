@@ -1507,9 +1507,29 @@ ${marker}`;
       handler: async () => {
         const { exec } = await import('child_process');
         return new Promise((resolve) => {
-          const duckSourceDir = process.env.DUCK_SOURCE_DIR || '/tmp/duck-cli-main-sync';
-        const duckBinary = process.env.DUCK_BINARY || 'duck';
-        exec(`cd ${duckSourceDir} && ${duckBinary} doctor`, (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
+          // Find duck-cli source: env var, workspace, or current dir
+          const sourceCandidates = [
+            process.env.DUCK_SOURCE_DIR,
+            join(process.env.HOME || '', '.openclaw', 'workspace', 'duck-cli-src'),
+            process.cwd()
+          ].filter(Boolean);
+          const duckBinary = process.env.DUCK_BINARY || 'duck';
+          let resolved = false;
+          const tryNext = (i: number) => {
+            if (i >= sourceCandidates.length) {
+              if (!resolved) { resolve(`Error: duck source not found. Set DUCK_SOURCE_DIR or ensure duck-cli is in cwd.`); resolved = true; }
+              return;
+            }
+            const duckSourceDir = sourceCandidates[i];
+            exec(`cd ${duckSourceDir} && ${duckBinary} doctor`, (e, stdout, stderr) => {
+              if (!resolved && e && e.message.includes('No such file')) {
+                tryNext(i + 1); // try next candidate
+              } else if (!resolved) {
+                resolve(e ? `Error: ${e.message}` : stdout); resolved = true;
+              }
+            });
+          };
+          tryNext(0);
         });
       }
     });
