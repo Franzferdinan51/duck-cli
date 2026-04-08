@@ -15,6 +15,24 @@ try {
 } catch(e) {
   // dotenv not available, skip
 }
+// ============================================================================
+// 🦆 BOT MODE STDOUT SUPPRESSION
+// In DUCK_BOT_MODE=1, ALL stdout output is redirected to stderr so only the
+// final formatted response (written via process.stdout.write) reaches Telegram.
+// This prevents internal log lines ([Provider], [Agent], etc.) from leaking.
+// ============================================================================
+if (process.env.DUCK_BOT_MODE === '1') {
+  // Redirect process.stdout.write() → stderr (console.log internally uses stdout)
+  process.stdout.write = (chunk: string | Uint8Array) => {
+    process.stderr.write(typeof chunk === 'string' ? chunk : String(chunk));
+    return true;
+  };
+  // Also redirect console methods to stderr so shutdown stats don't leak
+  console.log = (...args: any[]) => { console.error(...args); };
+  console.warn = (...args: any[]) => { console.error(...args); };
+  console.error = (...args: any[]) => { console.error(...args); };
+}
+
 
 
 // Helper: get agent config from env vars (set by Go layer -p / -m flags)
