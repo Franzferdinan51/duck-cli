@@ -1266,8 +1266,8 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmdStr := strings.Join(args, " ")
-			payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(cmdStr, `"`, `\"`))
-			return runNodeWithEnv("android shell "+payload, cmd)
+			// Pass command directly so it survives Go's strings.Split() in runNodeWithEnv
+			return runNodeWithEnv("android shell-cmd " + cmdStr, cmd)
 		},
 	}
 	dumpCmd := &cobra.Command{

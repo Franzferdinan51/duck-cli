@@ -1730,6 +1730,17 @@ async function androidCommand(args: string[]) {
       console.log(JSON.stringify(info, null, 2));
       break;
     }
+    case 'shell-cmd': {
+      // Direct command from Go layer (avoids JSON encoding issues)
+      const cmd = actionArgs.join(' ');
+      if (!cmd) { console.log(`${c2.red}Usage: duck android shell <command>${c2.reset}`); return; }
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const result = await android.shell(cmd);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
+    }
     case 'shell': {
       const cmd = payload.command ?? actionArgs.join(' ');
       if (!cmd) { console.log(`${c2.red}Usage: duck android shell <command>${c2.reset}`); return; }
