@@ -1801,7 +1801,7 @@ async function androidCommand(args: string[]) {
       break;
     }
     case 'battery': {
-      const serial = payload.serial;
+      const serial = payload.serial ?? actionArgs[0];
       await android.refreshDevices();
       if (serial) android.setDevice(serial);
       const bat = await android.getBatteryLevel();

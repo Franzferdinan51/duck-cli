@@ -92,6 +92,7 @@ Features:
 		securityCmd(),
 		statusCmd(),
 		councilCmd(),
+		loggerCmd(),
 		workflowCmd(),
 		androidCmd(),
 		flowCmd(),
