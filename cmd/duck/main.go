@@ -108,11 +108,13 @@ Features:
 		teamCmd(),
 		meshCmd(),
 
-	metaCmd(),		meshdCmd(),
+		metaCmd(),
+		meshdCmd(),
 		chatAgentCmd(),
 		rlCmd(),
 		acpServerCmd(),
 		acpSpawnCmd(),
+		a2aCmd(),
 		updateCmd(),
 		syncCmd(),
 		voiceCmd(),
@@ -125,7 +127,6 @@ Features:
 		thinkCmd(),
 		doctorCmd(),
 		healthCmd(),
-		loggerCmd(),
 		statsCmd(),
 		configCmd(),
 		traceCmd(),
@@ -474,6 +475,22 @@ func acpSpawnCmd() *cobra.Command {
 				return runNodeWithEnv("acp "+args[0], cmd)
 			}
 			return runNodeWithEnv("acp "+args[0]+" "+args[1], cmd)
+		},
+	}
+	return cmd
+}
+
+// a2aCmd - duck a2a [action]
+func a2aCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "a2a [action]",
+		Short: "Agent-to-agent protocol (card|serve|status)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("a2a card", cmd)
+			}
+			return runNodeWithEnv("a2a "+args[0], cmd)
 		},
 	}
 	return cmd

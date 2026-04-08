@@ -113,9 +113,10 @@ export class SQLiteStore {
   }
 
   async searchMemories(query: string, limit = 10): Promise<MemorySearch[]> {
+    if (!query || typeof query !== 'string') return [];
     const q = query.toLowerCase();
     return this.memory
-      .filter(m => m.content.toLowerCase().includes(q) || m.tags.some(t => t.toLowerCase().includes(q)))
+      .filter(m => (m.content && m.content.toLowerCase().includes(q)) || (m.tags && m.tags.some(t => t && t.toLowerCase().includes(q))))
       .slice(0, limit)
       .map(m => ({
         id: m.id,
