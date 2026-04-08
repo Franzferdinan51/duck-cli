@@ -176,13 +176,14 @@ export function listMemories(): Memory[] {
  * Search memories by content
  */
 export function searchMemories(query: string): Memory[] {
+  if (!query || typeof query !== 'string') return [];
   const all = listMemories();
   const lowerQuery = query.toLowerCase();
   
   return all.filter(m => 
-    m.content.toLowerCase().includes(lowerQuery) ||
-    m.tags.some(t => t.toLowerCase().includes(lowerQuery)) ||
-    m.source.toLowerCase().includes(lowerQuery)
+    (m.content && m.content.toLowerCase().includes(lowerQuery)) ||
+    (m.tags && m.tags.some(t => t && t.toLowerCase().includes(lowerQuery))) ||
+    (m.source && m.source.toLowerCase().includes(lowerQuery))
   );
 }
 
