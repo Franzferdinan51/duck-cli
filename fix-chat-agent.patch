@@ -48,5 +48,4 @@
 +  }
 +
    // Build context with whisper injection
-   let chatContext = session.getContext(MAX_CONTEXT_TOKENS);
  

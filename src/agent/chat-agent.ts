@@ -832,6 +832,29 @@ async function processMessage(
       }
     }
   }
+
+  // For fast/simple tasks, auto-spawn qwen3.5-0.8b if LM Studio available
+  if (complexity <= 2 && !overrideProvider && !overrideModel) {
+    const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
+    if (lmstudioAvailable) {
+      console.log(`[ChatAgent] Fast task detected - auto-spawning qwen3.5-0.8b (LM Studio)`);
+      try {
+        const fastResult = await chatComplete('lmstudio', 'qwen3.5-0.8b', chatContext, 'local');
+        session.addAssistant(fastResult.content);
+        await persistSessionToSubconscious(userId, session);
+        
+        return {
+          response: fastResult.content,
+          routed: 'direct',
+          provider: 'lmstudio',
+          model: 'qwen3.5-0.8b',
+        };
+      } catch (err) {
+        console.log(`[ChatAgent] qwen3.5-0.8b failed, falling back to default provider:`, err.message);
+        // Fall through to default provider
+      }
+    }
+  }
   let chatContext = session.getContext(MAX_CONTEXT_TOKENS);
   
   // Inject whisper into system message if present
