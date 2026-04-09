@@ -341,8 +341,10 @@ export class ACPServer extends EventEmitter {
 
   private async executeSession(session: ACPSession, task: string, model?: string): Promise<string> {
     try {
-      // Use Duck Agent to process the task, with optional model override
-      const result = await this.agent.think(task, { model });
+      // Use Duck Agent to process the task
+      // Note: model parameter is extracted but not passed to agent.think
+      // as the think method signature only accepts the task string
+      const result = await this.agent.think(task);
       return result;
     } catch (err: any) {
       throw new Error(err.message);

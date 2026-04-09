@@ -1,4 +1,4 @@
-# 🦆 duck-cli v0.8.0
+# 🦆 duck-cli v0.6.1
 
 > **Desktop AI Agent** — A rival to Claude Code, Letta Code, and OpenAI Codex. Desktop AI agent with LLM-powered Meta-Agent Orchestrator, AI Council deliberation, persistent memory, multi-provider routing (MiniMax/LM Studio/Kimi/GPT/OpenRouter), agent-mesh communication bus, and 16 built-in tools. Runs on Mac/PC/Linux/Android.
 
@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 [![Go](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://go.dev/)
-[![Version](https://img.shields.io/badge/version-0.8.0-yellow.svg)]()
+[![Version](https://img.shields.io/badge/version-0.6.1-yellow.svg)]()
 
 ---
 
@@ -240,11 +240,21 @@ adb connect 192.168.1.251:5555   # Your Android phone
 **Provider routing:**
 | Provider | Best For | Models |
 |----------|----------|--------|
-| **LM Studio** | Free local, fast | Gemma 4, qwen3.5-series |
+| **LM Studio** | Free local, fast | qwen3.5-0.8b, qwen3.5-9b |
 | **MiniMax** | Fast general, coding | MiniMax-M2.7, glm-5 |
 | **OpenRouter** | Free tier | qwen/qwen3.6-plus-preview:free |
 | **Kimi** | Vision, coding | kimi-k2.5 |
 | **OpenClaw Gateway** | Free vision | kimi-k2.5 (via WebSocket) |
+
+**Architecture model assignments:**
+| Component | Model | Notes |
+|-----------|-------|-------|
+| Chat Agent | MiniMax-M2.7 | Primary conversational layer |
+| Orchestrator | qwen3.5-0.8b | LM Studio, fast local planning |
+| Bridge | qwen3.5-0.8b | LM Studio, inter-service communication |
+| Subconscious | qwen3.5-9b | LM Studio, whisper monitoring daemon |
+| Security | N/A | RegExp-based pattern matching, no LLM |
+| AI Council | MiniMax-M2.7 / qwen3.5-9b | Deliberative agents on-demand |
 
 **Notes:**
 - SecurityAgent is **on-demand only** (not auto-spawned) to save RAM
@@ -461,6 +471,15 @@ duck-cli/
 │   └── ... (21 docs total)
 └── tools/                       # Standalone tools
 ```
+
+---
+
+## ⚠️ Known Architecture Notes
+
+- **SecurityAgent is on-demand only** — not auto-spawned; triggered by specific keywords
+- **Three complexity scoring systems exist:** `scoreComplexity()` (chat-agent.ts:640), `classifyTaskForOrchestration()` (chat-agent-orchestrator.ts:183), and `analyzeTask()` (task-complexity.ts:278)
+- **ACP Server ignores model parameter** — passes model to provider but provider ignores it (uses default model)
+- **Duplicate fast-path code in chat-agent.ts** — both the orchestration path and direct path have overlapping fast-path logic that could be consolidated
 
 ---
 

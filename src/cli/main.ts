@@ -2496,7 +2496,7 @@ async function wsCommand(args: string[]) {
 
 // ============ BUDDY COMPANION ============
 
-async function buddyCommand(args: string[]) {
+async function buddyCommandStub(args: string[]) {
   const action = args[0] || 'status';
   
   console.log(`${c.cyan}Buddy Companion System${c.reset}`);
@@ -2518,7 +2518,7 @@ async function buddyCommand(args: string[]) {
 
 // ============ AI COUNCIL ============
 
-async function councilCommand(args: string[]) {
+async function councilCommandStub(args: string[]) {
   const [mode, ...topicParts] = args;
   const topic = topicParts.join(' ');
   
@@ -2575,7 +2575,7 @@ async function councilCommand(args: string[]) {
 
 // ============ MULTI-AGENT TEAMS ============
 
-async function teamCommand(args: string[]) {
+async function teamCommandStub(args: string[]) {
   const { TeamManager, TEAM_TEMPLATES, MultiAgentCoordinator } = await import('../multiagent/index.js');
   const teamManager = new TeamManager();
   const coordinator = new MultiAgentCoordinator({ maxConcurrent: 5 });

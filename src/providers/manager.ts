@@ -505,7 +505,7 @@ class LMStudioProvider implements Provider {
     return raw;
   }
 
-  async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
+  async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }> {
     const makeRequest = async (): Promise<{ text?: string; toolCalls?: any[]; error?: string }> => {
       try {
         // Use OpenAI-compatible endpoint (/v1/chat/completions) - works perfectly
@@ -568,13 +568,13 @@ class LMStudioProvider implements Provider {
       }
       if (result.error && result.error !== '__RETRY__') {
         console.log('[LMStudio] Error:', result.error);
-        return { text: undefined };
+        return { error: result.error, text: undefined };
       }
       // result.error === '__RETRY__' → fall through to next retry attempt
     }
 
     console.log('[LMStudio] Failed after retries');
-    return { text: undefined };
+    return { error: 'LM Studio failed after retries', text: undefined };
   }
 }
 

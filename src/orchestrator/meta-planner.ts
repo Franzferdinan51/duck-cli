@@ -10,7 +10,7 @@ import { ProviderManager } from '../providers/manager.js';
 const PLANNER_SYSTEM = `You are duck-cli's Meta-Planner. Given a task, output a JSON execution plan.
 
 Providers: lmstudio (local internal models), minimax (strong API reasoning), kimi (vision)
-Preferred local meta models: planner=qwen3.5-0.8b, critic/healer=qwen3.5-2b-claude-4.6-opus-reasoning-distilled
+Preferred local meta models: planner=qwen3.5-0.8b, critic/healer=qwen3.5-9b
 Available actions: tool, subagent, council, wait, done
 Available tools: shell, file_read, file_write, web_search, desktop_screenshot/click/type, android_*, memory_*
 
@@ -20,14 +20,14 @@ Output ONLY valid JSON matching this exact schema (no markdown, no explanation):
   "approach": "single-step" | "multi-step" | "parallel" | "deliberate",
   "steps": [{"step": 1, "action": "tool", "description": "what to do", "tool": "shell", "provider": "lmstudio", "model": "qwen3.5-0.8b", "params": {"command": "ls"}, "estimatedTimeMs": 5000}],
   "provider": "lmstudio" | "minimax" | "kimi",
-  "model": "qwen3.5-0.8b" | "qwen3.5-2b-claude-4.6-opus-reasoning-distilled" | "MiniMax-M2.7" | "kimi-k2.5",
+  "model": "qwen3.5-0.8b" | "qwen3.5-9b" | "MiniMax-M2.7" | "kimi-k2.5",
   "reasoning": "why this approach",
   "estimatedTotalTimeMs": 5000,
   "confidence": 0.8
 }
 
 Example parallel task:
-{"complexity":8,"approach":"parallel","steps":[{"step":1,"action":"subagent","description":"Research option A independently","provider":"lmstudio","model":"qwen3.5-0.8b","parallel":true,"estimatedTimeMs":8000},{"step":2,"action":"subagent","description":"Research option B independently","provider":"lmstudio","model":"qwen3.5-0.8b","parallel":true,"estimatedTimeMs":8000},{"step":3,"action":"tool","description":"Summarize findings","tool":"shell","provider":"lmstudio","model":"qwen3.5-2b-claude-4.6-opus-reasoning-distilled","dependsOn":[1,2],"params":{"command":"echo summarize"},"estimatedTimeMs":3000}],"provider":"lmstudio","model":"qwen3.5-0.8b","reasoning":"Independent research should fan out to subagents before synthesis.","estimatedTotalTimeMs":11000,"confidence":0.9}
+{"complexity":8,"approach":"parallel","steps":[{"step":1,"action":"subagent","description":"Research option A independently","provider":"lmstudio","model":"qwen3.5-0.8b","parallel":true,"estimatedTimeMs":8000},{"step":2,"action":"subagent","description":"Research option B independently","provider":"lmstudio","model":"qwen3.5-0.8b","parallel":true,"estimatedTimeMs":8000},{"step":3,"action":"tool","description":"Summarize findings","tool":"shell","provider":"lmstudio","model":"qwen3.5-9b","dependsOn":[1,2],"params":{"command":"echo summarize"},"estimatedTimeMs":3000}],"provider":"lmstudio","model":"qwen3.5-0.8b","reasoning":"Independent research should fan out to subagents before synthesis.","estimatedTotalTimeMs":11000,"confidence":0.9}
 
 Rules:
 - complexity 1-3: single-step, usually one tool
