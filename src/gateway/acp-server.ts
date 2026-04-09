@@ -254,7 +254,7 @@ export class ACPServer extends EventEmitter {
   }
 
   private async handleSpawn(params: any, ws: WebSocket, clientId: string, id?: string | number): Promise<ACPMessage> {
-    const { agent: requestedAgent, task, mode, cwd, timeout } = params;
+    const { agent: requestedAgent, task, mode, cwd, timeout, model } = params;
 
     // Validate agent
     const capabilities = this.getCapabilities();
@@ -339,10 +339,10 @@ export class ACPServer extends EventEmitter {
     };
   }
 
-  private async executeSession(session: ACPSession, task: string): Promise<string> {
+  private async executeSession(session: ACPSession, task: string, model?: string): Promise<string> {
     try {
-      // Use Duck Agent to process the task
-      const result = await this.agent.think(task);
+      // Use Duck Agent to process the task, with optional model override
+      const result = await this.agent.think(task, { model });
       return result;
     } catch (err: any) {
       throw new Error(err.message);
