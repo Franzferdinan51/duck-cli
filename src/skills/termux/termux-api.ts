@@ -12,6 +12,9 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// Import remote node sanitizer (OpenClaw v2026.4.9 security fix)
+import { sanitizeCommand, logSanitization } from '../../security/remote-node-sanitizer.js';
+
 export interface TermuxConfig {
   phoneSerial: string;
   termuxApiPackage: string;
@@ -69,14 +72,28 @@ export class TermuxAPI {
 
   /**
    * Run a command via Termux:API broadcast
+   * Commands are sanitized before execution (OpenClaw v2026.4.9 security fix)
    */
   async runCommand(command: string, background = false): Promise<TermuxResult> {
+    // Sanitize command to prevent injection attacks
+    const sanitized = sanitizeCommand(command);
+    if (sanitized.wasModified || sanitized.threatDetected) {
+      console.warn(`[TermuxAPI] Security: command sanitized before broadcast`);
+      logSanitization({
+        nodeId: this.config.phoneSerial,
+        field: 'runCommand',
+        originalLength: command.length,
+        sanitizedLength: sanitized.sanitized.length,
+        threats: sanitized.threats
+      });
+    }
+    
     const extra = background ? 'true' : 'false';
     const adbCmd = [
       'adb', '-s', this.config.phoneSerial, 'shell',
       'am', 'broadcast',
       '-a', TERMUX_API_ACTION,
-      '-e', 'com.termux.api.EXTRA_COMMAND', command,
+      '-e', 'com.termux.api.EXTRA_COMMAND', sanitized.sanitized,
       '-e', 'com.termux.api.EXTRA_BACKGROUND', extra,
       TERMUX_API_RECEIVER
     ].join(' ');
@@ -99,6 +116,7 @@ export class TermuxAPI {
 
   /**
    * Run via Termux RUN_COMMAND intent (requires allow-external-apps)
+   * All parameters sanitized (OpenClaw v2026.4.9 security fix)
    */
   async runCommandIntent(
     commandPath: string,
@@ -106,16 +124,31 @@ export class TermuxAPI {
     workdir = '/data/data/com.termux/files/home',
     background = true
   ): Promise<TermuxResult> {
-    const argsStr = args.join(',');
+    // Sanitize all parameters
+    const sanitizedPath = sanitizeCommand(commandPath);
+    const sanitizedArgs = args.map(arg => sanitizeCommand(arg).sanitized);
+    const sanitizedWorkdir = sanitizeCommand(workdir);
+    
+    if (sanitizedPath.wasModified || sanitizedWorkdir.wasModified) {
+      logSanitization({
+        nodeId: this.config.phoneSerial,
+        field: 'runCommandIntent',
+        originalLength: commandPath.length + workdir.length,
+        sanitizedLength: sanitizedPath.sanitized.length + sanitizedWorkdir.sanitized.length,
+        threats: [...sanitizedPath.threats, ...sanitizedWorkdir.threats]
+      });
+    }
+    
+    const argsStr = sanitizedArgs.join(',');
     const adbCmd = [
       'adb', '-s', this.config.phoneSerial, 'shell',
       'am', 'startservice',
       '--user', '0',
       '-n', TERMUX_RUN_COMMAND_SERVICE,
       '-a', TERMUX_RUN_COMMAND_ACTION,
-      '--es', 'com.termux.RUN_COMMAND_PATH', commandPath,
+      '--es', 'com.termux.RUN_COMMAND_PATH', sanitizedPath.sanitized,
       '--esa', 'com.termux.RUN_COMMAND_ARGUMENTS', argsStr,
-      '--es', 'com.termux.RUN_COMMAND_WORKDIR', workdir,
+      '--es', 'com.termux.RUN_COMMAND_WORKDIR', sanitizedWorkdir.sanitized,
       '--ez', 'com.termux.RUN_COMMAND_BACKGROUND', background ? 'true' : 'false'
     ].join(' ');
 
@@ -137,13 +170,25 @@ export class TermuxAPI {
 
   /**
    * Run via Termux Tasker plugin
+   * Command sanitized (OpenClaw v2026.4.9 security fix)
    */
   async runViaTasker(command: string): Promise<TermuxResult> {
+    const sanitized = sanitizeCommand(command);
+    if (sanitized.wasModified) {
+      logSanitization({
+        nodeId: this.config.phoneSerial,
+        field: 'runViaTasker',
+        originalLength: command.length,
+        sanitizedLength: sanitized.sanitized.length,
+        threats: sanitized.threats
+      });
+    }
+    
     const adbCmd = [
       'adb', '-s', this.config.phoneSerial, 'shell',
       'am', 'broadcast',
       '-a', 'com.termux.tasker.EXECUTE',
-      '-e', 'com.termux.tasker.EXTRA_COMMAND', command,
+      '-e', 'com.termux.tasker.EXTRA_COMMAND', sanitized.sanitized,
       'com.termux.tasker/.PluginReceiver'
     ].join(' ');
 
@@ -178,11 +223,26 @@ export class TermuxAPI {
 
   /**
    * Write a script to sdcard via echo
+   * Content and path sanitized (OpenClaw v2026.4.9 security fix)
    */
   async writeScriptToSdcard(content: string, sdcardPath: string): Promise<boolean> {
-    const escaped = content.replace(/"/g, '\\"').replace(/\n/g, ' && ');
+    // Sanitize content and path
+    const sanitizedContent = sanitizeCommand(content);
+    const sanitizedPath = sanitizeCommand(sdcardPath);
+    
+    if (sanitizedContent.wasModified || sanitizedPath.wasModified) {
+      logSanitization({
+        nodeId: this.config.phoneSerial,
+        field: 'writeScriptToSdcard',
+        originalLength: content.length + sdcardPath.length,
+        sanitizedLength: sanitizedContent.sanitized.length + sanitizedPath.sanitized.length,
+        threats: [...sanitizedContent.threats, ...sanitizedPath.threats]
+      });
+    }
+    
+    const escaped = sanitizedContent.sanitized.replace(/"/g, '\\"').replace(/\n/g, ' && ');
     try {
-      const cmd = `adb -s ${this.config.phoneSerial} shell "echo \\"${escaped}\\" > ${sdcardPath}"`;
+      const cmd = `adb -s ${this.config.phoneSerial} shell "echo \\"${escaped}\\" > ${sanitizedPath.sanitized}"`;
       await execAsync(cmd);
       return true;
     } catch {

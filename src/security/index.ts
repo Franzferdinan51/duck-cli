@@ -23,3 +23,17 @@ export {
   getCredentialEnvVars,
   safeLogContext 
 } from './credential-sanitizer.js';
+
+export {
+  sanitizeCommand,
+  sanitizeOutput,
+  sanitizeReason,
+  sanitizeNodeMessage,
+  sanitizeForRemoteNode,
+  sanitizeIncomingNodeMessage,
+  logSanitization,
+  getSanitizationStats
+} from './remote-node-sanitizer.js';
+
+export { SecurityStateManager } from './security-state-manager.js';
+export type { EnvVarValidation, BrowserURLCheck, SecurityStateManagerOptions } from './security-state-manager.js';

@@ -2124,6 +2124,43 @@ ${marker}`;
         return `Installed packages (${apps.length}):\n\n${apps.slice(0, 80).join('\n')}${apps.length > 80 ? `\n... and ${apps.length - 80} more` : ''}`;
       }
     });
+    // ─── AI Council Tools (Deliberation Layer) ───────────────────
+    this.registerTool({
+      name: 'council_deliberate',
+      description: '🏛️ Deliberate with AI Council for complex/ethical decisions. Use for high-stakes choices, moral dilemmas, or when multiple expert perspectives are needed.',
+      schema: {
+        topic: { type: 'string', description: 'The topic/question to deliberate' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { processWithCouncil } = await import('../council/chat-bridge.js');
+        const result = await processWithCouncil('tool-call', args.topic, 5, process.env.MINIMAX_API_KEY || '');
+        return {
+          verdict: result.routed,
+          response: result.response,
+          council: result.council
+        };
+      }
+    });
+    this.registerTool({
+      name: 'council_ask',
+      description: '🎯 Ask AI Council a direct question and get a verdict. Returns APPROVE, REJECT, MODIFY, or DELEGATE with reasoning.',
+      schema: {
+        question: { type: 'string', description: 'The question to ask the council' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { askCouncil } = await import('../council/chat-bridge.js');
+        const result = await askCouncil(args.question, 'Direct question from tool call', process.env.MINIMAX_API_KEY || '');
+        return {
+          verdict: result.verdict,
+          reasoning: result.reasoning,
+          confidence: result.confidence,
+          councilors: result.councilors_heard
+        };
+      }
+    });
+
     this.registerTool({
       name: 'android_termux',
       description: '🖥️ Run Termux API command (battery, clip-get, clip-set, notif, sensors, location, wifi, toast, vibrate, torch)',

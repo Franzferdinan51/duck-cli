@@ -304,6 +304,10 @@ async function main() {
       await updateCommand(args);
       break;
 
+    case 'backup':
+      await backupCommand(args);
+      break;
+
     case 'sync': {
       const { createSyncCommand } = await import('../commands/sync-cli.js');
       const sync = createSyncCommand();
@@ -394,6 +398,15 @@ async function main() {
 
     case 'buddy':
       await buddyCommand(args);
+      break;
+
+    case 'capability':
+    case 'capabilities':
+      await capabilityCommand(args);
+      break;
+
+    case 'infer':
+      await inferCommand(args);
       break;
 
     case 'security-defcon':
@@ -577,7 +590,17 @@ async function main() {
     case 'setup':
     case 'configure':
     case 'init':
-      await runSetup();
+    case 'onboard':
+      {
+        const { onboardCLI, printOnboardHelp } = await import('../onboard/onboard-cli.js');
+        if (cmd === 'onboard' && (!args[0] || args[0] === 'help' || args[0] === '--help' || args[0] === '-h')) {
+          printOnboardHelp();
+        } else if (cmd === 'onboard') {
+          await onboardCLI(args);
+        } else {
+          await runSetup();
+        }
+      }
       break;
 
     case 'doctor':
@@ -731,6 +754,14 @@ async function main() {
       }
       break;
 
+    case 'secrets': {
+      const { createSecretsCommand } = await import('../secrets/secrets-cli.js');
+      const secretsCmd = createSecretsCommand();
+      const fullArgs = ['node', 'secrets', ...args].filter(a => a.length > 0);
+      await secretsCmd.parseAsync(fullArgs);
+      break;
+    }
+
     default:
       await runTask(command + ' ' + args.join(' '));
   }
@@ -780,12 +811,14 @@ ${logo}`);
     ]],
     ['CONFIG / UTILS', [
       ['duck config [get|set|list]', 'Config management'],
+      ['duck secrets [set|get|list|show|delete|tags]', 'Secure secrets management'],
       ['duck doctor', 'Run system diagnostics'],
       ['duck health', 'Health check'],
       ['duck boot', 'Boot diagnostics'],
       ['duck stats', 'Agent statistics'],
       ['duck cron [cmd]', 'Cron automation'],
       ['duck update [action]', 'Update / backup duck-cli'],
+      ['duck backup [create|verify|restore|list|prune]', 'Backup management'],
       ['duck trace <list|show|clear>', 'Trace/debug logs'],
     ]],
     ['CHANNELS / MESSAGING', [
@@ -987,7 +1020,17 @@ ${c.bold}Just type${c.reset} what you want me to help with!
     case 'setup':
     case 'configure':
     case 'init':
-      await runSetup();
+    case 'onboard':
+      {
+        const { onboardCLI, printOnboardHelp } = await import('../onboard/onboard-cli.js');
+        if (cmd === 'onboard' && (!args[0] || args[0] === 'help' || args[0] === '--help' || args[0] === '-h')) {
+          printOnboardHelp();
+        } else if (cmd === 'onboard') {
+          await onboardCLI(args);
+        } else {
+          await runSetup();
+        }
+      }
       break;
 
     case 'doctor':
@@ -2383,9 +2426,19 @@ async function sendToChannel(args: string[]) {
 async function updateCommand(args: string[]) {
   const { createUpdateCommand } = await import('../commands/update-cli.js');
   const { Command } = await import('commander');
-  
+
   const update = createUpdateCommand();
   update.parse(['node', 'duck', ...args]);
+}
+
+// ============ BACKUP ============
+
+async function backupCommand(args: string[]) {
+  const { createBackupCommand } = await import('../backup/backup-cli.js');
+  const { Command } = await import('commander');
+
+  const backup = createBackupCommand();
+  backup.parse(['node', 'duck', 'backup', ...args]);
 }
 
 
@@ -3059,6 +3112,163 @@ async function buddyCommand(args: string[]) {
       default:
         console.log(`${c.yellow}Usage: duck buddy [hatch|list|status]${c.reset}`);
     }
+}
+
+// ============ CAPABILITY MANAGER (Provider-backed Inference) ============
+
+async function capabilityCommand(args: string[]) {
+  const { CapabilityManager } = await import('../capability/capability-manager.js');
+  const manager = new CapabilityManager();
+
+  const [action, ...actionArgs] = args;
+
+  if (!action || action === 'list') {
+    await manager.printCapabilities();
+    return;
+  }
+
+  if (action === 'engines') {
+    manager.printEngines();
+    return;
+  }
+
+  if (action === 'test') {
+    const [model, ...promptParts] = actionArgs;
+    const prompt = promptParts.join(' ') || 'Say "Hello from [model]" in exactly that format.';
+    if (!model) {
+      console.log(`${c.red}Usage: duck capability test <model> [prompt]${c.reset}`);
+      console.log(`${c.dim}Example: duck capability test minimax "Say hello"${c.reset}`);
+      return;
+    }
+    console.log(`${c.cyan}Testing model: ${model}${c.reset}\n`);
+    const result = await manager.testModel(model, prompt);
+    if (result.error) {
+      console.log(`${c.red}Error: ${result.error}${c.reset}`);
+    } else {
+      console.log(`${c.green}Response:${c.reset} ${result.text}`);
+    }
+    console.log(`${c.dim}Provider: ${result.provider} | Model: ${result.model} | ${result.durationMs}ms${c.reset}`);
+    return;
+  }
+
+  if (action === 'run') {
+    const [prompt, ...extraArgs] = actionArgs;
+    if (!prompt) {
+      console.log(`${c.red}Usage: duck capability run "<prompt>"${c.reset}`);
+      return;
+    }
+    const opts: any = {};
+    const engIdx = extraArgs.indexOf('--engine');
+    if (engIdx >= 0 && extraArgs[engIdx + 1]) opts.engine = extraArgs[engIdx + 1];
+    const modIdx = extraArgs.indexOf('--model');
+    if (modIdx >= 0 && extraArgs[modIdx + 1]) opts.model = extraArgs[modIdx + 1];
+    const tempIdx = extraArgs.indexOf('--temperature');
+    if (tempIdx >= 0 && extraArgs[tempIdx + 1]) opts.temperature = parseFloat(extraArgs[tempIdx + 1]);
+    const tokIdx = extraArgs.indexOf('--max-tokens');
+    if (tokIdx >= 0 && extraArgs[tokIdx + 1]) opts.maxTokens = parseInt(extraArgs[tokIdx + 1]);
+
+    console.log(`${c.cyan}Running inference...${c.reset}\n`);
+    const result = await manager.runInference(prompt, opts);
+    if (result.error) {
+      console.log(`${c.red}Error: ${result.error}${c.reset}`);
+    } else {
+      console.log(`${result.text}`);
+    }
+    console.log(`${c.dim}Provider: ${result.provider} | Model: ${result.model} | ${result.durationMs}ms${c.reset}`);
+    return;
+  }
+
+  if (action === 'set-engine') {
+    const engine = actionArgs[0];
+    if (!engine) {
+      console.log(`${c.red}Usage: duck capability set-engine <engine>${c.reset}`);
+      console.log(`${c.dim}Engines: auto, minimax, anthropic, openai, kimi, lmstudio, openrouter${c.reset}`);
+      return;
+    }
+    const ok = manager.setEngine(engine);
+    if (ok) {
+      console.log(`${c.green}✅ Default engine set to: ${engine}${c.reset}`);
+    }
+    return;
+  }
+
+  if (action === 'set-temperature') {
+    const temp = parseFloat(actionArgs[0]);
+    if (isNaN(temp)) {
+      console.log(`${c.red}Usage: duck capability set-temperature <0-2>${c.reset}`);
+      return;
+    }
+    manager.setTemperature(temp);
+    console.log(`${c.green}✅ Temperature set to: ${temp}${c.reset}`);
+    return;
+  }
+
+  if (action === 'set-max-tokens') {
+    const tokens = parseInt(actionArgs[0]);
+    if (isNaN(tokens)) {
+      console.log(`${c.red}Usage: duck capability set-max-tokens <number>${c.reset}`);
+      return;
+    }
+    manager.setMaxTokens(tokens);
+    console.log(`${c.green}✅ Max tokens set to: ${tokens}${c.reset}`);
+    return;
+  }
+
+  if (action === 'config') {
+    const cfg = manager.getConfig();
+    console.log(`\n${c.bold}🦆 Inference Config${c.reset}\n`);
+    console.log(`  ${c.cyan}Engine:${c.reset}       ${cfg.engine}`);
+    console.log(`  ${c.cyan}Temperature:${c.reset}   ${cfg.temperature}`);
+    console.log(`  ${c.cyan}Max Tokens:${c.reset}    ${cfg.maxTokens}`);
+    console.log(`  ${c.cyan}Top P:${c.reset}        ${cfg.topP}`);
+    console.log(`  ${c.cyan}Reasoning:${c.reset}    ${cfg.reasoning ? 'enabled' : 'disabled'}`);
+    console.log(`  ${c.cyan}JSON Mode:${c.reset}    ${cfg.jsonMode ? 'enabled' : 'disabled'}`);
+    console.log();
+    return;
+  }
+
+  // Unknown subcommand — show help
+  console.log(`${c.bold}🦆 duck capability — Provider-backed Inference${c.reset}\n`);
+  console.log(`${c.cyan}Usage:${c.reset} ${c.green}duck capability <subcommand> [args]${c.reset}\n`);
+  console.log(`${c.bold}Subcommands:${c.reset}`);
+  console.log(`  ${c.green}duck capability list${c.reset}              List available providers and models`);
+  console.log(`  ${c.green}duck capability engines${c.reset}             Show available inference engines`);
+  console.log(`  ${c.green}duck capability test <model> [prompt]${c.reset}  Test a specific model`);
+  console.log(`  ${c.green}duck capability run "<prompt>"${c.reset}        Run inference with default engine`);
+  console.log(`  ${c.green}duck capability set-engine <e>${c.reset}        Set default engine`);
+  console.log(`  ${c.green}duck capability set-temperature <n>${c.reset}   Set temperature (0-2)`);
+  console.log(`  ${c.green}duck capability set-max-tokens <n>${c.reset}   Set max tokens`);
+  console.log(`  ${c.green}duck capability config${c.reset}               Show current config`);
+  console.log();
+  console.log(`${c.bold}Examples:${c.reset}`);
+  console.log(`  ${c.dim}duck capability list${c.reset}`);
+  console.log(`  ${c.dim}duck capability test openrouter:minimax/minimax-m2.5:free${c.reset}`);
+  console.log(`  ${c.dim}duck capability test lmstudio:gemma-4-e4b-it "What is 2+2?"${c.reset}`);
+  console.log(`  ${c.dim}duck capability run "Explain quantum computing" --engine minimax${c.reset}`);
+  console.log(`  ${c.dim}duck capability set-engine minimax${c.reset}`);
+  console.log();
+}
+
+// ============ QUICK INFER (shorthand) ============
+
+async function inferCommand(args: string[]) {
+  const { CapabilityManager } = await import('../capability/capability-manager.js');
+  const manager = new CapabilityManager();
+
+  const prompt = args.join(' ').trim();
+  if (!prompt) {
+    console.log(`${c.red}Usage: duck infer "<prompt>"${c.reset}`);
+    console.log(`${c.dim}Example: duck infer "What is the capital of France?"${c.reset}`);
+    return;
+  }
+
+  const result = await manager.runInference(prompt);
+  if (result.error) {
+    console.log(`${c.red}Error: ${result.error}${c.reset}`);
+    process.exit(1);
+  } else {
+    console.log(result.text);
+  }
 }
 
 // ============ AI COUNCIL ============

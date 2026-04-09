@@ -775,8 +775,8 @@ async function processMessage(
     broadcastToMesh('tool-supervision', { event: 'tool-calls-detected', count: toolCallMatches.length, tools: toolCallMatches });
   }
   
-  // === ORCHESTRATOR INTEGRATION ===
-  // Check if we should use orchestration for this task
+  // === ORCHESTRATOR INTEGRATION (FIRST) ===
+  // Meta Agent Orchestrator decides routing, including if AI Council is needed
   const context = {
     messageCount: session.size(),
     hasToolCalls: session.getMessages().some((m: any) => 
@@ -787,9 +787,9 @@ async function processMessage(
   
   console.log(`[ChatAgent] Task classified: complexity=${classification.complexity}, orchestration=${classification.useOrchestration}, reason="${classification.reason}"`);
   
-  // Use orchestration for complex tasks
+  // Use orchestration for complex tasks - orchestrator decides on AI Council
   if (classification.useOrchestration) {
-    console.log(`[ChatAgent] Routing to orchestrator for complex task...`);
+    console.log(`[ChatAgent] Routing to Meta Agent orchestrator for complex task...`);
     const orchResult = await processWithOrchestration(userId, message, {
       overrideProvider,
       overrideModel
@@ -806,6 +806,7 @@ async function processMessage(
         model: effectiveModel,
       };
     }
+    // If orchestrator returns no response, fall through to normal flow
   }
   
   // Build context with whisper injection
@@ -875,33 +876,18 @@ async function processMessage(
   // Tasks with complexity >= 4 should use MetaAgent for better planning
   const META_AGENT_THRESHOLD = 4;
 
-  // === AI COUNCIL DELIBERATION (before execution) ===
-  // Use MiniMax for council (or configured council provider)
-  // Skip council for fast-path tasks (unless councilApiKey is explicitly required)
-  const councilApiKey = process.env.MINIMAX_API_KEY || apiKey;
-  if (councilApiKey && !isFastPath) {
-    const councilResult = await processWithCouncil(userId, message, complexity, councilApiKey);
-    
-    if (councilResult.routed === 'council_rejected') {
-      return { 
-        response: councilResult.response, 
-        routed: 'council_rejected', 
-        council: councilResult.council,
-        provider: effectiveProvider,
-        model: effectiveModel,
-      };
-    }
-    
-    if (councilResult.routed === 'council_modified') {
-      return { 
-        response: councilResult.response, 
-        routed: 'council_modified', 
-        council: councilResult.council,
-        provider: effectiveProvider,
-        model: effectiveModel,
-      };
-    }
-  }
+  // === AI COUNCIL TOOL (callable by Chat Agent or Meta Agent) ===
+  // AI Council is a deliberation tool for complex/ethical decisions
+  // It's NOT a sequential step - it's a resource that can be invoked
+  // Both Chat Agent and Meta Agent can call councilDeliberate() when needed
+  //
+  // Usage:
+  //   - Chat Agent: Direct call for user questions needing deliberation
+  //   - Meta Agent: Tool call during complex task execution
+  //   - Both: Access via council tool in tool registry
+  //
+  // Note: Council deliberation is expensive (multi-model, ~2-3s latency)
+  // Use sparingly for high-stakes decisions only
 
   // Broadcast task-queued to mesh for complex tasks
   if (complexity >= META_AGENT_THRESHOLD) {

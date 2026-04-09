@@ -9,6 +9,13 @@ import { spawn, exec } from 'child_process';
 import { promisify } from 'util';
 import WebSocket from 'ws';
 
+import { 
+  sanitizeNodeMessage, 
+  sanitizeCommand,
+  logSanitization,
+  type NodeMessage 
+} from '../security/remote-node-sanitizer.js';
+
 const execAsync = promisify(exec);
 
 export interface RemoteNodeConfig {
@@ -187,14 +194,28 @@ export class RemoteNodeManager extends EventEmitter {
    */
   private handleNodeMessage(node: RemoteNode, data: WebSocket.Data): void {
     try {
-      const msg = JSON.parse(data.toString());
+      const rawMsg = JSON.parse(data.toString());
       
-      if (msg.type === 'command') {
-        this.executeCommandOnNode(node, msg);
-      } else if (msg.type === 'heartbeat') {
+      // Sanitize incoming message from remote node (OpenClaw v2026.4.9 security fix)
+      const msg = sanitizeNodeMessage(rawMsg as NodeMessage);
+      
+      if (msg.threats.length > 0) {
+        console.warn(`[RemoteNode] 🚨 Security: ${msg.threats.length} threat(s) detected from node ${node.name}`);
+        logSanitization({
+          nodeId: node.id,
+          field: 'incoming_message',
+          originalLength: data.toString().length,
+          sanitizedLength: JSON.stringify(msg.sanitized).length,
+          threats: msg.threats
+        });
+      }
+      
+      if (msg.sanitized.type === 'command') {
+        this.executeCommandOnNode(node, msg.sanitized as NodeCommand);
+      } else if (msg.sanitized.type === 'heartbeat') {
         node.lastSeen = Date.now();
-      } else if (msg.type === 'status') {
-        this.emit('node_status', { node, status: msg.status });
+      } else if (msg.sanitized.type === 'status') {
+        this.emit('node_status', { node, status: (msg.sanitized as any).status });
       }
     } catch (e) {
       console.error('[RemoteNode] Failed to parse message:', e);
@@ -208,25 +229,48 @@ export class RemoteNodeManager extends EventEmitter {
     const startTime = Date.now();
     
     try {
+      // Sanitize command before execution (OpenClaw v2026.4.9 security fix)
+      const cmdResult = sanitizeCommand(cmd.command);
+      if (cmdResult.wasModified || cmdResult.threatDetected) {
+        console.warn(`[RemoteNode] Security: command sanitized for node ${node.name}`);
+        logSanitization({
+          nodeId: node.id,
+          field: 'command',
+          originalLength: cmd.command.length,
+          sanitizedLength: cmdResult.sanitized.length,
+          threats: cmdResult.threats
+        });
+      }
+      
+      // Sanitize args
+      const sanitizedArgs = (cmd.args || []).map(arg => sanitizeCommand(arg).sanitized);
+      
+      // Sanitize cwd
+      const sanitizedCwd = cmd.cwd ? sanitizeCommand(cmd.cwd).sanitized : undefined;
+      
       // Execute via SSH if remote
       let result;
       if (node.sshTunnel) {
-        const sshCmd = `ssh -o BatchMode=yes -p ${node.sshTunnel.localPort} localhost "cd ${cmd.cwd || '~'} && ${cmd.command} ${cmd.args?.join(' ') || ''}"`;
+        const sshCmd = `ssh -o BatchMode=yes -p ${node.sshTunnel.localPort} localhost "cd ${sanitizedCwd || '~'} && ${cmdResult.sanitized} ${sanitizedArgs.join(' ') || ''}"`;
         result = await execAsync(sshCmd, { timeout: cmd.timeout || 60000 });
       } else {
         // Local execution
-        result = await execAsync(`${cmd.command} ${cmd.args?.join(' ') || ''}`, {
-          cwd: cmd.cwd,
+        result = await execAsync(`${cmdResult.sanitized} ${sanitizedArgs.join(' ') || ''}`, {
+          cwd: sanitizedCwd,
           env: { ...process.env, ...cmd.env },
           timeout: cmd.timeout || 60000
         });
       }
 
+      // Sanitize output before sending back
+      const sanitizedStdout = sanitizeCommand(result.stdout).sanitized;
+      const sanitizedStderr = sanitizeCommand(result.stderr).sanitized;
+      
       const response: NodeCommandResult = {
         commandId: cmd.id,
         success: true,
-        stdout: result.stdout,
-        stderr: result.stderr,
+        stdout: sanitizedStdout,
+        stderr: sanitizedStderr,
         exitCode: 0,
         durationMs: Date.now() - startTime
       };

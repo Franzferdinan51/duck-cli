@@ -104,6 +104,7 @@ Features:
 		cronCmd(),
 		buddyCmd(),
 		providersCmd(),
+		modelsCmd(),
 		failuresCmd(),
 		teamCmd(),
 		meshCmd(),
@@ -116,6 +117,7 @@ Features:
 		acpSpawnCmd(),
 		a2aCmd(),
 		updateCmd(),
+		backupCmd(),
 		syncCmd(),
 		voiceCmd(),
 		speakCmd(),
@@ -132,6 +134,16 @@ Features:
 		traceCmd(),
 		toolsCmd(),
 		sendCmd(),
+		browserCmd(),
+		sandboxCmd(),
+		nodeCmd(),
+		nodesCmd(),
+		devicesCmd(),
+		qrCmd(),
+		capabilityCmd(),
+		onboardCmd(),
+		pluginsCmd(),
+		secretsCmd(),
 	)
 
 	// No args → start interactive shell (standalone mode for humans)
@@ -372,6 +384,22 @@ func providersCmd() *cobra.Command {
 	return cmd
 }
 
+// modelsCmd - duck models
+func modelsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "models",
+		Short: "Show available AI models from all providers",
+		Long: `List all available models from configured providers.
+
+Examples:
+  duck models              Show all models
+  duck models --provider   Show models for specific provider`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("models", cmd)
+		},
+	}
+}
+
 // meshCmd - duck mesh [action]
 func meshCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -508,6 +536,27 @@ func updateCmd() *cobra.Command {
 				return runNodeWithEnv("update check", cmd)
 			}
 			return runNodeWithEnv("update "+args[0], cmd)
+		},
+	}
+	return cmd
+}
+
+// backupCmd - duck backup [action] - Backup create/verify/restore/list/prune
+func backupCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "backup [action] [args]",
+		Short: "🦆 Backup management (create|verify|restore|list|prune)",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("backup list", cmd)
+			}
+			sub := args[0]
+			rest := ""
+			if len(args) > 1 {
+				rest = " " + strings.Join(args[1:], " ")
+			}
+			return runNodeWithEnv("backup "+sub+rest, cmd)
 		},
 	}
 	return cmd
@@ -865,6 +914,22 @@ func configCmd() *cobra.Command {
 				return runNodeWithEnv("config list", cmd)
 			}
 			return runNodeWithEnv("config "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
+// secretsCmd - duck secrets [set|get|list|show|delete|tags|has|path|export|import]
+func secretsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "secrets [set|get|list|show|delete|tags|has|path|export|import] [key] [value]",
+		Short: "Secure secrets management (API keys, tokens, etc.)",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("secrets list", cmd)
+			}
+			return runNodeWithEnv("secrets "+strings.Join(args, " "), cmd)
 		},
 	}
 	return cmd
@@ -1638,5 +1703,56 @@ Other models: set GEMMA_MODEL, DUCK_PRIORITY, or DUCK_CLI_MODEL env vars.`,
 		},
 	}
 	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd, statusCmd, forwardCmd, pushCmd, agentCmd)
+	return cmd
+}
+
+// browserCmd - duck browser [action]
+func browserCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "browser [action]",
+		Short: "Browser automation via BrowserOS MCP",
+		Long: `Browser automation using BrowserOS MCP.
+
+Commands:
+  duck browser status              Check BrowserOS status
+  duck browser start               Start BrowserOS
+  duck browser stop                Stop BrowserOS
+  duck browser tabs                List open tabs
+  duck browser open <url>          Open URL in new tab
+  duck browser navigate <url>      Navigate current tab to URL
+  duck browser click <ref>         Click element by ref
+  duck browser type <ref> <text>   Type text into element
+  duck browser screenshot [path]   Take screenshot
+  duck browser snapshot            Get accessibility snapshot`,
+		Args: cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("browser status", cmd)
+			}
+			return runNodeWithEnv("browser "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
+// sandboxCmd - duck sandbox [action]
+func sandboxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sandbox [action]",
+		Short: "Sandbox management (list|recreate|explain)",
+		Long: `Manage BrowserOS sandboxes.
+
+Commands:
+  duck sandbox list                List all sandboxes
+  duck sandbox recreate [id]       Recreate a sandbox
+  duck sandbox explain             Explain current page structure`,
+		Args: cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("sandbox list", cmd)
+			}
+			return runNodeWithEnv("sandbox "+strings.Join(args, " "), cmd)
+		},
+	}
 	return cmd
 }

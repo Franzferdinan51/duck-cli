@@ -2,6 +2,10 @@
  * 🦆 Duck Agent - SSRF Validation
  * Protects against Server-Side Request Forgery attacks
  * Based on NVIDIA NemoClaw security model
+ *
+ * v2: Added post-interaction re-validation for browser tools.
+ * JavaScript evaluation and element clicks can cause client-side redirects
+ * to attacker-controlled URLs or private network addresses.
  */
 
 import { promises as dnsPromises } from 'node:dns';
@@ -26,6 +30,18 @@ const PRIVATE_NETWORKS: CidrRange[] = [
 
 const ALLOWED_SCHEMES = new Set(['https:', 'http:']);
 const BLOCKED_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0']);
+
+/**
+ * Post-interaction SSRF result with additional context.
+ */
+export interface SSRFInteractionResult extends SSRFResult {
+  /** The URL that was validated */
+  url: string;
+  /** Whether a redirect was detected */
+  redirected: boolean;
+  /** Original URL before any redirect (if detectable) */
+  originalUrl?: string;
+}
 
 function parseIPv4(addr: string): Uint8Array {
   const parts = addr.split('.').map(Number);
@@ -176,4 +192,112 @@ export async function validateURLBatch(urls: string[]): Promise<Map<string, SSRF
   return results;
 }
 
-export default { validateURL, validateURLBatch };
+/**
+ * Validate a URL retrieved from a browser after a user interaction.
+ * This is the "re-validation" step — the initial URL was validated before
+ * navigation, but interactions (JS eval, click) can cause client-side
+ * redirects to arbitrary URLs.
+ *
+ * @param url The URL currently in the browser address bar
+ * @param originalUrl Optional: the URL before the interaction (if known)
+ * @returns SSRFInteractionResult with allowed status and redirect detection
+ */
+export async function validateBrowserURL(
+  url: string,
+  originalUrl?: string
+): Promise<SSRFInteractionResult> {
+  const result = await validateURL(url);
+  const redirected = originalUrl !== undefined && originalUrl !== url;
+
+  return {
+    ...result,
+    url,
+    redirected,
+    originalUrl,
+  };
+}
+
+/**
+ * Synchronous (no DNS) validation for quick checks.
+ * Only checks scheme and blocked hosts — useful when DNS is unavailable
+ * or for defense-in-depth alongside async validateURL().
+ */
+export function validateURLSync(url: string): SSRFResult {
+  try {
+    const parsed = new URL(url);
+
+    if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
+      return { allowed: false, reason: `Blocked scheme: ${parsed.protocol}` };
+    }
+
+    if (parsed.username || parsed.password) {
+      return { allowed: false, reason: 'Credentials in URL not allowed' };
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (BLOCKED_HOSTS.has(host)) {
+      return { allowed: false, reason: `Blocked host: ${host}` };
+    }
+
+    return { allowed: true };
+  } catch {
+    return { allowed: false, reason: 'Invalid URL format' };
+  }
+}
+
+/**
+ * Error class for SSRF violations detected post-interaction.
+ */
+export class SSRFViolationError extends Error {
+  readonly url: string;
+  readonly resolvedIP?: string;
+
+  constructor(message: string, url: string, resolvedIP?: string) {
+    super(message);
+    this.name = 'SSRFViolationError';
+    this.url = url;
+    this.resolvedIP = resolvedIP;
+  }
+}
+
+/**
+ * Create a guard wrapper for browser tool functions.
+ * After the tool executes, validates the browser's current URL.
+ *
+ * Usage:
+ *   const safeNavigate = withSSRFGuard(
+ *     async (url: string) => browserOS.navigate(url),
+ *     async () => browserOS.getActivePage().then(p => p?.url)
+ *   );
+ *
+ * @param action The browser tool action to wrap
+ * @param getCurrentURL Called after action completes to get the browser's current URL
+ */
+export async function withSSRFGuard<T>(
+  action: () => Promise<T>,
+  getCurrentURL: () => Promise<string | undefined>,
+  originalURL?: string
+): Promise<T> {
+  const result = await action();
+
+  const currentURL = await getCurrentURL();
+  if (!currentURL) return result;
+
+  // Validate the URL the browser is now showing
+  const validation = await validateBrowserURL(currentURL, originalURL);
+
+  if (!validation.allowed) {
+    console.error(
+      `[SSRF] Post-interaction violation: ${validation.reason} | URL: ${currentURL}`
+    );
+    throw new SSRFViolationError(
+      `SSRF violation after browser interaction: ${validation.reason}`,
+      currentURL,
+      validation.resolvedIP
+    );
+  }
+
+  return result;
+}
+
+export default { validateURL, validateURLBatch, validateBrowserURL, validateURLSync, withSSRFGuard, SSRFViolationError };

@@ -6,7 +6,13 @@
  * Install: curl -fsSL https://pinchtab.com/install.sh | bash
  * Or: pinchtab daemon install
  * API base: http://localhost:9867
+ *
+ * v2: Added SSRF re-validation after interaction methods (click, evaluate).
+ * PinchTab actions can result in client-side redirects that initial URL
+ * validation does not catch.
  */
+
+import { validateBrowserURL, SSRFViolationError } from '../security/ssrf.js';
 
 import { Agent } from '../agent/core.js';
 
@@ -258,16 +264,28 @@ export class PinchTabTools {
 
   // ─── Interaction ───────────────────────────────────────────────────────────
 
-  /** Click element */
+  /**
+   * Click element.
+   * After execution, SSRF re-validation is performed on the resulting
+   * page URL to detect client-side redirects triggered by the click.
+   */
   async click(target: { ref?: string; selector?: string; x?: number; y?: number }, tabId?: string): Promise<ActionResult> {
     try {
+      // Capture URL before click for redirect detection
+      const urlBefore = tabId ? undefined : (await this.getText().catch(() => null));
+
       await this.post('/action', {
         kind: 'click',
         tabId,
         ...target,
       });
+
+      // SSRF re-validation after click
+      await this._ssrfRevalidate(tabId, urlBefore as unknown as string | undefined);
+
       return { success: true };
     } catch (e: any) {
+      if (e instanceof SSRFViolationError) throw e;
       return { success: false, error: e.message };
     }
   }
@@ -337,12 +355,68 @@ export class PinchTabTools {
     }
   }
 
-  /** Evaluate JavaScript */
+  /**
+   * Evaluate JavaScript.
+   * After execution, SSRF re-validation is performed on the resulting
+   * page URL since JS can trigger navigation (window.location, form submit,
+   * meta refresh, etc.).
+   */
   async evaluate(script: string, tabId?: string): Promise<any> {
     try {
-      return await this.post<any>('/evaluate', { script, tabId });
+      // Capture URL before evaluation for redirect detection
+      const urlBefore = tabId ? undefined : (await this.getText().catch(() => null));
+
+      const result = await this.post<any>('/evaluate', { script, tabId });
+
+      // SSRF re-validation after JS evaluation
+      await this._ssrfRevalidate(tabId, urlBefore as unknown as string | undefined);
+
+      return result;
     } catch (e: any) {
+      if (e instanceof SSRFViolationError) throw e;
       return { error: e.message };
+    }
+  }
+
+  /**
+   * SSRF re-validation after a PinchTab interaction.
+   * Gets the current page text (which includes the URL) and validates it.
+   * For PinchTab we use text content since there's no direct page URL API,
+   * but the validation catches dangerous navigations.
+   */
+  private async _ssrfRevalidate(tabId: string | undefined, urlBefore?: string): Promise<void> {
+    try {
+      // PinchTab doesn't expose direct page URL, but we can check via evaluate
+      // Use a safe script that returns the current URL without triggering navigation
+      const result = await this.post<any>('/evaluate', {
+        script: 'window.location.href',
+        tabId,
+      }).catch(() => null);
+
+      const currentURL = typeof result === 'string' ? result : result?.text ?? result?.result;
+      if (!currentURL || typeof currentURL !== 'string') return;
+
+      const validation = await validateBrowserURL(currentURL, urlBefore);
+
+      if (!validation.allowed) {
+        console.error(
+          `[SSRF] PinchTab post-interaction SSRF violation detected!` +
+          ` Reason: ${validation.reason} | URL: ${currentURL}` +
+          ` | Resolved IP: ${validation.resolvedIP ?? 'N/A'}`
+        );
+        throw new SSRFViolationError(
+          `SSRF violation after PinchTab interaction: ${validation.reason}`,
+          currentURL,
+          validation.resolvedIP
+        );
+      }
+
+      if (validation.redirected) {
+        console.log(`[SSRF] PinchTab: client-side redirect detected (${urlBefore} → ${currentURL}), validated OK`);
+      }
+    } catch (e) {
+      if (e instanceof SSRFViolationError) throw e;
+      console.warn(`[SSRF] PinchTab re-validation warning: ${(e as Error).message}`);
     }
   }
 

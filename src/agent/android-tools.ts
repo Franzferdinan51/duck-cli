@@ -24,6 +24,9 @@ import { randomUUID } from "crypto";
 
 const execAsync = promisify(exec);
 
+// Import remote node sanitizer (OpenClaw v2026.4.9 security fix)
+import { sanitizeCommand, logSanitization } from "../security/remote-node-sanitizer.js";
+
 export interface AndroidDevice {
   serial: string;
   state: "device" | "offline" | "unauthorized" | "no device";
@@ -133,11 +136,28 @@ export class AndroidTools {
 
   // ─── Shell Commands ──────────────────────────────────────────────────────
 
+  /**
+   * Execute shell command on Android device
+   * Command is sanitized (OpenClaw v2026.4.9 security fix)
+   */
   async shell(command: string, timeout = 30000): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     if (!this.serial) throw new Error("No device selected. Call refreshDevices() first.");
+    
+    // Sanitize command to prevent injection attacks
+    const sanitized = sanitizeCommand(command);
+    if (sanitized.wasModified || sanitized.threatDetected) {
+      logSanitization({
+        nodeId: this.serial || 'android',
+        field: 'shell',
+        originalLength: command.length,
+        sanitizedLength: sanitized.sanitized.length,
+        threats: sanitized.threats
+      });
+    }
+    
     // Double-quote wrapping with POSIX escaping for Android /system/bin/sh.
     // Single quotes are LITERAL inside double quotes (no escaping needed).
-    const escaped = command
+    const escaped = sanitized.sanitized
       .replace(/\\/g, "\\\\")
       .replace(/\$/g, "\\$")
       .replace(/`/g, "\\`")
