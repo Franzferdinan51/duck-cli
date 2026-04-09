@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
-// Load .env file if it exists (for LM Studio, API keys, etc.)
-// Note: 'join' and 'existsSync' are imported below in the main imports block
+// ============================================================================
+// 🦆 DOTENV LOADING WITH SECURITY GUARD
+// Loads .env from DUCK_SOURCE_DIR or cwd, but blocks runtime-control vars
+// from untrusted workspace .env files to prevent .env injection attacks.
+// Based on OpenClaw v2026.4.9 security model.
+// ============================================================================
 try {
   const { config: dotenvConfig } = require('dotenv');
   const path = require('path');
@@ -10,10 +14,29 @@ try {
     ? path.join(process.env.DUCK_SOURCE_DIR, '.env')
     : path.join(process.cwd(), '.env');
   if (fs.existsSync(envPath)) {
-    dotenvConfig({ path: envPath, quiet: true });
+    // Determine trust: ~/.duck/.env is trusted (created by setup),
+    // workspace/cwd .env is untrusted (could come from a repo or shared project).
+    const isTrusted = envPath.includes('.duck' + path.sep + '.env');
+    // Read file content and pass through SecurityStateManager before applying
+    const content = fs.readFileSync(envPath, 'utf-8');
+    // Import lazily so we don't add import-time overhead when dotenv isn't needed
+    const { SecurityStateManager } = require('../security/security-state-manager.js');
+    const manager = new SecurityStateManager({
+      envFilePath: envPath,
+      trustedEnvFile: isTrusted,
+    });
+    const filtered = manager.parseAndFilterEnv(content);
+    // Apply each filtered var to process.env manually (bypasses dotenv automatic apply)
+    for (const [key, value] of Object.entries(filtered)) {
+      process.env[key] = String(value);
+    }
+    // If there were any blocked vars, print a report (non-fatal)
+    if (manager.hasViolations()) {
+      manager.printReport();
+    }
   }
 } catch(e) {
-  // dotenv not available, skip
+  // dotenv not available or security module missing, skip
 }
 // ============================================================================
 // 🦆 BOT MODE STDOUT SUPPRESSION
@@ -1664,8 +1687,41 @@ async function desktopCommand(args: string[]) {
       const img = await agent.screenshot();
       console.log(`${c.green}✓${c.reset} Screenshot: ${img}`);
       break;
+    case 'status':
+      // Check if ClawdCursor is running
+      const http = require('http');
+      const statusRes = await new Promise((resolve) => {
+        const req = http.get('http://127.0.0.1:3847/v1/status', (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => resolve(data));
+          res.on('error', () => resolve(null));
+        });
+        req.on('error', () => resolve(null));
+        req.setTimeout(2000, () => { req.destroy(); resolve(null); });
+      });
+      if (statusRes) {
+        try {
+          const info: any = JSON.parse(statusRes as string);
+          console.log(`${c.bold}Desktop Control Status:${c.reset}`);
+          console.log(`  ${c.green}✅ ClawdCursor running${c.reset}`);
+          console.log(`  Endpoint: http://127.0.0.1:3847`);
+          console.log(`  Model: ${info.model || 'unknown'}`);
+        } catch {
+          console.log(`${c.green}✅ ClawdCursor endpoint available${c.reset}`);
+        }
+      } else {
+        console.log(`${c.yellow}⚠️  ClawdCursor not running${c.reset}`);
+        console.log(`  Run: cd ~/.openclaw/workspace/clawd-cursor && nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &`);
+      }
+      break;
     default:
-      console.log('Desktop commands: open <app>, click <x> <y>, type <text>, screenshot');
+      console.log(`${c.bold}Desktop commands:${c.reset}`);
+      console.log(`  ${c.cyan}duck desktop open <app>${c.reset}      Open an application`);
+      console.log(`  ${c.cyan}duck desktop click <x> <y>${c.reset}   Click at coordinates`);
+      console.log(`  ${c.cyan}duck desktop type <text>${c.reset}     Type text`);
+      console.log(`  ${c.cyan}duck desktop screenshot${c.reset}       Capture screenshot`);
+      console.log(`  ${c.cyan}duck desktop status${c.reset}          Show desktop control status`);
   }
 
   await agent.shutdown();
@@ -2209,13 +2265,28 @@ async function startChannels(args: string[]) {
   // Handle duck telegram / duck channels telegram [subcommand]
   // When called via Go wrapper: duck telegram → channels telegram → args=['telegram']
   // duck telegram test → channels telegram test → args=['telegram', 'test']
-  if (args[0] === 'telegram' || args[0] === 'test' || args[0] === 'send') {
+  // duck channels telegram → channels channels telegram → args=['channels', 'telegram']
+  // duck channels telegram test → channels channels telegram test → args=['channels', 'telegram', 'test']
+  if (args[0] === 'telegram' || args[0] === 'test' || args[0] === 'send' || args[0] === 'channels') {
     const { telegramCommand } = await import('../plugins/telegram.js');
     // If called as 'telegram' with no subcommand, default to 'test'
     if (args[0] === 'telegram' && !args[1]) {
       await telegramCommand(['test']);
     } else if (args[0] === 'telegram') {
       await telegramCommand(args.slice(1));
+    } else if (args[0] === 'channels') {
+      // duck channels telegram [subcommand] → skip 'channels', pass remaining
+      if (args[1] === 'telegram' || args[1] === 'test' || args[1] === 'send') {
+        const subArgs = args[1] === 'telegram' && !args[2]
+          ? ['test']
+          : args[1] === 'telegram'
+            ? args.slice(2)
+            : [args[1], ...args.slice(2)];
+        await telegramCommand(subArgs);
+      } else {
+        // duck channels with non-telegram subcommand → show help
+        await telegramCommand(['help']);
+      }
     } else {
       // args[0] is 'test' or 'send'
       await telegramCommand(args);

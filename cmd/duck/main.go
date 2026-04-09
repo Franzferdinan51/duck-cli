@@ -131,6 +131,7 @@ Features:
 		configCmd(),
 		traceCmd(),
 		toolsCmd(),
+		sendCmd(),
 	)
 
 	// No args → start interactive shell (standalone mode for humans)
@@ -969,7 +970,8 @@ func channelsCmd() *cobra.Command {
 				return runNodeWithEnv("channels discord", cmd)
 			}
 			if len(args) > 0 {
-				return runNodeWithEnv("channels "+args[0], cmd)
+				// Forward all args (not just args[0]) - fixes duck channels send hello
+				return runNodeWithEnv("channels "+strings.Join(args, " "), cmd)
 			}
 			return runNodeWithEnv("channels", cmd)
 		},
@@ -981,13 +983,45 @@ func channelsCmd() *cobra.Command {
 func desktopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "desktop [action]",
-		Short: "Desktop control",
+		Short: "Desktop control (open|click|type|screenshot|status)",
+		Long: `Desktop control via ClawdCursor.
+
+Commands:
+  duck desktop open <app>      Open an application
+  duck desktop click <x> <y>    Click at coordinates
+  duck desktop type <text>      Type text
+  duck desktop screenshot        Capture screenshot
+  duck desktop status          Show desktop control status
+
+Examples:
+  duck desktop open Safari
+  duck desktop click 500 300
+  duck desktop type "Hello world"
+  duck desktop status`,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return runNodeWithEnv("desktop "+args[0], cmd)
 			}
 			return runNodeWithEnv("desktop status", cmd)
+		},
+	}
+}
+
+// sendCmd - duck send <channel> <target> <message>
+func sendCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "send <channel> <target> <message>",
+		Short: "Send a message via a channel (telegram|discord)",
+		Long: `Send a message through Telegram or Discord.
+
+Examples:
+  duck send telegram 123456789 "Hello from Duck CLI"
+  duck send discord 987654321 "Message via Discord"`,
+		Args:  cobra.MinimumNArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			script := "send " + strings.Join(args, " ")
+			return runNodeWithEnv(script, cmd)
 		},
 	}
 }
