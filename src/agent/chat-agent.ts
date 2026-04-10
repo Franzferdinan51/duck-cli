@@ -678,6 +678,124 @@ function scoreComplexity(message: string): number {
 }
 
 // ---------------------------------------------------------------------------
+// LM Studio Model Selection
+// qwen3.5-0.8b (or another fast local model) analyzes the task and picks
+// the best actually-loaded LM Studio model for the job.
+// ---------------------------------------------------------------------------
+
+interface LMStudioModel {
+  id: string;
+}
+
+async function getLoadedLMStudioModels(): Promise<LMStudioModel[]> {
+  const baseUrl = process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL || 'http://127.0.0.1:1234';
+  const apiKey = process.env.LMSTUDIO_API_KEY || process.env.LMSTUDIO_KEY || '';
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey && apiKey !== 'local') headers['Authorization'] = `Bearer ${apiKey}`;
+    const resp = await fetch(`${baseUrl}/v1/models`, { headers });
+    if (!resp.ok) return [];
+    const data = await resp.json() as any;
+    return (data.data || []).map((m: any) => ({ id: m.id }));
+  } catch {
+    return [];
+  }
+}
+
+function getLMStudioSelectorModel(available: string[]): string {
+  const preferred = ['qwen3.5-0.8b', 'gemma-4-e4b-it', 'gemma-4-e2b-it', 'qwen3.5-2b-claude-4.6-opus-reasoning-distilled', 'jan-v3.5-4b'];
+  for (const p of preferred) {
+    if (available.includes(p)) return p;
+  }
+  return available[0] || 'qwen3.5-0.8b';
+}
+
+async function selectBestLMStudioModel(
+  task: string,
+  availableModels: string[],
+  selectorModel: string
+): Promise<string | null> {
+  if (availableModels.length === 0) return null;
+  if (availableModels.length === 1) return availableModels[0];
+
+  const baseUrl = process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL || 'http://127.0.0.1:1234';
+  const apiKey = process.env.LMSTUDIO_API_KEY || process.env.LMSTUDIO_KEY || '';
+
+  const modelDescriptions: Record<string, string> = {
+    'google/gemma-4-26b-a4b': 'Large Gemma 4 vision/reasoning model (26B). Best for complex analysis, vision, coding.',
+    'gemma-4-e4b-it': 'Tiny Gemma 4 (4B) with tool-calling. Trained for Android dev, fast execution, vision.',
+    'qwen3.5-27b-claude-4.6-opus-distilled-mlx': 'Large Qwen 27B distilled with Claude reasoning. Best for deep reasoning, coding, writing.',
+    'google/gemma-3n-e4b': 'Small Gemma vision/model. Fast, multimodal.',
+    'qwen35-9b-mlx-turboquant-tq3': 'Fast Qwen 9B quantized. Good balance of speed and quality.',
+    'foundation-sec-8b-reasoning': 'Security-focused 8B reasoning model. Best for security audits, threat analysis.',
+    'qwen3.5-2b-claude-4.6-opus-reasoning-distilled': 'Tiny 2B distilled reasoning model. Fast answers, light analysis.',
+    'gemma-4-e2b-it': 'Very small Gemma 4 (2B). Ultra-fast, good for simple classification and routing.',
+    'qwen3.5-0.8b': 'Ultra-tiny 0.8B. Fastest possible response. Best for greeting, classification, routing only.',
+    'gemma-4-26b-a4b-it': 'Large Gemma 4 instruction-tuned (26B). Great for writing, reasoning, conversation.',
+    'gemma-4-31b-it': 'Very large Gemma 4 (31B). Premium quality for hardest tasks.',
+    'jan-v3.5-4b': 'Small 4B general model. Fast, decent quality.',
+    'qwen/qwen3.5-9b': 'Standard Qwen 9B. Good all-rounder with native multimodal vision.',
+    'qwen3.5-9b-mlx': 'MLX-optimized Qwen 9B. Fast local inference with vision.',
+    'qwen3.5-9b-gemini-3.1-pro-reasoning-distill': 'Distilled Qwen 9B with reasoning. Strong coding and math.',
+    'gemma-4-e4b-gemini-3.1-pro-reasoning-distill': 'Distilled Gemma 4 with reasoning. Fast and smart.',
+    'nvidia/nemotron-3-nano-4b': 'Small NVIDIA model. Good for classification and extraction.',
+    'jan-code-4b': 'Small coding model. Fast code generation and debugging.',
+    'ui-tars-1.5-7b': 'GUI automation / computer-use model. Best for desktop control and UI interaction.',
+    'qwen3.5-27b': 'Large Qwen 27B. High quality general purpose.',
+    'qwopus3.5-27b-v3': 'Massive 27B model. Best for hardest reasoning tasks.',
+    'medina-qwen3.5-27b-openclaw-merged': 'Custom merged 27B model. Strong general performance.',
+  };
+
+  const descLines = availableModels.map(id => {
+    const d = modelDescriptions[id] || 'General-purpose local model.';
+    return `- ${id}: ${d}`;
+  }).join('\n');
+
+  const prompt = `You are a model router. Given a user task and a list of available local LM Studio models, pick the SINGLE best model for the job.
+
+Available models:
+${descLines}
+
+User task: "${task.replace(/"/g, '\\"')}"
+
+Respond with ONLY the model ID (e.g., "gemma-4-e4b-it"). No explanation. Just the model id.`;
+
+  try {
+    const url = `${baseUrl}/v1/chat/completions`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey && apiKey !== 'local') headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: selectorModel,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false,
+        temperature: 0.0,
+        max_tokens: 64,
+      }),
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json() as any;
+    const raw = data.choices?.[0]?.message?.content?.trim() || '';
+
+    // Extract model id from response
+    const clean = raw.replace(/^["']|["']$/g, '').trim();
+    const match = availableModels.find(m => clean.includes(m));
+    if (match) {
+      console.log(`[ChatAgent] LM Studio model selector chose: ${match} (selector: ${selectorModel})`);
+      return match;
+    }
+    return null;
+  } catch (err: any) {
+    console.log(`[ChatAgent] Model selection failed:`, err.message);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Route to MetaAgent orchestrator
 // ---------------------------------------------------------------------------
 async function routeToMetaAgent(task: string): Promise<string> {
@@ -811,53 +929,42 @@ async function processMessage(
   }
   
   // Build context with whisper injection
-
-  // For fast/simple tasks, auto-spawn qwen3.5-0.8b if LM Studio available
-  if (complexity <= 2 && !overrideProvider && !overrideModel) {
-    const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
-    if (lmstudioAvailable) {
-      console.log(`[ChatAgent] Fast task detected - auto-spawning qwen3.5-0.8b (LM Studio)`);
-      try {
-        const fastResult = await chatComplete('lmstudio', 'qwen3.5-0.8b', chatContext, 'local');
-        session.addAssistant(fastResult.content);
-        await persistSessionToSubconscious(userId, session);
-        
-        return {
-          response: fastResult.content,
-          routed: 'direct',
-          provider: 'lmstudio',
-          model: 'qwen3.5-0.8b',
-        };
-      } catch (err) {
-        console.log(`[ChatAgent] qwen3.5-0.8b failed, falling back to default provider:`, err.message);
-        // Fall through to default provider
-      }
-    }
-  }
-
-  // For fast/simple tasks, auto-spawn qwen3.5-0.8b if LM Studio available
-  if (complexity <= 2 && !overrideProvider && !overrideModel) {
-    const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
-    if (lmstudioAvailable) {
-      console.log(`[ChatAgent] Fast task detected - auto-spawning qwen3.5-0.8b (LM Studio)`);
-      try {
-        const fastResult = await chatComplete('lmstudio', 'qwen3.5-0.8b', chatContext, 'local');
-        session.addAssistant(fastResult.content);
-        await persistSessionToSubconscious(userId, session);
-        
-        return {
-          response: fastResult.content,
-          routed: 'direct',
-          provider: 'lmstudio',
-          model: 'qwen3.5-0.8b',
-        };
-      } catch (err) {
-        console.log(`[ChatAgent] qwen3.5-0.8b failed, falling back to default provider:`, err.message);
-        // Fall through to default provider
-      }
-    }
-  }
   let chatContext = session.getContext(MAX_CONTEXT_TOKENS);
+
+  // === LM STUDIO FAST PATH: Model selection before execution ===
+  // For fast/simple tasks, ask a lightweight LM Studio model to pick the BEST
+  // loaded model for the job, then use that model instead of hardcoding qwen3.5-0.8b.
+  if (complexity <= 3 && !overrideProvider && !overrideModel) {
+    const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
+    if (lmstudioAvailable) {
+      try {
+        const loadedModels = await getLoadedLMStudioModels();
+        if (loadedModels.length > 0) {
+          const availableIds = loadedModels.map(m => m.id);
+          const selectorModel = getLMStudioSelectorModel(availableIds);
+          console.log(`[ChatAgent] LM Studio fast path: asking ${selectorModel} to pick best model for task...`);
+
+          const bestModel = await selectBestLMStudioModel(message, availableIds, selectorModel);
+          const targetModel = bestModel || selectorModel;
+
+          console.log(`[ChatAgent] Using LM Studio model: ${targetModel}`);
+          const fastResult = await chatComplete('lmstudio', targetModel, chatContext, getApiKey('lmstudio'));
+          session.addAssistant(fastResult.content);
+          await persistSessionToSubconscious(userId, session);
+
+          return {
+            response: fastResult.content,
+            routed: 'direct',
+            provider: 'lmstudio',
+            model: targetModel,
+          };
+        }
+      } catch (err: any) {
+        console.log(`[ChatAgent] LM Studio fast path failed, falling back to default provider:`, err.message);
+        // Fall through to default provider
+      }
+    }
+  }
   
   // Inject whisper into system message if present
   if (whisperContext && chatContext.length > 0 && chatContext[0].role === 'system') {
