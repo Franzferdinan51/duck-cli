@@ -883,6 +883,49 @@ async function routeToMetaAgent(task: string): Promise<string> {
 // ---------------------------------------------------------------------------
 // Process a single chat message - ENHANCED with ChatRouter
 // ---------------------------------------------------------------------------
+/**
+ * Task-aware provider routing for medium+ complexity tasks.
+ * Gives high-complexity tasks access to the full provider ecosystem.
+ */
+function routeByTaskType(message: string, complexity: number, availableProviders: string[]): { provider: string; model: string; reason: string } | null {
+  const lower = message.toLowerCase();
+
+  // Vision tasks
+  if ((lower.includes('image') || lower.includes('screenshot') || lower.includes('picture') ||
+       lower.includes('vision') || lower.includes('photo') || lower.includes('look at')) &&
+      availableProviders.includes('kimi')) {
+    return { provider: 'kimi', model: 'k2p5', reason: 'Vision required' };
+  }
+
+  // Coding tasks
+  if ((lower.includes('code') || lower.includes('programming') || lower.includes('debug') ||
+       lower.includes('bug') || lower.includes('function') || lower.includes('script') || lower.includes('implement')) &&
+      availableProviders.includes('minimax')) {
+    return { provider: 'minimax', model: 'glm-5', reason: 'Coding task' };
+  }
+
+  // Analysis / reasoning tasks
+  if ((lower.includes('security') || lower.includes('audit') || lower.includes('vulnerability') ||
+       lower.includes('analyze') || lower.includes('compare') || lower.includes('should i') || lower.includes('pros and cons')) &&
+      availableProviders.includes('minimax')) {
+    return { provider: 'minimax', model: 'MiniMax-M2.7', reason: 'Analysis/reasoning task' };
+  }
+
+  // Android / mobile tasks
+  if (lower.includes('android') || lower.includes('adb') || lower.includes('phone') ||
+      lower.includes('screen tap') || lower.includes('swipe')) {
+    return { provider: 'lmstudio', model: 'gemma-4-e4b-it', reason: 'Android task' };
+  }
+
+  // High complexity generic tasks
+  if (complexity >= 4 && availableProviders.includes('minimax')) {
+    return { provider: 'minimax', model: 'MiniMax-M2.7', reason: 'High complexity' };
+  }
+
+  // No specialist match - use default
+  return null;
+}
+
 async function processMessage(
   userId: string, 
   message: string,
@@ -899,8 +942,8 @@ async function processMessage(
   const apiKey = getApiKey(PROVIDER);
   
   // Allow runtime override
-  const effectiveProvider = overrideProvider || PROVIDER;
-  const effectiveModel = overrideModel || MODEL;
+  let effectiveProvider = overrideProvider || PROVIDER;
+  let effectiveModel = overrideModel || MODEL;
 
   // Add user message
   session.addUser(message);
@@ -976,9 +1019,9 @@ async function processMessage(
   let chatContext = session.getContext(MAX_CONTEXT_TOKENS);
 
   // === LM STUDIO FAST PATH: Model selection before execution ===
-  // For fast/simple tasks, ask a lightweight LM Studio model to pick the BEST
-  // loaded model for the job, then use that model instead of hardcoding qwen3.5-0.8b.
-  if (complexity <= 3 && !overrideProvider && !overrideModel) {
+  // For trivial tasks only, ask a lightweight LM Studio model to pick the BEST
+  // small model for the job. Higher complexity tasks get routed to the full provider ecosystem.
+  if (complexity <= 1 && !overrideProvider && !overrideModel) {
     const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
     if (lmstudioAvailable) {
       try {
@@ -1007,6 +1050,27 @@ async function processMessage(
         console.log(`[ChatAgent] LM Studio fast path failed, falling back to default provider:`, err.message);
         // Fall through to default provider
       }
+    }
+  }
+
+  // === TASK-AWARE ROUTING: Medium+ complexity gets access to all providers ===
+  if (!overrideProvider && !overrideModel) {
+    const availableProviders = Object.keys({
+      minimax: process.env.MINIMAX_API_KEY,
+      kimi: process.env.KIMI_API_KEY,
+      openai: process.env.OPENAI_API_KEY,
+      openrouter: process.env.OPENROUTER_API_KEY,
+      lmstudio: process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL,
+    }).filter(p => {
+      if (p === 'lmstudio') return !!process.env.LMSTUDIO_BASE_URL || !!process.env.LMSTUDIO_URL;
+      return !!process.env[`${p.toUpperCase()}_API_KEY`];
+    });
+
+    const taskRoute = routeByTaskType(message, complexity, availableProviders);
+    if (taskRoute) {
+      effectiveProvider = taskRoute.provider;
+      effectiveModel = taskRoute.model;
+      console.log(`[ChatAgent] Task-aware routing: ${taskRoute.provider}/${taskRoute.model} — ${taskRoute.reason}`);
     }
   }
   
