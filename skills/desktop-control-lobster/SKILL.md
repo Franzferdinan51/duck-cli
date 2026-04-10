@@ -623,6 +623,10 @@ Install all:
 pip install pyautogui pillow opencv-python pygetwindow
 ```
 
+## Related Skills
+
+- `messaging-control`: use when the task is specifically macOS Messages texting.
+
 ---
 
 **Built for OpenClaw** - The ultimate desktop automation companion 🦞

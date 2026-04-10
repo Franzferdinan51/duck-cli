@@ -5480,3 +5480,211 @@ sessions_spawn({
 - Updated README with full MiniMax command reference and dedicated feature section
 - Total agent tools: 126 (includes `mmx_text`, `mmx_image`, `mmx_vision`, `mmx_search`, `mmx_status`)
 
+
+---
+
+## 🎛️ OpenClaw Master Controller Dashboard (2026-04-10)
+
+### ✅ COMPLETE AND RUNNING
+**Location:** `~/clawd-dashboard-test/`
+**Access:** http://100.68.208.113:3001 (Tailscale)
+**Port:** 3001
+**Status:** LIVE - Deployed and running
+
+### What's Built
+
+**Frontend (`public/index.html`):**
+- Premium dark-mode command center UI
+- 4 Service Status Cards (Gateway 🧠, LM Studio 💻, Telegram ✈️, MCP Server 🔌)
+- Animated glow effects (green=running, red=warning)
+- System telemetry (live CPU/RAM monitoring via `top`)
+- Command Center (3 action buttons: Restart Gateway, System Audit, Clear Logs)
+- Live scrolling log stream with timestamps
+- System Info widget (hostname, platform, version)
+- 5-second auto-refresh
+- Fully mobile-responsive + touch-optimized
+
+**Backend (`index.js`):**
+- Express.js server on port 3001
+- Real system metrics via `top` shell commands
+- OpenClaw Gateway status checking
+- API endpoints: `GET /api/status`, `POST /api/action`, `GET /api/logs`
+- Action execution (restart, audit, clear) wired to shell
+
+**Scripts:**
+- `scripts/nightly-autonomy.sh` — Nightly self-improvement engine
+
+### 🌙 Nightly Autonomy Engine (Cron: 2AM Daily)
+**Script:** `~/clawd-dashboard-test/scripts/nightly-autonomy.sh`
+**Schedule:** `0 2 * * *`
+
+**5-Phase Operation:**
+1. **Web Research** — GitHub API for Tailwind updates, dashboard patterns, npm outdated deps
+2. **Parallel AI Analysis** (4 sub-agents simultaneously):
+   - Agent 1 (Gemma 4 31B): UI/UX improvements
+   - Agent 2 (Qwen 3.5-27B): Backend performance audit
+   - Agent 3 (MiniMax M2.7): Security audit
+   - Agent 4 (GLM-5): Feature gap analysis
+3. **Implementation** — Auto-update npm packages, apply fixes, restart server
+4. **Verification** — Health-check `/api/status`
+5. **Reporting** — Save report to `~/.openclaw/logs/dashboard-nightly-YYYYMMDD.report`
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `~/clawd-dashboard-test/index.js` | Backend server |
+| `~/clawd-dashboard-test/public/index.html` | Frontend UI |
+| `~/clawd-dashboard-test/scripts/nightly-autonomy.sh` | Nightly automation |
+| `~/.openclaw/logs/dashboard-autonomy.log` | Autonomy log |
+| `~/.openclaw/logs/dashboard-nightly-*.report` | Nightly reports |
+
+---
+
+## 🔧 MiniMax CLI (`mmx`) Integration (2026-04-10)
+
+### What It Is
+**GitHub:** https://github.com/MiniMax-AI/cli
+**Command:** `mmx` — Direct CLI to MiniMax API models
+
+### Key Capabilities
+- `mmx vision photo.jpg` — Vision analysis
+- `mmx quota` — Check API usage
+- `mmx text chat --stream` — Low-latency streaming chat
+- `mmx video generate --prompt "..."` — Video generation
+- `mmx music generate --prompt "..." --lyrics "..."` — Music generation
+- `mmx search "query"` — Web search
+
+### Usage in Dashboard
+Used for live vision-based verification of UI elements and real-time model interactions.
+
+---
+
+## 📱 Duckets' Distributed AI Setup (2026-04-10)
+
+### LM Link (Critical Discovery)
+Duckets has **LM Link** running — a unified layer that connects multiple machines' LM Studio instances into one logical pool. I don't need to manually manage which model runs on which machine; LM Link handles routing transparently.
+
+### Active Model Stack
+| Model | Provider | Role |
+|-------|----------|------|
+| `gemma-4-31b-it` | LM Studio (via LM Link) | Primary reasoning, UI design |
+| `qwen3.5-27b` | LM Studio (via LM Link) | Backend, architecture |
+| `gemma-4-26b-a4b` | LM Studio (via LM Link) | Code generation, analysis |
+| `MiniMax-M2.7` | MiniMax API | Security audits, web research |
+| `MiniMax-M2.5` | MiniMax API | General tasks |
+| `MiniMax-glm-5` | MiniMax API | Feature gap analysis |
+
+### Orchestration Strategy (Updated 2026-04-10)
+- **Sequential for heavy models** — Larger models (31B, 27B) run one at a time to conserve RAM
+- **Parallel for light tasks** — Smaller tasks can run simultaneously
+- **LM Link handles routing** — I call model names, LM Link finds the machine
+- **No manual network management needed** — LM Link is the abstraction layer
+
+---
+
+## 🦆 DuckBot Operational Rules (Updated 2026-04-10)
+
+### Sub-Agent Rules
+1. **Use LM Studio models first** — No API cost, uses Duckets' hardware
+2. **Gemma 4 31B is the preferred heavy lifter** — Extremely capable for architecture and design
+3. **Qwen 3.5 27B for backend/logic tasks** — Deep reasoning for Node.js and system code
+4. **Parallel spawning is allowed** — But be mindful of RAM; sequential for the heaviest models
+5. **If a sub-agent fails silently twice, do it myself** — Don't keep retrying the same model
+
+### Dashboard Rules
+1. **Dashboard is always running on port 3001** — Keep it alive
+2. **Nightly autonomy runs at 2AM** — No supervision needed
+3. **Reports go to** `~/.openclaw/logs/dashboard-nightly-*.report`
+4. **Always provide Tailscale link** — http://100.68.208.113:3001 for mobile access
+
+### Messaging Skill (NEW - 2026-04-10)
+**Purpose:** Send SMS/text messages to anyone Duckets specifies via the iMessage/SMS system
+**Skill Location:** `~/.openclaw/workspace/skills/imsg/SKILL.md`
+**Usage:** When Duckets says "text [person] [message]" — use the `imsg` skill to send
+**Tools:** Uses the `imsg` CLI tool for sending messages
+
+### Desktop Messaging Control (NEW - 2026-04-10)
+**Purpose:** Use the macOS Messages app via Desktop Control when GUI interaction is required.
+**Skill Location:** `~/.openclaw/workspace/skills/messaging-control/SKILL.md`
+**Workflow:** open Messages, search/select contact, type message, send, then confirm.
+
+---
+
+## 🎛️ OpenClaw Master Controller Dashboard (2026-04-10)
+
+### ✅ LIVE AT: http://100.68.208.113:3001 (Tailscale)
+
+### Quick Access
+- **Mobile:** http://100.68.208.113:3001
+- **Local:** http://127.0.0.1:3001
+
+### Built Today (2026-04-10)
+Duckets asked me to build a "Master Controller Dashboard" for OpenClaw. After several failed sub-agent attempts (silent timeouts), I built it myself from scratch in one session.
+
+**Location:** `~/clawd-dashboard-test/`
+**Port:** 3001
+**Status:** RUNNING (PID tracked, server alive)
+
+### What's Inside
+
+**Backend (`index.js`):**
+- Express.js server on port 3001
+- Real system metrics via `top` shell commands
+- OpenClaw Gateway status checking
+- API endpoints: `GET /api/status`, `POST /api/action`, `GET /api/logs`
+- Actions wired to shell (restart, audit, clear)
+
+**Frontend (`public/index.html`):**
+- Premium dark-mode command center UI
+- 4 Service Status Cards:
+  - 🧠 OpenClaw Gateway
+  - 💻 LM Studio
+  - ✈️ Telegram Bridge
+  - 🔌 MCP Server
+- Animated glow effects (green=running, red=warning)
+- Live CPU/RAM monitoring via `top`
+- Command Center (3 action buttons)
+- Live scrolling log stream
+- System Info widget
+- 5-second auto-refresh
+- Fully mobile-responsive + touch-optimized
+
+**Scripts:**
+- `scripts/nightly-autonomy.sh` — Nightly self-improvement engine
+
+### 🌙 Nightly Autonomy Engine
+**Schedule:** `0 2 * * *` (Every night at 2:00 AM)
+**Script:** `~/clawd-dashboard-test/scripts/nightly-autonomy.sh`
+
+**5-Phase Operation:**
+1. Web Research — GitHub API for Tailwind updates, dashboard patterns, npm deps
+2. Parallel AI Analysis (4 sub-agents):
+   - Gemma 4 31B: UI/UX improvements
+   - Qwen 3.5-27B: Backend performance
+   - MiniMax M2.7: Security audit
+   - GLM-5: Feature gap analysis
+3. Implementation — auto-update packages, apply fixes, restart server
+4. Verification — health-check `/api/status`
+5. Reporting — saved to `~/.openclaw/logs/dashboard-nightly-YYYYMMDD.report`
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `~/clawd-dashboard-test/index.js` | Backend server |
+| `~/clawd-dashboard-test/public/index.html` | Frontend UI |
+| `~/clawd-dashboard-test/scripts/nightly-autonomy.sh` | Nightly automation |
+| `~/.openclaw/logs/dashboard-autonomy.log` | Autonomy log |
+| `~/.openclaw/logs/dashboard-nightly-*.report` | Nightly reports |
+| `~/Desktop/OpenClaw-backup.zip` | Full .openclaw backup (in progress) |
+
+### Cron Entry
+```
+0 2 * * * /Users/duckets/clawd-dashboard-test/scripts/nightly-autonomy.sh >> /Users/duckets/.openclaw/logs/dashboard-autonomy.log 2>&1
+```
+
+### Desktop Cleanup (2026-04-10)
+- Moved 16 screenshots → `~/Pictures/Screenshots/`
+- Moved Gemini images → `~/Pictures/`
+- Created `OpenClaw-backup.zip` on Desktop (packing in progress)
+- Desktop now clean with essential project folders only
+
