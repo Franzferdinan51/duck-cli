@@ -185,7 +185,7 @@ export function createBrowserCommand(): Command {
 
   // ── browser screenshot ───────────────────────────────────────────────────
   cmd
-    .command('screenshot')
+    .command('screenshot [path]')
     .description('Take screenshot')
     .option('-o, --output <path>', 'Save screenshot to file')
     .option('-f, --full-page', 'Capture full page')
@@ -193,10 +193,10 @@ export function createBrowserCommand(): Command {
     .option('-t, --target <target>', 'Target browser (host/sandbox/node)', 'host')
     .option('--tab <id>', 'Target tab ID')
     .option('-p, --profile <name>', 'Browser profile', 'user')
-    .action(async (opts) => {
+    .action(async (pathArg, opts) => {
       try {
         const { path: outPath, data } = await takeScreenshot({
-          path: opts.output,
+          path: opts.output || pathArg,
           fullPage: opts.fullPage,
           type: opts.imageType as 'png' | 'jpeg',
           target: opts.target as 'sandbox' | 'host' | 'node',

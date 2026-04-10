@@ -2378,8 +2378,27 @@ async function memoryCommand(args: string[]) {
       console.log(`Found ${results.length}:`);
       results.forEach((r, i) => console.log(`  ${i + 1}. ${r}`));
       break;
+    case 'stats': {
+      const stats: any = await (agent as any).tools.execute('memory_stats', {});
+      const sr = stats?.result ?? stats ?? {};
+      console.log(`\n${c.bold}Memory Stats${c.reset}`);
+      console.log(`  Entries: ${sr.entries ?? 'N/A'}`);
+      console.log(`  Sessions: ${sr.sessions ?? sr.sessionCount ?? 'N/A'}`);
+      console.log(`  Tool Logs: ${sr.toolLogs ?? 'N/A'}`);
+      break;
+    }
+    case 'list': {
+      const list: any = await (agent as any).tools.execute('memory_list', {});
+      const memories = list?.result?.memories ?? list?.memories ?? [];
+      console.log(`\n${c.bold}Memories (${memories.length})${c.reset}`);
+      memories.slice(0, 20).forEach((m: any, i: number) => {
+        const text = typeof m === 'string' ? m : m.content;
+        console.log(`  ${i + 1}. ${text?.slice(0, 60) ?? '...'}`);
+      });
+      break;
+    }
     default:
-      console.log('Memory: add <text>, search <query>');
+      console.log('Memory: add <text>, search <query>, stats, list');
   }
 
   await agent.shutdown();
@@ -3107,7 +3126,7 @@ async function kairosCommand(args: string[]) {
   const subCommands = ['start', 'stop', 'status', 'history', 'dream', 'skills'];
   if (args.length > 0 && subCommands.includes(args[0])) {
     const cmd = createKairosCommand();
-    await cmd.parseAsync(['node', 'duck', 'kairos', ...args]);
+    await cmd.parseAsync(['node', 'duck', ...args]);
     return;
   }
 

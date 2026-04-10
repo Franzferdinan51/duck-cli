@@ -1424,11 +1424,12 @@ func androidCmd() *cobra.Command {
 		},
 	}
 	screenCmd := &cobra.Command{
-		Use:   "screen",
+		Use:   "screen [serial]",
 		Short: "Read all visible text on Android screen (OCR-style)",
-		Args:  cobra.NoArgs,
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			serial := getFirstDevice()
+			serial := ""
+			if len(args) > 0 { serial = args[0] } else { serial = getFirstDevice() }
 			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
 			return runNodeWithEnv("android screen " + payload, cmd)
 		},

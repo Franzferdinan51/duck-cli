@@ -41,7 +41,7 @@ export interface TypeOptions {
 // Check if BrowserOS MCP is available
 function checkBrowserOS(): boolean {
   try {
-    execSync('curl -s http://127.0.0.1:9002/mcp', { stdio: 'pipe' });
+    execSync('curl -s http://127.0.0.1:9200/health', { stdio: 'pipe' });
     return true;
   } catch {
     return false;

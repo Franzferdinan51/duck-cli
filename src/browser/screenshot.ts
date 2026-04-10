@@ -6,6 +6,8 @@
 import { writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 
+const BROWSEROS_MCP_URL = process.env.BROWSEROS_MCP_URL || 'http://127.0.0.1:9200/mcp';
+
 export interface ScreenshotOptions {
   path?: string;
   fullPage?: boolean;
@@ -27,30 +29,35 @@ export interface SnapshotOptions {
   profile?: string;
 }
 
+function mcpCall(tool: string, args: Record<string, any> = {}): any {
+  const body = JSON.stringify({ tool, args });
+  const result = execSync(
+    `curl -s -X POST ${BROWSEROS_MCP_URL} -H "Content-Type: application/json" -d '${body.replace(/'/g, "'\"'\"'")}'`,
+    { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'], timeout: 30000 }
+  );
+  return JSON.parse(result.trim() || '{}');
+}
+
 /**
  * Take a screenshot and optionally save to file
- * Requires BrowserOS MCP running on port 9002
+ * Requires BrowserOS MCP running on port 9200
  */
 export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<{ data: string; path?: string }> {
   const { path, fullPage = false, type = 'png' } = options;
 
   try {
-    // Use BrowserOS MCP via mcporter
-    const result = execSync(
-      'mcporter call browseros.take_screenshot 2>/dev/null || echo "{\"error\": \"BrowserOS not available\"}"',
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }
-    );
-    
-    const data = result.trim();
+    const resp = mcpCall('browseros.take_screenshot');
+    if (resp.error) throw new Error(typeof resp.error === 'string' ? resp.error : JSON.stringify(resp.error));
+    const data = resp.result?.data || resp.data || JSON.stringify(resp);
 
-    if (path && data && !data.includes('error')) {
+    if (path && data && typeof data === 'string') {
       writeFileSync(path, data);
       return { data, path };
     }
 
     return { data };
   } catch (err: any) {
-    throw new Error(`Screenshot failed: ${err.message}. Ensure BrowserOS MCP is running on port 9002.`);
+    throw new Error(`Screenshot failed: ${err.message}. Ensure BrowserOS MCP is running on ${BROWSEROS_MCP_URL}.`);
   }
 }
 
@@ -61,13 +68,10 @@ export async function takeSnapshot(options: SnapshotOptions = {}): Promise<{ dat
   const { path, format = 'role' } = options;
 
   try {
-    const result = execSync(
-      'mcporter call browseros.take_snapshot 2>/dev/null || echo "{\"error\": \"BrowserOS not available\"}"',
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }
-    );
-    
-    const data = JSON.parse(result);
-    
+    const resp = mcpCall('browseros.take_snapshot');
+    if (resp.error) throw new Error(typeof resp.error === 'string' ? resp.error : JSON.stringify(resp.error));
+    const data = resp.result || resp.data || resp;
+
     if (path) {
       writeFileSync(path, JSON.stringify(data, null, 2));
       return { data, path };
@@ -75,7 +79,7 @@ export async function takeSnapshot(options: SnapshotOptions = {}): Promise<{ dat
 
     return { data };
   } catch (err: any) {
-    throw new Error(`Snapshot failed: ${err.message}. Ensure BrowserOS MCP is running on port 9002.`);
+    throw new Error(`Snapshot failed: ${err.message}. Ensure BrowserOS MCP is running on ${BROWSEROS_MCP_URL}.`);
   }
 }
 
@@ -88,52 +92,3 @@ export async function screenshotElement(ref: string, options: ScreenshotOptions 
     targetId: ref,
   });
 }
-
-/**
- * Take full-page screenshot
- */
-export async function takeFullPageScreenshot(options: ScreenshotOptions = {}): Promise<{ data: string; path?: string }> {
-  return takeScreenshot({ ...options, fullPage: true });
-}
-
-/**
- * Save screenshot data to a file
- */
-export async function saveScreenshot(data: string, outputPath: string): Promise<string> {
-  try {
-    writeFileSync(outputPath, data);
-    return outputPath;
-  } catch (err: any) {
-    throw new Error(`Failed to save screenshot: ${err.message}`);
-  }
-}
-
-/**
- * Get console logs from browser
- */
-export async function getBrowserConsole(options: {
-  target?: 'sandbox' | 'host' | 'node';
-  targetId?: string;
-  profile?: string;
-  level?: 'all' | 'warning' | 'error';
-} = {}): Promise<{ logs: any[] }> {
-  try {
-    const result = execSync(
-      'mcporter call browseros.get_console_logs 2>/dev/null || echo "[]"',
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] }
-    );
-    
-    return { logs: JSON.parse(result) };
-  } catch (err: any) {
-    return { logs: [] };
-  }
-}
-
-export default {
-  takeScreenshot,
-  takeSnapshot,
-  screenshotElement,
-  takeFullPageScreenshot,
-  saveScreenshot,
-  getBrowserConsole,
-};

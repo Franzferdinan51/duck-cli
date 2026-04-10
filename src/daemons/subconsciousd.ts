@@ -403,6 +403,18 @@ export async function startDaemon(port = DEFAULT_PORT): Promise<void> {
     console.log('');
   });
 
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ Port ${port} is already in use. Another daemon may be running.`);
+      console.error(`   Check status: duck subconscious status`);
+      console.error(`   Stop it:      pkill -f subconsciousd`);
+    } else {
+      console.error(`\n❌ Daemon error: ${err.message}`);
+    }
+    store.close();
+    process.exit(1);
+  });
+
   // Graceful shutdown
   process.on('SIGINT', () => {
     console.log('\n[Sub-Conscious Daemon] Shutting down...');
