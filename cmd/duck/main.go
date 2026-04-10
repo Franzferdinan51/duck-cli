@@ -143,6 +143,7 @@ Features:
 		qrCmd(),
 		capabilityCmd(),
 		graphifyCmd(),
+		mmxCmd(),
 		onboardCmd(),
 		pluginsCmd(),
 		secretsCmd(),

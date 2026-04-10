@@ -650,6 +650,10 @@ async function main() {
       await graphifyCommand(args);
       break;
 
+    case 'mmx':
+      await mmxCommand(args);
+      break;
+
     case 'security-defcon':
     case 'defcon': {
       const { createSecurityCommand } = await import('../commands/security-cmd.js');
@@ -3487,6 +3491,13 @@ async function capabilityCommand(args: string[]) {
 
 async function graphifyCommand(args: string[]) {
   const { graphifyCommand: cmd } = await import('../commands/graphify-cmd.js');
+  await cmd(args);
+}
+
+// ============ MINIMAX CLI (mmx) ============
+
+async function mmxCommand(args: string[]) {
+  const { mmxCommand: cmd } = await import('../commands/mmx-cmd.js');
   await cmd(args);
 }
 
