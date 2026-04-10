@@ -1,11 +1,11 @@
 ---
 name: messaging-control
-description: Send or manage iMessage/SMS conversations on the Mac using the Messages app with Desktop Control. Use when the user asks to text, DM, reply, or send a message to a specific person, including phrases like text [name], send a message, iMessage, SMS, or Messages app tasks that need contact search or manual UI navigation.
+description: Send or manage iMessage/SMS conversations on the Mac using the Messages app with Desktop Control. Use when the user asks to text, DM, reply, or send a message to anyone, including phrases like text [name], send a message, iMessage, SMS, or Messages app tasks that need contact search or manual UI navigation.
 ---
 
 # Messaging Control
 
-Use the Messages app on macOS to send texts.
+Use the Messages app on macOS to send texts to any recipient.
 
 ## Workflow
 
