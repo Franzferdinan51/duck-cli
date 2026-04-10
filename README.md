@@ -169,6 +169,22 @@ adb connect 192.168.1.251:5555   # Your Android phone
 | `./duck capability list` | List inference capabilities |
 | `./duck capability test <model>` | Test a model |
 
+### MiniMax AI Platform (`mmx-cli`)
+| Command | Description |
+|---------|-------------|
+| `./duck mmx` | Interactive MiniMax menu |
+| `./duck mmx sync` | Sync `MINIMAX_API_KEY` to mmx config |
+| `./duck mmx text chat --message "Hello"` | Text generation |
+| `./duck mmx image "prompt"` | Image generation |
+| `./duck mmx speech synthesize --text "Hi" --out hi.mp3` | Text-to-speech |
+| `./duck mmx video generate --prompt "Sunset"` | Video generation |
+| `./duck mmx music generate --prompt "Pop" --out song.mp3` | Music generation |
+| `./duck mmx vision photo.jpg` | Image understanding |
+| `./duck mmx search "query"` | Web search |
+| `./duck mmx quota` | Check usage quota |
+| `./duck mmx auth status` | Check mmx auth |
+| `./duck mmx auth login --api-key <key>` | Authenticate mmx |
+
 ### Security & System
 | Command | Description |
 |---------|-------------|
@@ -470,6 +486,46 @@ adb connect 192.168.1.251:5555
 
 ---
 
+## 🚀 MiniMax AI Platform (`mmx-cli`)
+
+Deep integration with the official [MiniMax CLI](https://github.com/MiniMax-AI/cli) for text, image, video, speech, music, vision, and search.
+
+```bash
+# Interactive menu
+./duck mmx
+
+# Auth sync — pushes MINIMAX_API_KEY from .env to mmx config
+./duck mmx sync
+
+# Text
+./duck mmx text chat --message "Explain quantum computing"
+
+# Image
+./duck mmx image "A cyberpunk cat in a neon city"
+
+# Speech
+./duck mmx speech synthesize --text "Hello world" --out hello.mp3
+
+# Video
+./duck mmx video generate --prompt "Ocean waves at sunrise"
+
+# Music
+./duck mmx music generate --prompt "Upbeat electronic track" --out track.mp3
+
+# Vision
+./duck mmx vision ./photo.jpg
+
+# Search
+./duck mmx search "Latest AI breakthroughs"
+
+# Quota
+./duck mmx quota
+```
+
+**Integration layer:** `src/integrations/mmx.ts` provides a typed TypeScript API over `mmx-cli`, auto-syncs credentials, and exposes `mmx_text`, `mmx_image`, `mmx_vision`, `mmx_search`, and `mmx_status` as agent tools.
+
+---
+
 ## 🌐 Protocol Servers
 
 **MCP (Model Context Protocol):**
@@ -504,6 +560,8 @@ duck-cli/
 │   │   ├── council-bridge.ts        # AI Council
 │   │   └── hybrid-core.ts           # Main loop
 │   ├── providers/                # MiniMax, LM Studio, Kimi, OpenRouter, OpenClaw
+│   ├── integrations/             # External integrations
+│   │   └── mmx.ts                   # MiniMax CLI (mmx-cli) integration layer
 │   ├── subconscious/             # Whisper monitoring
 │   ├── kairos/                   # Proactive heartbeat
 │   ├── mesh/                     # Agent mesh networking
