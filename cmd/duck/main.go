@@ -90,6 +90,7 @@ Features:
 		mcpCmd(),
 		skillsCmd(),
 		securityCmd(),
+		securityAuditCmd(),
 		statusCmd(),
 		councilCmd(),
 		loggerCmd(),

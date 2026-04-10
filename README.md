@@ -149,6 +149,9 @@ adb connect 192.168.1.251:5555   # Your Android phone
 | `./duck doctor` | Run system diagnostics |
 | `./duck update [check\|install]` | Update Duck CLI |
 | `./duck trace [enable\|view]` | Execution traces |
+| `./duck backup [create\|verify\|restore\|list\|prune]` | Backup management |
+| `./duck secrets [set\|get\|list\|show\|delete\|tags]` | Secure secrets management |
+| `./duck config [key] [value]` | Manage Duck CLI configuration |
 
 ### Workflows & Flows
 | Command | Description |

@@ -17,6 +17,7 @@ import http from 'http';
 import { Url } from 'url';
 import { ChatSession, getOrCreateSession } from './chat-session.js';
 import { processWithOrchestration, classifyTaskForOrchestration } from './chat-agent-orchestrator.js';
+import { getChatRouter, routeChatMessage, RoutingResult } from './chat-router.js';
 import { processWithCouncil } from '../council/chat-bridge.js';
 import { logger } from '../server/logger.js';
 import { SubconsciousClient } from '../subconscious/client.js';
@@ -718,7 +719,7 @@ async function routeToMetaAgent(task: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Process a single chat message
+// Process a single chat message - ENHANCED with ChatRouter
 // ---------------------------------------------------------------------------
 async function processMessage(
   userId: string, 
@@ -727,7 +728,7 @@ async function processMessage(
   overrideModel?: string
 ): Promise<{ 
   response: string; 
-  routed: 'direct' | 'meta' | 'council_rejected' | 'council_modified'; 
+  routed: 'direct' | 'meta' | 'council' | 'council_rejected' | 'fast' | 'error'; 
   council?: any;
   provider?: string;
   model?: string;

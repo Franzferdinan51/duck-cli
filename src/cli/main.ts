@@ -96,6 +96,9 @@ import { toolsCommand as showToolsCommand } from './tools-command.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
 import { createKairosCommand } from '../commands/kairos.js';
+import { createNodesCommand } from '../commands/nodes-cmd.js';
+import { createDevicesCommand } from '../commands/devices-cmd.js';
+import { createQRCommand } from '../commands/qr-cmd.js';
 import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
 import { runHealthCheck, runBootDiagnostics, printHealthReport } from '../agent/health-check.js';
 import { getConfigManager, ConfigManager } from '../agent/config-manager.js';
@@ -178,6 +181,240 @@ async function main() {
         console.log(`  ✅ ${name}${prov ? '' : ' (unavailable)'}`);
       }
       console.log();
+      break;
+    }
+
+    case 'models': {
+      const sub = args[0] || 'list';
+      const { getModelManager } = await import('../models/model-manager.js');
+      const { getModelAliasManager } = await import('../models/model-aliases.js');
+      const { getModelFallbackManager } = await import('../models/model-fallbacks.js');
+      const { getAuthManager } = await import('../models/auth-manager.js');
+      const { getInferCapabilities } = await import('../infer/infer-capabilities.js');
+      const mm = getModelManager();
+      const ma = getModelAliasManager();
+      const mf = getModelFallbackManager();
+      const am = getAuthManager();
+      const ic = getInferCapabilities();
+
+      switch (sub) {
+        case 'list':
+        case 'ls': {
+          const jsonFlag = args.includes('--json');
+          const plainFlag = args.includes('--plain');
+          console.log(mm.listModels({ json: jsonFlag, plain: plainFlag }));
+          break;
+        }
+        case 'status': {
+          const jsonFlag = args.includes('--json');
+          const plainFlag = args.includes('--plain');
+          const probeFlag = args.includes('--probe');
+          console.log(mm.status({ json: jsonFlag, plain: plainFlag, probe: probeFlag }));
+          break;
+        }
+        case 'set': {
+          const modelId = args[1];
+          if (!modelId) {
+            console.log(`${c.red}Usage: duck models set <model-id>${c.reset}`);
+            console.log(`${c.dim}Example: duck models set minimax-portal/MiniMax-M2.7${c.reset}`);
+            return;
+          }
+          const r = mm.setDefault(modelId);
+          console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+          break;
+        }
+        case 'set-image': {
+          const modelId = args[1];
+          if (!modelId) {
+            console.log(`${c.red}Usage: duck models set-image <model-id>${c.reset}`);
+            return;
+          }
+          const r = mm.setDefaultImage(modelId);
+          console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+          break;
+        }
+        case 'scan': {
+          const jsonFlag = args.includes('--json');
+          const setDefault = args.includes('--set-default');
+          const setImage = args.includes('--set-image');
+          const noProbe = args.includes('--no-probe');
+          const yes = args.includes('--yes');
+          const raw = await mm.scan({ json: jsonFlag, setDefault, setImage, noProbe, yes });
+          console.log(raw);
+          break;
+        }
+        case 'aliases': {
+          const sub2 = args[1] || 'list';
+          switch (sub2) {
+            case 'list':
+            case 'ls':
+              console.log(ma.list({ plain: args.includes('--plain') }));
+              break;
+            case 'add': {
+              const alias = args[2];
+              const modelId = args[3];
+              if (!alias || !modelId) {
+                console.log(`${c.red}Usage: duck models aliases add <alias> <model-id>${c.reset}`);
+                return;
+              }
+              const r = ma.add(alias, modelId);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            case 'remove':
+            case 'rm': {
+              const target = args[2];
+              if (!target) {
+                console.log(`${c.red}Usage: duck models aliases remove <alias-or-model-id>${c.reset}`);
+                return;
+              }
+              const r = ma.remove(target);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            default:
+              console.log('Usage: duck models aliases <list|add|remove> [...]');
+          }
+          break;
+        }
+        case 'fallbacks': {
+          const sub2 = args[1] || 'list';
+          switch (sub2) {
+            case 'list':
+            case 'ls':
+              console.log(mf.describe());
+              break;
+            case 'add': {
+              const modelId = args[2];
+              const type = args.includes('--image') ? 'image' : 'text';
+              if (!modelId) {
+                console.log(`${c.red}Usage: duck models fallbacks add <model-id> [--image]${c.reset}`);
+                return;
+              }
+              const r = mf.addFallback(modelId, type);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            case 'remove':
+            case 'rm': {
+              const modelId = args[2];
+              const type = args.includes('--image') ? 'image' : 'text';
+              if (!modelId) {
+                console.log(`${c.red}Usage: duck models fallbacks remove <model-id> [--image]${c.reset}`);
+                return;
+              }
+              const r = mf.removeFallback(modelId, type);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            case 'clear':
+              console.log(`${c.green}✅ ${mf.clear('all').message}${c.reset}`);
+              break;
+            default:
+              console.log('Usage: duck models fallbacks <list|add|remove|clear> [...]');
+          }
+          break;
+        }
+        case 'auth': {
+          const sub2 = args[1] || 'status';
+          switch (sub2) {
+            case 'list':
+            case 'status':
+              console.log(am.describe());
+              break;
+            case 'add':
+              am.addInteractive();
+              break;
+            case 'login': {
+              const provider = args[2];
+              if (!provider) {
+                console.log(`${c.red}Usage: duck models auth login <provider>${c.reset}`);
+                return;
+              }
+              am.login(provider, { tty: true });
+              break;
+            }
+            case 'order': {
+              const sub3 = args[2];
+              if (sub3 === 'list') {
+                const order = am.getAuthOrder();
+                console.log(order.length > 0 ? order.join(' → ') : '(none)');
+              } else if (sub3) {
+                const order = args.slice(2);
+                const r = am.setAuthOrder(order);
+                console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              } else {
+                console.log('Usage: duck models auth order [list|<provider>...]');
+              }
+              break;
+            }
+            default:
+              console.log('Usage: duck models auth <list|add|login|order> [...]');
+          }
+          break;
+        }
+        case 'infer': {
+          const sub2 = args[1] || 'list';
+          switch (sub2) {
+            case 'list':
+            case 'ls':
+              console.log(ic.list({ plain: args.includes('--plain') }));
+              break;
+            case 'inspect': {
+              const capId = args[2];
+              if (!capId) {
+                console.log(`${c.red}Usage: duck models infer inspect <capability-id>${c.reset}`);
+                return;
+              }
+              const cap = ic.inspect(capId);
+              if (cap) {
+                console.log(JSON.stringify(cap, null, 2));
+              } else {
+                console.log(`${c.red}Capability not found: ${capId}${c.reset}`);
+              }
+              break;
+            }
+            case 'model': {
+              const sub3 = args[2] || 'list';
+              if (sub3 === 'list' || sub3 === 'ls') {
+                const jsonFlag = args.includes('--json');
+                console.log(ic.modelList({ json: jsonFlag }));
+              } else {
+                // Treat remaining args as prompt
+                const prompt = args.slice(2).join(' ');
+                if (!prompt) {
+                  console.log(`${c.red}Usage: duck models infer model <prompt>${c.reset}`);
+                  return;
+                }
+                const modelIdx = args.indexOf('--model');
+                const model = modelIdx !== -1 ? args[modelIdx + 1] : undefined;
+                console.log(ic.infer({ model, prompt }));
+              }
+              break;
+            }
+            default:
+              console.log('Usage: duck models infer <list|inspect|model> [...]');
+          }
+          break;
+        }
+        default:
+          console.log(`${c.bold}🦆 duck models${c.reset} — OpenClaw model management`);
+          console.log('');
+          console.log(`${c.dim}Usage: duck models <command>${c.reset}`);
+          console.log('');
+          console.log(`  ${c.cyan}list${c.reset}       List configured models`);
+          console.log(`  ${c.cyan}status${c.reset}    Show model configuration state`);
+          console.log(`  ${c.cyan}set${c.reset}        Set the default model`);
+          console.log(`  ${c.cyan}set-image${c.reset} Set the default image model`);
+          console.log(`  ${c.cyan}scan${c.reset}       Scan OpenRouter free models`);
+          console.log('');
+          console.log(`  ${c.cyan}aliases${c.reset}   Manage model aliases`);
+          console.log(`  ${c.cyan}fallbacks${c.reset}  Manage fallback chains`);
+          console.log(`  ${c.cyan}auth${c.reset}       Manage auth profiles`);
+          console.log(`  ${c.cyan}infer${c.reset}      Inference capabilities`);
+          console.log('');
+          console.log(`${c.dim}Run 'duck models <command> --help' for details.${c.reset}`);
+      }
       break;
     }
 
@@ -425,6 +662,22 @@ async function main() {
       break;
     }
 
+
+    case 'browser':
+    case 'browse': {
+      const { createBrowserCommand } = await import('../commands/browser-cmd.js');
+      const browserCmd = createBrowserCommand();
+      await browserCmd.parseAsync(['node', 'browser', ...args]);
+      break;
+    }
+
+    case 'sandbox': {
+      const { createSandboxCommand } = await import('../commands/sandbox-cmd.js');
+      const sandboxCmd = createSandboxCommand();
+      await sandboxCmd.parseAsync(['node', 'sandbox', ...args]);
+      break;
+    }
+
     case 'logger': {
       const { loggerStatusCommand, loggerLogsCommand, loggerErrorsCommand, loggerTailCommand } = await import('./logger-cmd.js');
       const loggerCmd = args[0] || 'status';
@@ -458,9 +711,12 @@ async function main() {
       break;
     }
     case 'security-audit':
-      console.log(`${c.bold}🔍 Security Audit${c.reset}`);
-      console.log(`${c.dim}Run: duck security audit${c.reset}`);
-      break;
+      {
+        const { createSecurityAuditCommand } = await import('../commands/security-audit.js');
+        const cmd = createSecurityAuditCommand();
+        await cmd.parseAsync(['node', 'duck', ...args]);
+        break;
+      }
     case 'council':
     case 'ai-council':
       await councilCommand(args);
@@ -554,6 +810,24 @@ async function main() {
       break;
     }
 
+    case 'nodes': {
+      const nodesCmd = createNodesCommand();
+      await nodesCmd.parseAsync(['node', 'duck', 'nodes', ...args]);
+      break;
+    }
+
+    case 'devices': {
+      const devicesCmd = createDevicesCommand();
+      await devicesCmd.parseAsync(['node', 'duck', 'devices', ...args]);
+      break;
+    }
+
+    case 'qr': {
+      const qrCmd = createQRCommand();
+      await qrCmd.parseAsync(['node', 'duck', 'qr', ...args]);
+      break;
+    }
+
     case 'clawhub':
     case 'skills':
       await clawhubCommand(args);
@@ -592,11 +866,9 @@ async function main() {
     case 'init':
     case 'onboard':
       {
-        const { onboardCLI, printOnboardHelp } = await import('../onboard/onboard-cli.js');
-        if (cmd === 'onboard' && (!args[0] || args[0] === 'help' || args[0] === '--help' || args[0] === '-h')) {
-          printOnboardHelp();
-        } else if (cmd === 'onboard') {
-          await onboardCLI(args);
+        const { runOnboardingWizard } = await import('../commands/onboard.js');
+        if (cmd === 'onboard') {
+          await runOnboardingWizard();
         } else {
           await runSetup();
         }
@@ -690,69 +962,11 @@ async function main() {
 
     case 'config':
       {
-        const { getConfigManager } = await import('../agent/config-manager.js');
-        const config = getConfigManager();
-        const [action, ...actionArgs] = args;
-
-        if (!action || action === 'list' || action === 'get') {
-          if (!action || action === 'list') {
-            console.log(`\n${c.bold}🦆 Duck Config${c.reset}`);
-            console.log(`Config file: ${config.getConfigPath()}\n`);
-            console.log(config.toJSON());
-            console.log();
-          } else {
-            // Get specific key
-            const key = actionArgs[0];
-            if (!key) {
-              console.log(`${c.red}Usage: duck config get <key>${c.reset}`);
-              console.log(`Example: duck config get defaults.model`);
-            } else {
-              const value = config.getValue(key);
-              if (value !== undefined) {
-                console.log(`${key} = ${JSON.stringify(value)}`);
-              } else {
-                console.log(`${c.red}Key not found: ${key}${c.reset}`);
-              }
-            }
-          }
-        } else if (action === 'set') {
-          const key = actionArgs[0];
-          const value = actionArgs.slice(1).join(' ');
-          if (!key || !value) {
-            console.log(`${c.red}Usage: duck config set <key> <value>${c.reset}`);
-            console.log(`Example: duck config set defaults.model MiniMax-M2.7`);
-          } else {
-            // Try to parse value
-            let parsedValue: any = value;
-            if (value === 'true') parsedValue = true;
-            else if (value === 'false') parsedValue = false;
-            else if (!isNaN(Number(value))) parsedValue = Number(value);
-            
-            config.setValue(key, parsedValue);
-            console.log(`${c.green}✅ Set ${key} = ${JSON.stringify(parsedValue)}${c.reset}`);
-          }
-        } else if (action === 'reset') {
-          config.reset();
-          console.log(`${c.green}✅ Config reset to defaults${c.reset}`);
-        } else if (action === 'path') {
-          console.log(config.getConfigPath());
-        } else {
-          console.log(`${c.yellow}Usage:${c.reset}`);
-          console.log(`  ${c.green}duck config${c.reset}              List all config`);
-          console.log(`  ${c.green}duck config get <key>${c.reset}    Get a config value`);
-          console.log(`  ${c.green}duck config set <key> <val>${c.reset} Set a config value`);
-          console.log(`  ${c.green}duck config reset${c.reset}       Reset to defaults`);
-          console.log(`  ${c.green}duck config path${c.reset}        Show config file path`);
-          console.log();
-          console.log(`${c.dim}Keys use dot notation, e.g.:${c.reset}`);
-          console.log(`  defaults.model`);
-          console.log(`  defaults.maxRetries`);
-          console.log(`  providers.minimax.enabled`);
-          console.log(`  gracefulDegradation.fallbackModels`);
-          console.log();
-        }
+        const { createConfigCommand } = await import('../commands/config-cmd.js');
+        const cfgCmd = createConfigCommand();
+        await cfgCmd.parseAsync(['node', 'duck', ...args]);
+        break;
       }
-      break;
 
     case 'secrets': {
       const { createSecretsCommand } = await import('../secrets/secrets-cli.js');
@@ -1022,11 +1236,9 @@ ${c.bold}Just type${c.reset} what you want me to help with!
     case 'init':
     case 'onboard':
       {
-        const { onboardCLI, printOnboardHelp } = await import('../onboard/onboard-cli.js');
-        if (cmd === 'onboard' && (!args[0] || args[0] === 'help' || args[0] === '--help' || args[0] === '-h')) {
-          printOnboardHelp();
-        } else if (cmd === 'onboard') {
-          await onboardCLI(args);
+        const { runOnboardingWizard } = await import('../commands/onboard.js');
+        if (cmd === 'onboard') {
+          await runOnboardingWizard();
         } else {
           await runSetup();
         }
@@ -2434,11 +2646,10 @@ async function updateCommand(args: string[]) {
 // ============ BACKUP ============
 
 async function backupCommand(args: string[]) {
-  const { createBackupCommand } = await import('../backup/backup-cli.js');
-  const { Command } = await import('commander');
+  const { createBackupCommand } = await import('../commands/backup.js');
 
   const backup = createBackupCommand();
-  backup.parse(['node', 'duck', 'backup', ...args]);
+  backup.parse(['node', 'duck', ...args]);
 }
 
 

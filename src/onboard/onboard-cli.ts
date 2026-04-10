@@ -33,6 +33,7 @@ export type OnboardCommand = 'run' | 'gateway' | 'workspace' | 'skills' | 'statu
 
 interface OnboardCLIOptions {
   command?: OnboardCommand;
+  showHelp?: boolean;
   skipGateway?: boolean;
   skipWorkspace?: boolean;
   skipSkills?: boolean;
@@ -68,6 +69,12 @@ export function parseOnboardArgs(args: string[]): OnboardCLIOptions {
     case 'run':
       options.command = 'run';
       break;
+    case 'help':
+    case '--help':
+    case '-h':
+      options.showHelp = true;
+      options.command = 'run';
+      break;
     default:
       // No subcommand → full onboarding
       options.command = 'run';
@@ -87,6 +94,12 @@ export function parseOnboardArgs(args: string[]): OnboardCLIOptions {
  * Execute the onboard command based on parsed options.
  */
 export async function runOnboardCLI(options: OnboardCLIOptions): Promise<void> {
+  // Show help for any unrecognized or explicit help invocation
+  if (options.showHelp) {
+    printOnboardHelp();
+    return;
+  }
+
   const manager = new OnboardManager();
 
   switch (options.command) {
