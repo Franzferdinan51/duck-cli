@@ -5265,3 +5265,218 @@ All legacy code, old patterns, and existing features preserved.
 | `README.md` | ✅ Accurate, visual, 270 lines |
 | `docs/OPENCLAW-FEATURE-GAP.md` | ✅ New docs file |
 
+
+---
+
+## 🔑 LM Studio Status (2026-04-09)
+
+### Local Mac Mini LM Studio
+- **Running:** YES (PID 770)
+- **Port:** 1234 (search-agent)
+- **API Token:** REQUIRED but stored token invalid
+- **Models loaded:** Check via LM Studio UI
+
+### LM Studio Token Issue
+- Stored token `sk-lm-zO7bswIc:WkHEMTUfVNkq5WYNyFOW` no longer works
+- Token required: `Authorization: Bearer $LM_API_TOKEN`
+- Need to regenerate or disable auth in LM Studio settings
+
+### Remote (Windows PC at 100.116.54.125)
+- LM Studio may be running but not responding on port 1234
+- Check if Windows PC LM Studio is active
+
+
+---
+
+## 🤖 Using Gemma-4-e4b-it on LM Studio for Android Tasks (2026-04-09)
+
+### Model Info
+- **Name:** `lmstudio/google/gemma-4-e4b-it`
+- **Size:** 4B parameters (fits on most GPUs/RAM)
+- **Strengths:** Android tool-calling, vision, efficient
+- **Context:** Trained specifically for Android development + tool use
+
+### How to Use as Sub-Agent
+```javascript
+// Spawn sub-agent with Gemma 4 via sessions_spawn
+sessions_spawn({
+  model: "lmstudio/google/gemma-4-e4b-it",
+  runtime: "subagent",
+  task: "Your task description here"
+})
+```
+
+### What Gemma 4 Can Do
+- Android screen analysis via vision
+- Tool calling for Android tasks
+- ADB command generation
+- Plan execution for mobile tasks
+
+### If LM Studio API Token Fails
+1. Open LM Studio → Settings (gear icon)
+2. Go to "API" tab
+3. Turn OFF "Require API Key" OR copy new token
+4. Update token in ~/.openclaw/openclaw.json if needed
+
+### Alternative: Use Kimi k2.5 for Android Vision
+- `kimi/kimi-k2.5` via OpenRouter
+- Works when LM Studio is down
+- Excellent vision + Android understanding
+
+
+---
+
+## 📱 Moto G Play 2026 - Full Plant Monitoring (2026-04-09)
+
+### Device Info
+- **Serial:** ZT4227P8NK
+- **Model:** moto_g_play___2026
+- **Android:** 16
+- **Connection:** Wireless ADB (also USB)
+
+### Full Plant Monitoring Workflow
+1. Launch AC Infinity → capture screen → extract env data
+2. Launch Camera app → take photo → capture screen
+3. Pull photos → analyze with vision model
+4. Report findings
+
+### ADB Commands
+```bash
+# Connect wireless
+adb connect ZT4227P8NK:5555
+
+# Launch AC Infinity
+adb -s ZT4227P8NK shell "am start -n com.eternal.acinfinity/com.eternal.start.StartActivity"
+
+# Launch Camera
+adb -s ZT4227P8NK shell "monkey -p com.motorola.camera5 -c android.intent.category.LAUNCHER 1"
+
+# Capture screen
+adb -s ZT4227P8NK shell screencap -p /sdcard/screen.png
+
+# Pull file
+adb -s ZT4227P8NK pull /sdcard/screen.png .
+```
+
+### Sub-Agent with Gemma 4 for Android
+- Model: `lmstudio/google/gemma-4-e4b-it`
+- Use when: Android screen analysis, task planning, tool calling
+- Fallback: `kimi/kimi-k2.5` via OpenRouter
+
+---
+
+## 🌿 Plant Monitoring System (2026-04-09)
+
+### Device: Moto G Play 2026 (ZT4227P8NK)
+- Wireless ADB: `adb connect ZT4227P8NK:5555` (or USB)
+- Camera app: `com.motorola.camera5`
+- AC Infinity: `com.eternal.acinfinity`
+
+### THE WORKFLOW (Use This Order)
+
+**Step 1: AC Infinity Data**
+```bash
+adb -s ZT4227P8NK shell "am start -n com.eternal.acinfinity/com.eternal.start.StartActivity"
+sleep 3
+adb -s ZT4227P8NK shell screencap -p /sdcard/ac_infinity.png
+adb -s ZT4227P8NK pull /sdcard/ac_infinity.png .
+```
+- Use `image` tool to extract: inside temp, inside humidity, VPD, port status
+
+**Step 2: Plant Photo**
+```bash
+adb -s ZT4227P8NK shell "monkey -p com.motorola.camera5 -c android.intent.category.LAUNCHER 1"
+sleep 4
+adb -s ZT4227P8NK shell "input tap 540 1900"  # trigger capture
+sleep 2
+adb -s ZT4227P8NK shell screencap -p /sdcard/plants.png
+adb -s ZT4227P8NK pull /sdcard/plants.png .
+```
+- If photo is black → phone is in dark tent, need light for usable image
+- Verify with `image` tool before assuming success
+
+**Step 3: Gemma-4-e4b-it for ANDROID TASKS (not analysis)**
+```javascript
+sessions_spawn({
+  model: "lmstudio/google/gemma-4-e4b-it",
+  task: "Launch the camera app and take a photo of the plants in the 3x3 tent",
+  mode: "run"
+})
+```
+- Gemma-4-e4b-it is my "hands" on the phone - GOOD AT: tapping, swiping, navigating, executing
+- I (DuckBot) do the ANALYSIS using `image` tool or MiniMax/kimi vision
+- Use Gemma when: complex multi-step Android tasks, unpredictable UI, navigation challenges
+- Skip Gemma (use direct ADB) when: simple command, already know exact coordinates
+
+**Step 4: ANALYSIS (by me, not sub-agent)**
+- Use `image` tool to analyze plant photo
+- Or spawn vision sub-agent: `sessions_spawn({ model: "kimi/kimi-k2.5", task: "Analyze plants..." })`
+- Report findings to user
+
+**Step 4: Report to User**
+- Send plant photo via Telegram (threadId=648118 for Plant topic)
+- Report AC Infinity data with status indicators
+- Include plant health analysis
+
+### CannaAI Bridge (Currently Broken)
+- Bridge script fails on localhost:3000
+- Use `image` tool directly for plant analysis instead
+- CannaAI service needs to be restarted to fix bridge
+
+### Key Gotchas
+- Phone needs LIGHT for plant photos (dark tent = black image)
+- Camera might show Adobe Scan popup - close it first
+- Always verify photo with `image` tool before sending
+- LM Studio API token may need regeneration in settings
+
+### Environmental Targets (Flowering)
+| Metric | Target | Alert If |
+|--------|--------|----------|
+| Temperature | 68-78°F | >85 or <65 |
+| Humidity | 40-50% | >60 or <35 |
+| VPD | 1.2-1.6 kPa | >1.8 or <0.9 |
+
+---
+
+## 🔧 Duck-CLI Enhancements — April 10, 2026
+
+### Graphify Integration
+- Installed `graphifyy` Python package (v0.3.27) via Homebrew Python 3.14
+- Added `duck graphify` command (`src/commands/graphify-cmd.ts`) with build wrapper `scripts/graphify-build.py`
+- Graphify builds AST-based knowledge graphs; workaround for dot-directory bug in `collect_files`
+- Tested on `src/commands`: 149 nodes, 165 edges, `graph.html` + `GRAPH_REPORT.md` output
+
+### LM Studio Default Chat Model
+- `src/agent/chat-agent.ts`: default provider = `lmstudio`, default model = `google/gemma-4-26b-a4b`
+- BrowserOS MCP port updated from `9200` → `9003` (`src/browser/screenshot.ts`, `src/browser/browser-control.ts`)
+- LM Studio API key confirmed: `sk-lm-xWvfQHZF:L8P76SQakhEA95U8DDNf`
+
+### Chat-Agent Smart Routing
+- Low complexity (≤1): lightweight LM Studio model dynamically selected
+- Normal complexity (2): `lmstudio/google/gemma-4-26b-a4b`
+- Medium+ complexity (≥3): task-aware routing to best provider
+  - coding → `minimax/glm-5`
+  - vision → `kimi/k2p5`
+  - analysis → `minimax/MiniMax-M2.7`
+  - android → `lmstudio/gemma-4-e4b-it`
+
+### MiniMax CLI (`mmx-cli`)
+- Global install: `mmx-cli` v1.0.7
+- `duck mmx` command wired into Go + Node CLI layers
+- Supports text, image, video, speech, music, vision, search
+- Skill installed: `npx skills add MiniMax-AI/cli -y -g`
+
+### Deep MiniMax CLI Integration (~15:45 EDT)
+- Added `mmx-cli` as a formal dependency in `package.json`
+- Created `src/integrations/mmx.ts` — typed TypeScript API layer over mmx-cli
+  - `mmx.textChat()`, `mmx.generateImage()`, `mmx.synthesizeSpeech()`
+  - `mmx.generateVideo()`, `mmx.generateMusic()`, `mmx.visionDescribe()`
+  - `mmx.searchQuery()`, `mmx.showQuota()`, `mmx.authStatus()`, `mmx.authLogin()`
+- Built `syncMmxAuth()` — auto-syncs `MINIMAX_API_KEY` from duck-cli `.env` to `~/.mmx/config.json`
+- Added interactive TUI menu: `duck mmx` (no args) shows all modality options
+- Added `duck mmx sync` explicit auth sync command
+- Refactored `src/commands/mmx-cmd.ts` to use the integration layer
+- Added `minimax` alias to `duck mmx` in Go CLI
+- Updated README with full MiniMax command reference and dedicated feature section
+- Total agent tools: 126 (includes `mmx_text`, `mmx_image`, `mmx_vision`, `mmx_search`, `mmx_status`)
+

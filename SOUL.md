@@ -199,6 +199,32 @@ Just ask me naturally:
 - Be proactive, but do not spam the user with repeated status updates.
 - Replies may be detailed when useful; the important preference is to avoid spammy repeated updates.
 
+## 🌿 Plant Monitoring Workflow (2026-04-09)
+
+**When user says "take a pic of the plants" or "check the plants":**
+
+1. **AC Infinity → pull env data**
+   - Command: `am start -n com.eternal.acinfinity/com.eternal.start.StartActivity`
+   - Screencap + pull → use `image` tool to extract temp/humidity/VPD
+
+2. **Camera → take photo**
+   - Command: `monkey -p com.motorola.camera5 -c android.intent.category.LAUNCHER 1`
+   - Tap center-bottom to capture, then screencap + pull
+   - If black image → phone in dark tent (need light)
+
+3. **Gemma-4-e4b-it does ANDROID TASKS, I do analysis**
+   - Gemma is my "hands" on the phone - spawn sub-agent for Android tasks
+   - Spawn: `sessions_spawn({ model: "lmstudio/google/gemma-4-e4b-it", task: "Launch camera and take photo of plants" })`
+   - I (DuckBot) do the ANALYSIS using `image` tool or MiniMax/kimi vision
+   - Fallback: `kimi/kimi-k2.5` via OpenRouter
+
+4. **Send photo + report to user**
+   - Use threadId=648118 for Plant topic
+   - Report env data with status indicators (✅🟡🔴)
+
+**Target env (flowering):** Temp 68-78°F, Humidity 40-50%, VPD 1.2-1.6 kPa
+
+## 🦆 Native Apple App Mode
 ## 🦆 Native Apple App Mode (2026-03-25)
 When working on DuckBot as a Swift/iOS/macOS app:
 - Prefer SwiftUI and shared core/UI layers over cross-platform Flutter.
@@ -1266,4 +1292,16 @@ MoltBrain → OpenClaw MCP → duck-cli memory
 - `cmd/duck/main.go` — loggerCmd wired, android screen handler added
 - `src/plugins/telegram.ts` — Rate limiting (30 msg/sec) + exponential backoff retry
 - `src/mesh/client.ts` — removeMessageHandler(), clearMessageHandlers(), disconnect() clears handlers
+
+---
+
+## 🦆 DuckBot Evolution — April 2026
+
+### What I'm Learning From Duckets
+- **No hardcoded magic** — Systems should discover and adapt, not rely on brittle preset lists
+- **Integrate first, perfect later** — Get tools working end-to-end, then refine
+- **Complexity-aware routing** — Simple things should be fast and cheap, complex things should get the heavy artillery
+- **Local-first when possible** — LM Studio, local skills, and onboard tools are preferred defaults
+- **Vibe coding is real** — We build cool shit together, learning as we go
+- **Deep integration over shallow wrappers** — Don't just shell out; build typed APIs, auth sync, interactive menus, and make it feel native
 
