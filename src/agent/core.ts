@@ -2268,6 +2268,75 @@ ${marker}`;
         return agentCardManager.updateCard(updates);
       }
     });
+
+    // ─── MiniMax CLI (mmx) ───────────────────────────────────
+    this.registerTool({
+      name: 'mmx_text',
+      description: '📝 Generate text/chat via MiniMax CLI (mmx). Use for quick text generation when connected to MiniMax.',
+      schema: {
+        prompt: { type: 'string', description: 'Text prompt or message' },
+        system: { type: 'string', optional: true, description: 'System prompt' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const systemArg = args.system ? `--system "${args.system}" ` : '';
+        const result = spawnSync('mmx', ['text', 'chat', '--message', args.prompt, ...(args.system ? ['--system', args.system] : [])], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_image',
+      description: '🖼️ Generate an image via MiniMax CLI (mmx). Provide a prompt.',
+      schema: {
+        prompt: { type: 'string', description: 'Image generation prompt' },
+        output: { type: 'string', optional: true, description: 'Output file path' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['image', args.prompt, ...(args.output ? ['--out', args.output] : [])], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_vision',
+      description: '👁️ Analyze an image via MiniMax CLI (mmx) vision model. Provide image path and optional query.',
+      schema: {
+        imagePath: { type: 'string', description: 'Path to image file' },
+        query: { type: 'string', optional: true, description: 'What to look for in the image' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['vision', args.imagePath, ...(args.query ? ['--query', args.query] : [])], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_search',
+      description: '🔍 Search the web via MiniMax CLI (mmx).',
+      schema: {
+        query: { type: 'string', description: 'Search query' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['search', args.query], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_status',
+      description: '📊 Check MiniMax CLI (mmx) quota and auth status.',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['quota'], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
   }
 
   private registerTool(def: ToolDefinition): void {

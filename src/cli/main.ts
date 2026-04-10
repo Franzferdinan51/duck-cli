@@ -1187,6 +1187,7 @@ ${c.bold}Commands:${c.reset}
   /remember <text>   Remember something
   /recall <query>    Search memory
   /model <name>      Switch model
+  /mmx <args>        MiniMax CLI (image, text, speech, etc.)
   /clear             Clear screen
 
 ${c.bold}Just type${c.reset} what you want me to help with!
@@ -1304,6 +1305,13 @@ ${c.bold}Just type${c.reset} what you want me to help with!
     case 'model':
       console.log(`Model switching: ${c.yellow}${args[0]}${c.reset} (not yet implemented)`);
       break;
+
+    case 'mmx':
+    case 'minimax': {
+      const { mmxCommand } = await import('../commands/mmx-cmd.js');
+      await mmxCommand(args);
+      break;
+    }
 
     case 'clear':
       if (args[0] === 'screen' || !args[0]) {
