@@ -3,6 +3,25 @@
  * Claude Subconscious-style but WITHOUT Letta - WITH AI Council integration
  */
 
+// Whisper source type
+export type WhisperSource = 'council' | 'session' | 'analysis' | 'manual' | 'dream' | 'whisper' | 'council_deliberation' | 'kairos_dream' | 'memory_blocks_manager';
+
+// Whisper result
+export interface WhisperResult {
+  whisper: string | null;
+  confidence: number;
+  source: WhisperMode;
+  timestamp: number;
+}
+
+// Whisper mode
+export type WhisperMode = 'none' | 'memory_blocks' | 'session_analysis' | 'pattern_match' | 'full';
+
+// Council decision with source
+export interface CouncilDecisionWithSource extends CouncilDecision {
+  source: WhisperSource;
+}
+
 // Pattern detected in session history
 export interface Pattern {
   id: string;

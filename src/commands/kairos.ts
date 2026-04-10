@@ -25,6 +25,8 @@ import {
   BUILTIN_TOOLS 
 } from '../kairos/tools.js';
 import { getSubconsciousClient } from '../subconscious/client.js';
+import { getSkillCreator } from '../skills/skill-creator.js';
+import { getSkillImprover } from '../skills/skill-improver.js';
 
 export function createKairosCommand(): Command {
   const kairos = new Command('kairos')
@@ -181,6 +183,127 @@ export function createKairosCommand(): Command {
         console.log(`  ${icon} [${time}] ${action.description}`);
       }
       
+      console.log('');
+    });
+
+  // Skills - Autonomous skill management
+  kairos
+    .command('skills')
+    .description('Manage auto-created skills')
+    .option('-l, --list', 'List auto-created skills', false)
+    .option('-s, --stats', 'Show skill creator stats', false)
+    .option('-p, --patterns', 'Show patterns ready for skill creation', false)
+    .option('-c, --create <pattern>', 'Manually trigger skill creation for a pattern')
+    .option('-i, --improve <skillName>', 'Improve a specific skill')
+    .option('-t, --improve-all', 'Improve all skills with poor health', false)
+    .action(async (options) => {
+      const creator = getSkillCreator();
+      const improver = getSkillImprover();
+
+      if (options.stats) {
+        const stats = creator.getStats();
+        const impStats = improver.getStats();
+        console.log('\n🎯 Skill Creator Stats\n');
+        console.log(`  Patterns tracked: ${stats.patternsTracked}`);
+        console.log(`  Skills created:  ${stats.skillsCreated}`);
+        console.log(`  Ready to create:  ${stats.readyToCreate}`);
+        console.log('\n📊 Skill Improver Stats\n');
+        console.log(`  Executions logged: ${impStats.totalRecords}`);
+        console.log(`  Skills tracked:    ${impStats.skillsTracked}`);
+        console.log(`  Improvements made: ${impStats.improvementsMade}`);
+        console.log('');
+        return;
+      }
+
+      if (options.patterns) {
+        const patterns = creator.getReadyPatterns();
+        console.log('\n🎯 Patterns Ready for Skill Creation\n');
+        if (patterns.length === 0) {
+          console.log('  No patterns ready (need 3+ occurrences)');
+        } else {
+          for (const p of patterns.slice(0, 10)) {
+            console.log(`  ${p.pattern}`);
+            console.log(`     Occurrences: ${p.count} | Executions: ${p.executions.length}`);
+          }
+        }
+        console.log('');
+        return;
+      }
+
+      if (options.list) {
+        const skills = creator.listAutoSkills();
+        console.log('\n🛠️  Auto-Created Skills\n');
+        if (skills.length === 0) {
+          console.log('  No auto-created skills yet');
+        } else {
+          for (const skill of skills) {
+            const health = improver.getSkillHealth(skill);
+            const emoji = health.health === 'excellent' ? '✅' : health.health === 'good' ? '👍' : health.health === 'poor' ? '⚠️' : '❌';
+            console.log(`  ${emoji} ${skill}`);
+            console.log(`     Uses: ${health.totalUses} | Health: ${health.health} | Improvements: ${health.improvementCount}`);
+          }
+        }
+        console.log('');
+        return;
+      }
+
+      if (options.create) {
+        console.log(`\n🎯 Creating skill for pattern: ${options.create}\n`);
+        const result = await creator.createSkillForPattern(options.create);
+        if (result) {
+          console.log(`✅ Skill created: ${result.name}`);
+          console.log(`   Triggers: ${result.triggers.join(', ')}`);
+        } else {
+          console.log('⚠️  Could not create skill (check pattern)');
+        }
+        console.log('');
+        return;
+      }
+
+      if (options.improve) {
+        console.log(`\n📈 Improving skill: ${options.improve}\n`);
+        const result = await improver.improveSkillManual(options.improve);
+        if (result) {
+          console.log(`✅ Skill improved`);
+          console.log(`   Changes: ${result.changes.join(', ')}`);
+        } else {
+          console.log('⚠️  Could not improve skill');
+        }
+        console.log('');
+        return;
+      }
+
+      if (options.improveAll) {
+        const allHealth = improver.getAllSkillHealth();
+        const poor = allHealth.filter(h => h.health === 'poor' || h.health === 'broken');
+        console.log(`\n📈 Improving ${poor.length} skills with poor health...\n`);
+        for (const h of poor) {
+          const result = await improver.improveSkillManual(h.name);
+          console.log(`  ${result ? '✅' : '⚠️'} ${h.name} → ${result ? 'improved' : 'failed'}`);
+        }
+        console.log('');
+        return;
+      }
+
+      // Default: show all info
+      const skills = creator.listAutoSkills();
+      const patterns = creator.getReadyPatterns();
+      const allHealth = improver.getAllSkillHealth();
+
+      console.log('\n🛠️  Duck-CLI Skill System\n');
+      console.log(`  Auto-created skills: ${skills.length}`);
+      console.log(`  Patterns tracked:   ${creator.getStats().patternsTracked}`);
+      console.log(`  Ready to create:     ${patterns.length}`);
+      console.log(`  Skills tracked:      ${allHealth.length}`);
+      const poorCount = allHealth.filter(h => h.health === 'poor' || h.health === 'broken').length;
+      if (poorCount > 0) console.log(`  Needs improvement:   ${poorCount}`);
+      console.log('\n  Options:');
+      console.log('    --list        List auto-created skills');
+      console.log('    --stats       Show creator + improver stats');
+      console.log('    --patterns    Show patterns ready for skill creation');
+      console.log('    --create <p>  Manually create skill from pattern');
+      console.log('    --improve <s> Improve a specific skill');
+      console.log('    --improve-all Improve all skills with poor health');
       console.log('');
     });
 

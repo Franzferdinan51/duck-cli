@@ -1,3 +1,12 @@
+---
+name: android-agent
+description: "Run Duck CLI as a local AI agent on Android with perception-reasoning-action loop, supporting multiple LLM backends"
+license: MIT
+metadata:
+  author: duck-cli
+  version: "1.0"
+---
+
 # Android Local Agent Skill for Duck CLI
 
 ## Overview

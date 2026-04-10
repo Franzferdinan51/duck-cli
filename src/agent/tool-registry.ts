@@ -67,7 +67,7 @@ function screenReadFallback() { return { mode: 'path' }; }
 
 export const TOOL_RETRY_REGISTRY = {
 
-  android_shell: { name: 'android_shell', maxRetries: 2, retryConfig: { maxRetries: 2, backoffMs: 500, backoffMultiplier: 2 }, fallbacks: [ { tool: 'android_shell', description: 'Retry with longer timeout', argsTransform: shellTimeoutTransform }, { tool: 'android_exec_out', description: 'Use adb exec-out for binary-safe output', argsTransform: execOutTransform }, { tool: 'android_screenshot', description: 'Extract via screenshot when shell fails', argsTransform: screenshotFallback }, ], errorMap: { ...DEFAULT_ERROR_MAP, [ToolErrorType.TIMEOUT]: 'retry', [ToolErrorType.NETWORK_ERROR]: 'retry' } },
+  android_shell: { name: 'android_shell', maxRetries: 2, retryConfig: { maxRetries: 2, backoffMs: 500, backoffMultiplier: 2 }, fallbacks: [ { tool: 'android_shell', description: 'Retry with longer timeout', argsTransform: shellTimeoutTransform }, { tool: 'android_screenshot', description: 'Extract via screenshot when shell fails', argsTransform: screenshotFallback }, ], errorMap: { ...DEFAULT_ERROR_MAP, [ToolErrorType.TIMEOUT]: 'retry', [ToolErrorType.NETWORK_ERROR]: 'retry' } },
 
   android_exec_out: { name: 'android_exec_out', maxRetries: 2, retryConfig: { maxRetries: 2, backoffMs: 500, backoffMultiplier: 2 }, fallbacks: [ { tool: 'android_shell', description: 'Fallback to adb shell', argsTransform: shellFallback }, ], errorMap: DEFAULT_ERROR_MAP },
 

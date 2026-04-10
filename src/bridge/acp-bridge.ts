@@ -375,6 +375,55 @@ export class ACPBridge extends EventEmitter {
   }
 
   /**
+   * Reply to user through OpenClaw gateway.
+   * Internal duck-cli components (MetaAgent, Council, Subconscious) use this
+   * to send text replies back to the user via OpenClaw.
+   *
+   * This is the primary 2-way bridge hook: OpenClaw delegates a task to duck-cli
+   * via tool_call, duck-cli processes internally, then replies via replyToUser.
+   *
+   * Unlike sendAgentOutput which requires a sessionId from OpenClaw,
+   * replyToUser sends directly to the gateway for the current agent's user.
+   */
+  async replyToUser(text: string, done: boolean = false): Promise<void> {
+    if (!this.isConnected()) {
+      // Queue the reply for when connection is restored
+      console.warn(`[ACP Bridge] Not connected — queuing reply (${text.length} chars)`);
+      this.messageQueue.push({ text, done });
+      return;
+    }
+
+    // Flush any queued messages first
+    await this.flushReplyQueue();
+
+    // Send the reply as agent_output addressed to the gateway
+    const outputMsg = ACPProtocol.createAgentOutput(
+      `reply-${Date.now()}`,
+      text,
+      undefined,
+      done
+    );
+    await this.wsBridge.send(outputMsg);
+  }
+
+  /** Queue for replies when disconnected */
+  private messageQueue: Array<{ text: string; done: boolean }> = [];
+
+  /** Flush any queued replies */
+  private async flushReplyQueue(): Promise<void> {
+    while (this.messageQueue.length > 0) {
+      const item = this.messageQueue.shift()!;
+      const outputMsg = ACPProtocol.createAgentOutput(
+        `reply-${Date.now()}`,
+        item.text,
+        undefined,
+        item.done
+      );
+      await this.wsBridge.send(outputMsg);
+    }
+  }
+
+  /**
    * Send streaming agent output
    */
   async sendAgentOutput(

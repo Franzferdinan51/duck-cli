@@ -5,7 +5,9 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { SessionExperience } from './meta-types.js';
+import { homedir } from 'os';
+import { SessionExperience, Plan } from './meta-types.js';
+import Database from '../vendor/better-sqlite3.js';
 
 export class MetaLearner {
   private experiencePath: string;
@@ -66,6 +68,79 @@ export class MetaLearner {
 
     return '\nRelevant past experiences:\n' + lessons.map(l => '• ' + l).join('\n');
   }
+
+  /**
+   * Log a failure from FailureReporter so MetaLearner/Planner can use it.
+   * Also forwards to LearningLoop (SQLite) for long-term pattern tracking.
+   */
+  logFailure(opts: {
+    source: string;
+    message: string;
+    toolName?: string;
+    providerName?: string;
+    severity?: string;
+    diagnosis?: string;
+    recoveryAction?: string;
+    occurrenceCount?: number;
+    timestamp: number;
+    sessionId?: string;
+  }): void {
+    try {
+      const experiences = this.load();
+      const exp: SessionExperience = {
+        taskPrompt: `[${opts.source}] ${opts.message}`,
+        outcome: 'failed',
+        plan: { taskId: '', complexity: 0, approach: opts.source, steps: [], provider: '', model: '', reasoning: '', estimatedTotalTimeMs: 0, estimatedTotalCost: 0, parallelizable: false, confidence: 0 },
+        steps: [],
+        totalTimeMs: 0,
+        totalCost: 0,
+        lessonsLearned: opts.diagnosis ? `Diagnosis: ${opts.diagnosis} | Recovery: ${opts.recoveryAction || 'none'}` : undefined,
+        timestamp: opts.timestamp,
+      };
+      experiences.push(exp);
+      const trimmed = experiences.slice(-this.maxExperiences);
+      this.save(trimmed);
+      console.log(`[MetaLearner] 📝 Logged failure: [${opts.source}] ${opts.message.substring(0, 50)}`);
+    } catch (e) {
+      console.log(`[MetaLearner] ⚠️  Failed to log: ${e}`);
+    }
+
+    // Also forward to LearningLoop SQLite if available
+    this.forwardToLearningLoop(opts);
+  }
+
+  private forwardToLearningLoop(opts: {
+    source: string;
+    message: string;
+    toolName?: string;
+    providerName?: string;
+    severity?: string;
+    occurrenceCount?: number;
+    timestamp: number;
+    sessionId?: string;
+  }): void {
+    try {
+      const llPath = join(homedir(), '.duck', 'learning', 'learning.db');
+      if (!existsSync(llPath)) return;
+      const ll = new Database(llPath);
+      ll.pragma('journal_mode = WAL');
+      const inputStr = `[${opts.source}] ${opts.toolName || opts.providerName || opts.source}: ${opts.message}`;
+      const outputStr = `Severity: ${opts.severity || 'unknown'}, Occurred: ${opts.occurrenceCount || 1}x`;
+      ll.prepare(`
+        INSERT INTO interactions (id, session_id, input, output, outcome, tools_used, duration, feedback, timestamp)
+        VALUES (?, ?, ?, ?, 'failed', '[]', 0, ?, ?)
+      `).run(
+        `fail_${opts.timestamp}_${Math.random().toString(36).slice(2, 6)}`,
+        opts.sessionId || 'default',
+        inputStr.slice(0, 10000),
+        outputStr.slice(0, 50000),
+        JSON.stringify({ type: 'system_failure', source: opts.source, severity: opts.severity }),
+        opts.timestamp
+      );
+      ll.close();
+    } catch { /* non-fatal */ }
+  }
+
 
   private ensureDir(): void {
     try { mkdirSync(this.experiencePath, { recursive: true }); } catch {}

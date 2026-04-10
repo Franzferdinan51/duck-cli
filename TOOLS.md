@@ -1,430 +1,370 @@
-# TOOLS.md — Duck Agent Tool Reference
+# TOOLS.md - Duck CLI Tool Reference
 
-**For AI agents using or extending duck-cli's tool system.**
+## Tool Registry Overview
 
----
+Duck CLI provides 40+ tools organized into categories. Each tool has:
+- **Name**: Unique identifier
+- **Description**: What it does
+- **Schema**: Input parameters (JSON Schema)
+- **Dangerous Flag**: Whether it requires approval
+- **Handler**: Implementation function
 
-## Tool Registry
+## Tool Categories
 
-All tools are registered in `src/tools/registry.ts` and exposed through `src/agent/core.ts`.
+### 1. Desktop Control (macOS/Windows/Linux)
 
-**Source:** `src/tools/registry.ts`
-**Compiled:** `dist/tools/registry.js`
-
----
-
-## Available Tools (13 total)
-
-### shell ⚠️
-**Dangerous** — executes arbitrary shell commands.
-
-```typescript
-{
-  name: 'shell',
-  description: 'Execute shell command',
-  schema: {
-    command: { type: 'string' }
-  },
-  dangerous: true
-}
-```
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `desktop_open` | Open an application | No |
+| `desktop_click` | Click at screen coordinates | No |
+| `desktop_type` | Type text at current focus | No |
+| `desktop_screenshot` | Take screenshot (base64 or path) | No |
+| `screen_read` | Screenshot + vision AI analysis | No |
 
 **Example:**
-```json
-{ "command": "ls -la" }
-```
-
----
-
-### file_read
-Read the contents of a file.
-
-```typescript
+```javascript
+// Take screenshot for vision analysis
 {
-  name: 'file_read',
-  description: 'Read a file',
-  schema: {
-    path: { type: 'string' }
+  "tool": "screen_read",
+  "params": {
+    "query": "Find all buttons and input fields"
   }
 }
 ```
 
-**Example:**
-```json
-{ "path": "/tmp/notes.txt" }
-```
+### 2. File Operations
 
----
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `file_read` | Read file contents | No |
+| `file_write` | Write/create file | Yes |
 
-### file_write ⚠️
-**Dangerous** — writes content to a file (creates or overwrites).
-
-```typescript
+**Examples:**
+```javascript
+// Read file
 {
-  name: 'file_write',
-  description: 'Write to a file',
-  schema: {
-    path: { type: 'string' },
-    content: { type: 'string' }
-  },
-  dangerous: true
+  "tool": "file_read",
+  "params": {
+    "path": "/path/to/file.txt",
+    "limit": 1000  // optional: truncate after N chars
+  }
 }
-```
 
-**Example:**
-```json
-{ "path": "/tmp/test.txt", "content": "Hello world" }
-```
-
----
-
-### desktop_open
-Open an application.
-
-```typescript
+// Write file
 {
-  name: 'desktop_open',
-  description: 'Open an application',
-  schema: {
-    app: { type: 'string' }
+  "tool": "file_write",
+  "params": {
+    "path": "/path/to/output.txt",
+    "content": "Hello World"
   }
 }
 ```
 
+### 3. Shell Execution
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `shell` | Execute shell command | Yes |
+
 **Example:**
-```json
-{ "app": "Safari" }
-```
-
----
-
-### desktop_click
-Click at screen coordinates.
-
-```typescript
+```javascript
 {
-  name: 'desktop_click',
-  description: 'Click at coordinates',
-  schema: {
-    x: { type: 'number' },
-    y: { type: 'number' }
+  "tool": "shell",
+  "params": {
+    "command": "ls -la",
+    "timeout": 30000  // optional: milliseconds
   }
 }
 ```
 
+**Safety Features:**
+- Critical risk commands blocked automatically
+- High risk commands require approval
+- All commands logged
+- Output truncated at 5MB
+
+### 4. Web Operations
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `web_search` | Search DuckDuckGo | No |
+
 **Example:**
-```json
-{ "x": 500, "y": 300 }
-```
-
----
-
-### desktop_type
-Type text at the current focus.
-
-```typescript
+```javascript
 {
-  name: 'desktop_type',
-  description: 'Type text',
-  schema: {
-    text: { type: 'string' }
+  "tool": "web_search",
+  "params": {
+    "query": "latest TypeScript features"
   }
 }
 ```
 
-**Example:**
-```json
-{ "text": "Hello world" }
-```
+### 5. Memory System
 
----
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `memory_remember` | Store information | No |
+| `memory_recall` | Search memories | No |
+| `memory_list` | List all memories | No |
+| `memory_stats` | Show memory statistics | No |
+| `memory_fts_search` | Full-text search (TF-IDF) | No |
 
-### desktop_screenshot
-Capture a screenshot of the screen.
-
-```typescript
+**Examples:**
+```javascript
+// Remember something
 {
-  name: 'desktop_screenshot',
-  description: 'Take a screenshot',
-  schema: {}
+  "tool": "memory_remember",
+  "params": {
+    "content": "User prefers dark mode",
+    "type": "preference",
+    "tags": "ui,preference"
+  }
 }
-```
 
-**Returns:** Screenshot image data.
-
----
-
-### memory_remember
-Store information in persistent memory.
-
-```typescript
+// Recall memories
 {
-  name: 'memory_remember',
-  description: 'Remember information',
-  schema: {
-    content: { type: 'string' },
-    type: { type: 'string', optional: true }
+  "tool": "memory_recall",
+  "params": {
+    "query": "user preferences",
+    "limit": 10
   }
 }
 ```
 
-**Example:**
-```json
-{ "content": "User prefers dark mode", "type": "preference" }
-```
+### 6. Sub-Agent Management
 
----
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `agent_spawn` | Spawn a sub-agent | No |
+| `agent_spawn_team` | Spawn multiple agents | No |
+| `think_parallel` | Parallel thinking with N agents | No |
+| `agent_list` | List active agents | No |
+| `agent_status` | Get agent status | No |
+| `agent_cancel` | Cancel an agent | No |
+| `agent_wait` | Wait for agent completion | No |
 
-### memory_recall
-Search persistent memory.
-
-```typescript
+**Examples:**
+```javascript
+// Spawn single agent
 {
-  name: 'memory_recall',
-  description: 'Search memories',
-  schema: {
-    query: { type: 'string' }
+  "tool": "agent_spawn",
+  "params": {
+    "task": "Research best practices for X",
+    "role": "researcher",
+    "name": "research_1"
+  }
+}
+
+// Parallel thinking
+{
+  "tool": "think_parallel",
+  "params": {
+    "prompt": "How should we architect this system?",
+    "perspectives": 3
   }
 }
 ```
 
+### 7. Planning Tools
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `plan_create` | Create autonomous plan | No |
+| `plan_status` | Show plan progress | No |
+| `plan_list` | List active plans | No |
+| `plan_abort` | Abort a plan | No |
+
 **Example:**
-```json
-{ "query": "dark mode preferences" }
-```
-
----
-
-### web_search
-Search the web.
-
-```typescript
+```javascript
 {
-  name: 'web_search',
-  description: 'Search the web',
-  schema: {
-    query: { type: 'string' }
+  "tool": "plan_create",
+  "params": {
+    "goal": "Build a REST API",
+    "context": "{\"language\": \"TypeScript\"}"
   }
 }
 ```
 
+### 8. Session Management
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `session_search` | Search past conversations | No |
+| `session_list` | List recent sessions | No |
+| `session_log` | View session logs | No |
+| `sessions_search` | TF-IDF search sessions | No |
+
+### 9. Cron/Scheduling
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `cron_create` | Create scheduled task | No |
+| `cron_list` | List scheduled tasks | No |
+| `cron_enable` | Enable/disable task | No |
+| `cron_delete` | Delete a task | No |
+| `cron_stats` | Show cron statistics | No |
+
 **Example:**
-```json
-{ "query": "weather in Dayton Ohio" }
-```
-
----
-
-### learn_from_feedback
-Learn from feedback to improve future responses.
-
-```typescript
+```javascript
 {
-  name: 'learn_from_feedback',
-  description: 'Learn from feedback to improve future responses',
-  schema: {
-    success: { type: 'boolean' },
-    feedback: { type: 'string', optional: true }
+  "tool": "cron_create",
+  "params": {
+    "name": "daily_backup",
+    "schedule": "0 2 * * *",
+    "task": "duck backup create",
+    "taskType": "shell"
   }
 }
 ```
 
+### 10. Android Tools
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `android_screenshot` | Capture Android screen | No |
+| `android_tap` | Tap on screen | No |
+| `android_type` | Type text | No |
+| `android_shell` | Execute ADB shell | Yes |
+| `android_swipe` | Swipe gesture | No |
+| `android_press` | Press button | No |
+| `android_app` | App management | No |
+
+### 11. Voice/TTS
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `speak` | Text-to-speech | No |
+
 **Example:**
-```json
-{ "success": true, "feedback": "Good explanation" }
-```
-
----
-
-### get_metrics
-Get agent performance metrics.
-
-```typescript
+```javascript
 {
-  name: 'get_metrics',
-  description: 'Get agent performance metrics',
-  schema: {}
+  "tool": "speak",
+  "params": {
+    "text": "Hello, this is a test",
+    "voice": "narrator"  // or: casual, sad, chinese, japanese, korean
+  }
 }
 ```
 
-**Returns:**
-```json
-{
-  "totalInteractions": 42,
-  "successfulInteractions": 38,
-  "failedInteractions": 4,
-  "totalCost": 0.0012,
-  "totalTokens": 5000,
-  "averageConfidence": 0.85
+### 12. KAIROS/Dream
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `dream_status` | Check KAIROS status | No |
+| `dream_trigger` | Trigger dream consolidation | No |
+| `dream_results` | Get recent dreams | No |
+| `kairos_start` | Start KAIROS heartbeat | No |
+| `kairos_stop` | Stop KAIROS heartbeat | No |
+
+### 13. Skills
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `skill_create` | Create new skill | No |
+| `skill_list` | List auto-skills | No |
+| `skill_health` | Check skill health | No |
+| `skill_improve` | Improve a skill | No |
+| `skill_patterns` | Get ready patterns | No |
+
+### 14. Guard/Security
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `guard_check` | Check risk level | No |
+| `guard_log` | Show guard log | No |
+| `guard_stats` | Show guard statistics | No |
+
+### 15. Metrics
+
+| Tool | Description | Dangerous |
+|------|-------------|-----------|
+| `get_metrics` | Get agent metrics | No |
+| `get_cost` | Get cost tracking | No |
+| `learn_from_feedback` | Learn from feedback | No |
+
+## Tool Result Format
+
+All tools return a standardized result:
+
+```typescript
+interface ToolResult {
+  success: boolean;
+  result?: any;        // Successful result data
+  error?: string;      // Error message if failed
+  output?: string;     // String representation
+  durationMs?: number; // Execution time
 }
 ```
 
----
+## Tool Retry and Fallback
 
-### get_cost
-Get cost tracking information.
+Tools support automatic retry and fallback:
 
-```typescript
-{
-  name: 'get_cost',
-  description: 'Get cost tracking info',
-  schema: {}
-}
-```
+1. **Retry**: Failed tools retry up to 3 times with exponential backoff
+2. **Fallback**: If primary tool fails, fallback tools are attempted
+3. **Logging**: All attempts logged for debugging
 
-**Returns:**
-```json
-{
-  "total": 0.0012,
-  "budget": 10.0,
-  "remaining": 9.9988
-}
-```
+## Adding New Tools
 
----
+To add a new tool:
 
-## New Super Agent Tools (22 total)
+1. Define in `src/agent/core.ts` → `registerTools()`
+2. Implement handler function
+3. Add to schema
+4. Set dangerous flag if needed
+5. Rebuild: `npm run build`
 
-### Memory Tools
-```typescript
-memory_list     // List all memories, filter by type
-memory_stats    // Show memory + tool telemetry stats
-```
-
-### Planning Tools
-```typescript
-plan_create     // Create autonomous plan from goal
-plan_status     // Show current plan progress
-plan_list       // List all active plans
-plan_abort      // Abort an active plan
-```
-
-### Dangerous Tool Guard Tools
-```typescript
-guard_check     // Check risk level without executing
-guard_log       // Show approval decision log
-guard_stats     // Show guard statistics
-```
-
-## Orchestrator Tools (v0.6.0+)
-
-### Complexity & Routing Tools
-```typescript
-complexity_score  // Score task 1-10 across 6 dimensions
-model_recommend   // Get recommended model for task
-route_task        // Full routing decision with confidence
-```
-
-### Council Tools
-```typescript
-council_submit    // Submit task for AI Council deliberation
-council_status   // Check council engagement status
-council_verdict  // Get latest verdict
-council_config   // Configure council settings
-```
-
-### Subagent Tools
-```typescript
-subagent_spawn    // Spawn parallel AI subagent
-subagent_list     // List active subagents
-subagent_status   // Check subagent progress
-subagent_kill     // Kill stuck subagent
-subagent_results  // Collect completed results
-```
-
-### Example: Full Orchestration Flow
-```typescript
-// 1. Score complexity
-const score = await tools.complexity_score("Build a REST API for user auth");
-// score = 6 (multiStep + coding)
-
-// 2. If complex, engage council
-if (score >= 7) {
-  const verdict = await tools.council_submit({
-    task: "Build a REST API for user auth",
-    mode: "legislative"
-  });
-  // verdict.verdict = "approve", verdict.consensus = 0.85
-}
-
-// 3. Route to best model
-const model = await tools.model_recommend("Build a REST API");
-// model = "minimax/glm-5"
-
-// 4. Spawn subagents for parallel work
-const agents = await Promise.all([
-  tools.subagent_spawn({ task: "Write auth endpoints", model }),
-  tools.subagent_spawn({ task: "Write user endpoints", model }),
-]);
-```
-
-## Adding a New Tool
-
-1. **Edit `src/agent/core.ts`** — find `registerTools()` — find `registerTools()` method
-2. **Add your tool definition:**
-
+**Template:**
 ```typescript
 this.registerTool({
   name: 'my_tool',
-  description: 'Description of what it does',
+  description: 'What it does',
   schema: {
     param1: { type: 'string' },
     param2: { type: 'number', optional: true }
   },
-  dangerous: false,  // true if it modifies anything
-  handler: async (args) => {
+  dangerous: false,
+  handler: async (args: any) => {
     // Implementation
-    return { success: true, result: 'output' };
+    return { success: true, result: 'done' };
   }
 });
 ```
 
-3. **Rebuild:** `npm run build`
-4. **Verify:** `./duck status` → Tools count should increase
+## Tool Registry API
 
----
-
-## Dangerous Tools
-
-Tools marked ⚠️ require extra care. They are logged with a warning indicator. The tool registry supports an approval callback:
-
-```typescript
-agent.setApprovalCallback(async (name, args) => {
-  // Return true to approve, false to reject
-  if (name === 'shell' && args.command.includes('rm -rf')) {
-    return false;
-  }
-  return true;
-});
-```
-
----
-
-## Tool Execution Flow
-
-```
-agent.think(message)
-  → parses message for tool calls
-  → agent.tools.execute(toolName, args)
-    → checks dangerous flag + approval
-    → calls tool.handler(args)
-    → returns { success, result, output }
-```
-
----
-
-## Testing Tools
-
+List all tools:
 ```bash
-# Start web UI
-./duck web 3001 &
-
-# Test via curl
-curl -X POST http://localhost:3001/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Use shell to run: ls"}'
-
-# Or use the interactive shell
-./duck shell
-# Then type: /quit
+duck tools list
 ```
+
+Search tools:
+```bash
+duck tools search "file"
+```
+
+Get tool schema:
+```bash
+duck tools schema <tool-name>
+```
+
+## Best Practices
+
+1. **Prefer safe tools** when possible
+2. **Batch operations** to reduce tool calls
+3. **Check results** before proceeding
+4. **Handle errors** gracefully
+5. **Log important actions** to memory
+
+## Troubleshooting
+
+Tool not found:
+- Check tool name spelling
+- Run `duck tools list` to see available tools
+- Ensure tool is registered in `core.ts`
+
+Tool execution failed:
+- Check parameters match schema
+- Review error message for hints
+- Try with simpler inputs first
+- Check tool logs: `duck logger logs`

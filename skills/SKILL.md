@@ -1,11 +1,10 @@
 ---
 name: duck-skills
 description: "Duck CLI skill system - extensible commands that enhance the AI agent"
+license: MIT
 metadata:
-  {
-    "version": "1.0.0",
-    "format_version": "1"
-  }
+  author: duck-cli
+  version: "1.0"
 ---
 
 # 🦆 Duck CLI Skills System

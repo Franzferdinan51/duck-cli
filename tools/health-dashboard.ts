@@ -40,10 +40,16 @@ interface ServiceInfo {
 }
 
 const ALL_SERVICES: ServiceInfo[] = [
-  { name: 'OpenClaw Gateway', key: 'gateway', url: 'http://127.0.0.1:18789', port: 18789, critical: true, processName: 'openclaw' },
-  { name: 'MCP Server', key: 'mcp', url: 'http://127.0.0.1:3848', port: 3848, critical: true, processName: 'clawdcursor', startCommand: 'cd /Users/duckets/.openclaw/workspace/clawd-cursor && nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &' },
-  { name: 'ACP Server', key: 'acp', url: 'http://127.0.0.1:18790', port: 18790, critical: true, processName: 'openclaw' },
-  { name: 'WebSocket Server', key: 'websocket', url: 'http://127.0.0.1:18791', port: 18791, critical: true, processName: 'openclaw' },
+  // duck-cli Core Services (standalone — duck-cli runs without OpenClaw)
+  { name: 'Duck Gateway API', key: 'duck-gateway', url: 'http://127.0.0.1:18792', port: 18792, critical: true, processName: 'duck' },
+  { name: 'Duck Chat Agent', key: 'duck-chat', url: 'http://127.0.0.1:18797', port: 18797, critical: false, processName: 'duck' },
+  { name: 'Duck MCP Server', key: 'duck-mcp', url: 'http://127.0.0.1:3850', port: 3850, critical: false, processName: 'duck' },
+  // OpenClaw Services (optional — duck-cli does NOT require OpenClaw)
+  { name: 'OpenClaw Gateway (optional)', key: 'gateway', url: 'http://127.0.0.1:18789', port: 18789, critical: false, processName: 'openclaw' },
+  { name: 'OpenClaw MCP (optional)', key: 'mcp', url: 'http://127.0.0.1:3848', port: 3848, critical: false, processName: 'clawdcursor', startCommand: 'cd /Users/duckets/.openclaw/workspace/clawd-cursor && nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &' },
+  { name: 'OpenClaw ACP (optional)', key: 'acp', url: 'http://127.0.0.1:18790', port: 18790, critical: false, processName: 'openclaw' },
+  { name: 'OpenClaw WS (optional)', key: 'websocket', url: 'http://127.0.0.1:18791', port: 18791, critical: false, processName: 'openclaw' },
+  // Other services
   { name: 'CannaAI Web UI', key: 'cannai', url: 'http://localhost:3000', port: 3000, critical: true, processName: 'tsx', startCommand: 'cd /Users/duckets/.openclaw/workspace/CannaAI && nohup /bin/sh -c "NODE_ENV=production npx tsx server.ts" > /tmp/cannai.log 2>&1 &' },
   { name: 'AI Council Web UI', key: 'ai-council', url: 'http://localhost:3001', port: 3001, critical: true, processName: 'vite', startCommand: '/Users/duckets/.openclaw/workspace/start-ai-council.sh' },
   { name: 'Agent Monitor', key: 'agent-monitor', url: 'http://localhost:3001/api/health', port: 3001, critical: false, processName: 'node' },
@@ -284,6 +290,9 @@ async function restartService(serviceKey: string): Promise<void> {
     // Kill existing
     if (service.processName === 'openclaw') {
       execSync('openclaw gateway restart', { stdio: 'ignore' });
+    } else if (service.processName === 'duck') {
+      // Duck-cli services: kill and restart via duck binary
+      execSync(`pkill -f "duck ${service.key.replace('duck-', '')}" 2>/dev/null || true`, { stdio: 'ignore' });
     } else {
       execSync(`pkill -f "${service.processName}" 2>/dev/null || true`, { stdio: 'ignore' });
     }

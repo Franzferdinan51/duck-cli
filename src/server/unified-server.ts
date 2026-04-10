@@ -81,7 +81,7 @@ export class UnifiedServer extends EventEmitter {
    */
   async start(): Promise<void> {
     if (this.status === 'running') {
-      console.log('[Unified] Already running');
+      logger.info('system', 'UnifiedServer', 'Already running');
       return;
     }
 
@@ -89,6 +89,7 @@ export class UnifiedServer extends EventEmitter {
     this.startedAt = Date.now();
     const errors: Error[] = [];
 
+    // Keep banner for user-facing startup (TTY stdout)
     console.log('\n═══════════════════════════════════════════');
     console.log('  🦆 Duck Agent Unified Headless Server');
     console.log('═══════════════════════════════════════════\n');
@@ -99,9 +100,11 @@ export class UnifiedServer extends EventEmitter {
         this.mcpServer = new MCPServer(this.config.mcpPort);
         await this.mcpServer.start();
         console.log(`  ✓ MCP Server:      ws://localhost:${this.config.mcpPort}/ws`);
+        logger.info('mcp', 'UnifiedServer', `MCP Server started on port ${this.config.mcpPort}`, { port: this.config.mcpPort });
       } catch (e: any) {
         errors.push(e);
         console.error(`  ✗ MCP Server failed: ${e.message}`);
+        logger.error('mcp', 'UnifiedServer', `MCP Server failed to start: ${e.message}`, e, { port: this.config.mcpPort, code: 'MCP_001' });
       }
     }
 
@@ -111,9 +114,11 @@ export class UnifiedServer extends EventEmitter {
         this.acpClient = new ACPClient(this.agent, this.config.acpConfig);
         await this.acpClient.startGateway();
         console.log(`  ✓ ACP Gateway:    ws://localhost:${this.config.acpPort}/acp`);
+        logger.info('acp', 'UnifiedServer', `ACP Gateway started on port ${this.config.acpPort}`, { port: this.config.acpPort });
       } catch (e: any) {
         errors.push(e);
         console.error(`  ✗ ACP Gateway failed: ${e.message}`);
+        logger.error('acp', 'UnifiedServer', `ACP Gateway failed to start: ${e.message}`, e, { port: this.config.acpPort, code: 'ACP_003' });
       }
     }
 
@@ -129,7 +134,7 @@ export class UnifiedServer extends EventEmitter {
         });
 
         this.wsManager.on('client:connected', (client) => {
-          console.log(`[WS] Client connected: ${client.id}`);
+          logger.info('websocket', 'UnifiedServer', `Client connected: ${client.id}`, { clientId: client.id });
           this.emit('client:connected', client);
         });
 
@@ -138,9 +143,11 @@ export class UnifiedServer extends EventEmitter {
         });
 
         console.log(`  ✓ WebSocket:      ws://localhost:${this.config.wsPort}/ws`);
+        logger.info('websocket', 'UnifiedServer', `WebSocket server started on port ${this.config.wsPort}`, { port: this.config.wsPort });
       } catch (e: any) {
         errors.push(e);
         console.error(`  ✗ WebSocket failed: ${e.message}`);
+        logger.error('websocket', 'UnifiedServer', `WebSocket server failed to start: ${e.message}`, e, { port: this.config.wsPort, code: 'WS_001' });
       }
     }
 
@@ -149,9 +156,11 @@ export class UnifiedServer extends EventEmitter {
       try {
         await this.startGateway();
         console.log(`  ✓ Gateway API:    http://localhost:${this.config.gatewayPort}/v1`);
+        logger.info('rest', 'UnifiedServer', `Gateway API started on port ${this.config.gatewayPort}`, { port: this.config.gatewayPort });
       } catch (e: any) {
         errors.push(e);
         console.error(`  ✗ Gateway failed: ${e.message}`);
+        logger.error('rest', 'UnifiedServer', `Gateway API failed to start: ${e.message}`, e, { port: this.config.gatewayPort, code: 'REST_001' });
       }
     }
 
@@ -159,6 +168,7 @@ export class UnifiedServer extends EventEmitter {
 
     if (errors.length > 0 && errors.length === Object.values(this.config).filter(v => v === true).length) {
       this.status = 'error';
+      logger.fatal('system', 'UnifiedServer', `All servers failed to start: ${errors.map(e => e.message).join(', ')}`);
       throw new Error(`All servers failed: ${errors.map(e => e.message).join(', ')}`);
     }
 
@@ -172,6 +182,9 @@ export class UnifiedServer extends EventEmitter {
 
     if (errors.length > 0) {
       console.log(`  ⚠ ${errors.length} server(s) failed - see above\n`);
+      logger.warn('system', 'UnifiedServer', `${errors.length} server(s) failed to start — see above`);
+    } else {
+      logger.info('system', 'UnifiedServer', `Unified server running. Uptime: ${this.getUptime()}`);
     }
   }
 
@@ -365,13 +378,13 @@ export class UnifiedServer extends EventEmitter {
   async connectToExternalMCP(url: string, name?: string): Promise<string> {
     const id = `mcp_${Date.now()}`;
     
-    console.log(`[MCP] Connecting to external server: ${url}`);
+    logger.info('mcp', 'UnifiedServer', `Connecting to external MCP server: ${url}`, { url });
     
     try {
       const ws = new WebSocket(url);
 
       ws.on('open', () => {
-        console.log(`[MCP] Connected to ${url}`);
+        logger.info('mcp', 'UnifiedServer', `Connected to external MCP server: ${url}`, { url });
         const server = this.externalMCPServers.get(id);
         if (server) {
           server.connected = true;
@@ -385,12 +398,12 @@ export class UnifiedServer extends EventEmitter {
           const msg = JSON.parse(data.toString());
           this.handleExternalMCPMessage(id, msg);
         } catch (e) {
-          console.error(`[MCP] Failed to parse message from ${url}:`, e);
+          logger.error('mcp', 'UnifiedServer', `Failed to parse external MCP message from ${url}`, e as Error, { url });
         }
       });
 
       ws.on('close', () => {
-        console.log(`[MCP] Disconnected from ${url}`);
+        logger.info('mcp', 'UnifiedServer', `Disconnected from external MCP server: ${url}`, { url });
         const server = this.externalMCPServers.get(id);
         if (server) {
           server.connected = false;
@@ -400,7 +413,7 @@ export class UnifiedServer extends EventEmitter {
       });
 
       ws.on('error', (error) => {
-        console.error(`[MCP] Error from ${url}:`, error.message);
+        logger.error('mcp', 'UnifiedServer', `WebSocket error from external MCP server ${url}: ${error.message}`, error, { url, code: 'MCP_003' });
         this.emit('mcp:error', { id, url, error });
       });
 
@@ -414,7 +427,7 @@ export class UnifiedServer extends EventEmitter {
         params: {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          clientInfo: { name: 'duck-agent', version: '0.4.0' }
+          clientInfo: { name: 'duck-agent', version: '0.6.1' }
         }
       }));
 
@@ -519,7 +532,7 @@ export class UnifiedServer extends EventEmitter {
    * Stop all servers
    */
   async stop(): Promise<void> {
-    console.log('\n[Unified] Shutting down...');
+    logger.info('system', 'UnifiedServer', 'Shutting down all servers');
 
     // Disconnect external MCP servers
     for (const [id, server] of this.externalMCPServers) {
@@ -556,7 +569,7 @@ export class UnifiedServer extends EventEmitter {
     }
 
     this.status = 'stopped';
-    console.log('[Unified] Stopped\n');
+    logger.info('system', 'UnifiedServer', 'All servers stopped');
     this.emit('stopped');
   }
 }

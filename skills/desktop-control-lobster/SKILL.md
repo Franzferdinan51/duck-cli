@@ -1,5 +1,10 @@
 ---
-description: Advanced desktop automation with mouse, keyboard, and screen control
+name: desktop-control-lobster
+description: "Advanced desktop automation with mouse, keyboard, and screen control"
+license: MIT
+metadata:
+  author: duck-cli
+  version: "1.0"
 ---
 
 # Desktop Control Skill

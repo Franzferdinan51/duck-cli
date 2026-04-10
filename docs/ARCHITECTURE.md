@@ -146,7 +146,7 @@ User → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
 │  Kimi ─────── k2p5, k2                      │
 │  OpenAI ───── gpt-5.4, gpt-5.4-mini        │
 │  OpenRouter ─ qwen3.6-plus-preview:free       │
-│  Gateway ──── OpenClaw Gateway (ws://...)   │
+│  Gateway ──── duck-cli built-in gateway (port 18792)      │
 └─────────────────────────────────────────────┘
 ```
 
@@ -159,7 +159,7 @@ User → Chat Agent → AI Council → Bridge Agent → Orchestrator → Tools
 | **MCP Server** | 3850 | Model Context Protocol tools |
 | **ACP Server** | 18794 | Agent Communication Protocol |
 | **WS Manager** | 18796 | WebSocket real-time |
-| **Gateway API** | 18792 | OpenClaw REST API |
+| **Gateway API** | 18792 | duck-cli built-in REST API (proxies to MiniMax/Kimi/etc.) |
 | **Chat Agent** | 18797 | Conversational HTTP server |
 | **Agent Mesh** | 4000 | Inter-agent communication (optional) |
 

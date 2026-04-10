@@ -13,6 +13,11 @@ export interface Skill {
   trigger?: string | string[];
   content: string;
   metadata?: Record<string, any>;
+  // agentskills.io standard fields (stored in metadata)
+  author?: string;
+  version?: string;
+  license?: string;
+  compatibility?: string;
 }
 
 // ============================================================================
@@ -35,11 +40,14 @@ export const SKILLIFY_PROMPT = `You are a skill creation assistant. Your job is 
 
 ## SKILL.md Format
 
-The generated file must follow this structure:
+The generated file must follow the agentskills.io standard with YAML frontmatter:
 
 ---
 name: [skill name]
-description: [short description]
+description: [short description, max 1024 chars]
+metadata:
+  author: duck-cli
+  version: "1.0.0"
 ---
 
 [Detailed instructions for executing the skill]
@@ -234,30 +242,35 @@ export const DEFAULT_SKILLS: Skill[] = [
     description: 'Create a new skill by interview',
     trigger: ['/skillify', 'create a skill'],
     content: SKILLIFY_PROMPT,
+    metadata: { author: 'duck-cli', version: '1.0.0' },
   },
   {
     name: 'simplify',
     description: 'Automated code review and cleanup',
     trigger: ['/simplify'],
     content: SIMPLIFY_SKILL_PROMPT,
+    metadata: { author: 'duck-cli', version: '1.0.0' },
   },
   {
     name: 'stuck',
     description: 'Help when blocked on a problem',
     trigger: ['/stuck', "i'm stuck", 'help debugging'],
     content: STUCK_SKILL_PROMPT,
+    metadata: { author: 'duck-cli', version: '1.0.0' },
   },
   {
     name: 'remember',
     description: 'Save information to memory',
     trigger: ['/remember', 'remember this'],
     content: REMEMBER_SKILL_PROMPT,
+    metadata: { author: 'duck-cli', version: '1.0.0' },
   },
   {
     name: 'update-config',
     description: 'Update agent configuration',
     trigger: ['/update-config', 'change setting'],
     content: UPDATE_CONFIG_SKILL_PROMPT,
+    metadata: { author: 'duck-cli', version: '1.0.0' },
   },
 ];
 

@@ -152,6 +152,7 @@ class JsonDatabase {
         }
         
         this._tables.set(name, table);
+        this._save(); // Persist immediately so CREATE TABLE survives restart
       }
     }
     

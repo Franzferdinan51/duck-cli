@@ -30,7 +30,7 @@ export class AgentCardManager {
     // Create default card
     return {
       name: 'duck-agent',
-      version: '0.4.0',
+      version: '0.6.1',
       description: 'Duck Agent - Multi-provider AI with KAIROS, Sub-Conscious, AI Council',
       capabilities: {
         streaming: true,

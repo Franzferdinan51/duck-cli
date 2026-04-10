@@ -6,6 +6,8 @@
 import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
+import { homedir } from 'os';
+import { DEFAULT_SKILLS as PROMPT_SKILLS } from '../prompts/skills.js';
 
 export interface Skill {
   name: string;
@@ -38,25 +40,64 @@ export class SkillRunner {
   }
 
   async load(): Promise<void> {
-    if (!existsSync(this.skillsDir)) {
-      return;
+    // Register built-in skills from prompts/skills.ts first
+    for (const promptSkill of PROMPT_SKILLS) {
+      if (!this.skills.has(promptSkill.name)) {
+        this.skills.set(promptSkill.name, {
+          name: promptSkill.name,
+          description: promptSkill.description,
+          triggers: Array.isArray(promptSkill.trigger)
+            ? promptSkill.trigger
+            : promptSkill.trigger ? [promptSkill.trigger] : [],
+          content: promptSkill.content,
+        });
+        console.log(`   + Skill(builtin): ${promptSkill.name}`);
+      }
     }
 
-    const entries = await readdir(this.skillsDir, { withFileTypes: true });
-    
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      
-      const skillPath = join(this.skillsDir, entry.name, 'SKILL.md');
-      if (!existsSync(skillPath)) continue;
+    const scanDirs: string[] = [this.skillsDir];
 
-      try {
-        const content = await readFile(skillPath, 'utf-8');
-        const skill = this.parseSkill(entry.name, content);
-        this.skills.set(skill.name, skill);
-        console.log(`   + Skill: ${skill.name}`);
-      } catch (e) {
-        // Skip invalid skills
+    // Also scan auto-created skills dir
+    const autoDir = join(homedir(), '.duck', 'skills', 'auto');
+    if (existsSync(autoDir) && !scanDirs.includes(autoDir)) {
+      scanDirs.push(autoDir);
+    }
+
+    // 🦆 Auto-discover skills from Duck workspace - picks up MiniMax skills, custom skills, etc.
+    const workspaceSkillsDir = join(homedir(), '.openclaw', 'workspace', 'skills');
+    if (existsSync(workspaceSkillsDir) && !scanDirs.includes(workspaceSkillsDir)) {
+      scanDirs.push(workspaceSkillsDir);
+    }
+
+    // Also scan duck-cli-src/skills for development
+    const srcSkillsDir = join(homedir(), '.openclaw', 'workspace', 'duck-cli-src', 'skills');
+    if (existsSync(srcSkillsDir) && !scanDirs.includes(srcSkillsDir)) {
+      scanDirs.push(srcSkillsDir);
+    }
+
+    for (const dir of scanDirs) {
+      if (!existsSync(dir)) continue;
+
+      const entries = await readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+
+        const skillPath = join(dir, entry.name, 'SKILL.md');
+        if (!existsSync(skillPath)) continue;
+
+        try {
+          const content = await readFile(skillPath, 'utf-8');
+          const skill = this.parseSkill(entry.name, content);
+          // Don't override manual skills with auto ones of same name
+          if (!this.skills.has(skill.name)) {
+            this.skills.set(skill.name, skill);
+            const tag = dir.includes('.duck') ? '(auto)' : '';
+            console.log(`   + Skill${tag}: ${skill.name}`);
+          }
+        } catch (e) {
+          // Skip invalid skills
+        }
       }
     }
   }
@@ -112,6 +153,44 @@ export class SkillRunner {
 
   list(): string[] {
     return Array.from(this.skills.keys());
+  }
+
+  /**
+   * Reload skills from disk without restarting the agent
+   * Clears existing file-based skills and re-scans directories
+   */
+  async reload(): Promise<void> {
+    // Keep built-in skills (registered first during load)
+    const builtinSkills = new Map(this.skills);
+    this.skills.clear();
+    // Restore built-in skills
+    for (const [name, skill] of builtinSkills) {
+      if (skill.content.includes('// builtin')) {
+        this.skills.set(name, skill);
+      }
+    }
+    // Re-scan and reload file-based skills
+    await this.load();
+    console.log(`   + Skills reloaded: ${this.skills.size} total`);
+  }
+
+  /**
+   * Register a new skill dynamically at runtime (agent-created skills)
+   */
+  registerSkill(skill: Skill): void {
+    this.skills.set(skill.name, skill);
+    console.log(`   + Skill(registered): ${skill.name}`);
+  }
+
+  /**
+   * Get skill by name - also searches by alias/trigger
+   */
+  getByNameOrTrigger(input: string): Skill | undefined {
+    // Try exact name match first
+    const exact = this.skills.get(input);
+    if (exact) return exact;
+    // Try trigger match
+    return this.find(input);
   }
 
   async execute(skillName: string, input: string): Promise<string> {

@@ -102,43 +102,54 @@ export class Subconscious {
   }
 
   /**
-   * Generate whispers for current context - WITH AI COUNCIL DELIBERATION
+   * Generate whispers for current context — WITH AI COUNCIL DELIBERATION.
+   * Each phase is isolated: rule-generation failure → returns [], council failure → returns original whispers.
    */
   async getWhispers(context: SessionContext): Promise<Whisper[]> {
     if (!this.enabled) return [];
-    
-    // Generate rule-based whispers first
-    const whispers = await this.whisper.generateWhispers(context);
-    
-    // Check if any whisper should trigger council deliberation
+
+    // Phase 1: Generate rule-based whispers — isolated so crash returns []
+    let whispers: Whisper[];
+    try {
+      whispers = await this.whisper.generateWhispers(context);
+    } catch (e: any) {
+      console.warn(`[Subconscious] Whisper generation failed: ${e.message}`);
+      whispers = [];
+    }
+
+    // Phase 2: Council deliberation — isolated per whisper so one failure doesn't block others
     for (const whisper of whispers) {
       if (this.council.shouldDeliberate(whisper)) {
         console.log(`[Subconscious] High-confidence whisper: ${whisper.type} (${whisper.confidence})`);
-        
-        // Deliberate with AI Council
-        const decision = await this.council.deliberate(
-          whisper.message,
-          context,
-          whisper.type
-        );
-        
-        if (decision) {
-          // Add council verdict as a special whisper
-          whispers.push({
-            type: 'council',
-            message: `COUNCIL: ${decision.verdict}`,
-            confidence: decision.confidence,
-            timestamp: new Date(),
-            metadata: {
-              reasoning: decision.reasoning,
-              councilors: decision.councilors,
-              duration: decision.duration
-            }
-          });
+
+        try {
+          const decision = await this.council.deliberate(
+            whisper.message,
+            context,
+            whisper.type
+          );
+
+          if (decision) {
+            // Add council verdict as a special whisper
+            whispers.push({
+              type: 'council',
+              message: `COUNCIL: ${decision.verdict}`,
+              confidence: decision.confidence,
+              timestamp: new Date(),
+              metadata: {
+                reasoning: decision.reasoning,
+                councilors: decision.councilors,
+                duration: decision.duration,
+              },
+            });
+          }
+        } catch (e: any) {
+          console.warn(`[Subconscious] Council deliberation failed for whisper "${whisper.type}": ${e.message}`);
+          // Continue to next whisper rather than abandoning the whole batch
         }
       }
     }
-    
+
     return whispers;
   }
 

@@ -1,0 +1,51 @@
+--- a/src/agent/chat-agent.ts
++++ b/src/agent/chat-agent.ts
+@@ -890,17 +890,40 @@ async function processMessage(
+   if (classification.useOrchestration) {
+     console.log(`[ChatAgent] Routing to orchestrator for complex task...`);
+     const orchResult = await processWithOrchestration(userId, message, {
+       overrideProvider,
+       overrideModel
+     });
+     
+-    if (orchResult.routed === 'meta' || orchResult.response) {
++    // Always use orchestration result if it returned a response
++    if (orchResult.response) {
+       session.addAssistant(orchResult.response);
+       await persistSessionToSubconscious(userId, session);
+       
+       return {
+         response: orchResult.response,
+-        routed: orchResult.routed,
++        routed: orchResult.routed === 'meta' ? 'meta' : 'direct',
+         provider: effectiveProvider,
+         model: effectiveModel,
+       };
+     }
+   }
+ 
++  // For fast/simple tasks, auto-spawn qwen3.5-0.8b if LM Studio available
++  if (complexity <= 2 && !overrideProvider && !overrideModel) {
++    const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
++    if (lmstudioAvailable) {
++      console.log(`[ChatAgent] Fast task detected - auto-spawning qwen3.5-0.8b (LM Studio)`);
++      try {
++        const fastResult = await chatComplete('lmstudio', 'qwen3.5-0.8b', chatContext, 'local');
++        session.addAssistant(fastResult.content);
++        await persistSessionToSubconscious(userId, session);
++        
++        return {
++          response: fastResult.content,
++          routed: 'direct',
++          provider: 'lmstudio',
++          model: 'qwen3.5-0.8b',
++        };
++      } catch (err) {
++        console.log(`[ChatAgent] qwen3.5-0.8b failed, falling back to default provider:`, err.message);
++        // Fall through to default provider
++      }
++    }
++  }
++
+   // Build context with whisper injection
+ 

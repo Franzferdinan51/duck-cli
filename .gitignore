@@ -18,3 +18,4 @@ duck
 duck.exe
 *.exe
 .env
+graphify-out/

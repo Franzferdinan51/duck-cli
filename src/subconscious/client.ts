@@ -196,6 +196,28 @@ export class SubconsciousClient extends EventEmitter {
   }
 
   /**
+   * Index a session transcript for cross-session FTS search
+   */
+  async indexSession(sessionId: string, transcript: string): Promise<{ status: string; sessionId: string; chars: number }> {
+    return this.request('/sessions/index', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, transcript }),
+    });
+  }
+
+  /**
+   * Search across all indexed session transcripts using TF-IDF
+   */
+  async searchSessions(query: string, limit = 10): Promise<{
+    results: { sessionId: string; score: number; snippet: string; createdAt: string }[];
+    count: number;
+    query: string;
+  }> {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    return this.request(`/sessions/search?${params.toString()}`);
+  }
+
+  /**
    * Get daemon URL
    */
   getDaemonUrl(): string {

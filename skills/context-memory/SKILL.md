@@ -1,6 +1,7 @@
 ---
 name: context-memory
 description: "Persistent semantic memory across sessions"
+license: MIT
 triggers:
   - "/remember"
   - "remember that"
@@ -8,6 +9,9 @@ triggers:
   - "context memory"
 bins:
   - sqlite3
+metadata:
+  author: duck-cli
+  version: "1.0"
 ---
 
 # Context Memory Skill

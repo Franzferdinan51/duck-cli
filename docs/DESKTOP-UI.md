@@ -1,13 +1,13 @@
-# 🖥️ Duck Agent Desktop UI — v0.4.0
+# 🖥️ Duck Agent Desktop UI — v2.0.0
 
-> **Duck Agent v0.4.0** — Native desktop application — NOW RUNNABLE
+> **Duck Agent v2.0.0** — Native desktop application — NOW RUNNABLE
 > Status: **✅ RUNNABLE** — Vite + React + CopilotKit + Pretext Canvas
 
 ---
 
 ## Overview
 
-**v0.4.0 makes the Desktop UI fully runnable!** Built from `src/ui/desktop/`, this is a Vite + React 19 + TypeScript application with CopilotKit chat and Pretext Canvas generative UI.
+**v2.0.0 keeps the Desktop UI fully runnable.** Built from `src/ui/desktop/`, this is a Vite + React 19 + TypeScript application with CopilotKit chat and Pretext Canvas generative UI.
 
 ```bash
 cd src/ui/desktop
@@ -229,7 +229,7 @@ npm run build
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ [≡]  Duck Agent v0.4.0                          [_] [□] [×]        │
+│ [≡]  Duck Agent v2.0.0                          [_] [□] [×]        │
 ├─────────────────────────────────────────────────────────────────────┤
 │ ┌─────────────┐ ┌───────────────────────────────────────────────┐ │
 │ │   SIDEBAR   │ │              MAIN CONTENT AREA                   │ │
@@ -263,4 +263,4 @@ npm run build
 ---
 
 **Last Updated:** 2026-03-31
-**Version:** v0.4.0 — **RUNNABLE**
+**Version:** v2.0.0 — **RUNNABLE**

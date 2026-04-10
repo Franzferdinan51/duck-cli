@@ -48,6 +48,7 @@ function createJsonDatabase() {
         if (match) {
           const name = match[1].toLowerCase();
           if (!this._tables[name]) this._tables[name] = [];
+          this._save(); // Persist immediately so CREATE TABLE survives restart
         }
       }
       return [];
@@ -95,6 +96,7 @@ function createJsonDatabase() {
       const row = {};
       cols.forEach((col, i) => { row[col] = p[i] !== undefined ? p[i] : null; });
       table.push(row);
+      this.db._save(); // Persist after insert/update/delete
       return { changes: 1, lastInsertRowid: table.length };
     }
     

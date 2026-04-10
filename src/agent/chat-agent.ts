@@ -16,13 +16,43 @@
 import http from 'http';
 import { Url } from 'url';
 import { ChatSession, getOrCreateSession } from './chat-session.js';
+import { processWithOrchestration, classifyTaskForOrchestration } from './chat-agent-orchestrator.js';
+import { getChatRouter, routeChatMessage, RoutingResult } from './chat-router.js';
 import { processWithCouncil } from '../council/chat-bridge.js';
 import { logger } from '../server/logger.js';
+import { SubconsciousClient } from '../subconscious/client.js';
+import { getClassifier, analyzeTask } from '../orchestrator/task-complexity.js';
+import { getRouter } from '../orchestrator/model-router.js';
+import { WhisperInjector } from '../subconscious/whisper-injector.js';
+import { ChatAgentModelRouter } from './chat-agent-model-router.js';
 
 // ---------------------------------------------------------------------------
 // Config - Multi-provider setup
 // ---------------------------------------------------------------------------
 const PORT = parseInt(process.env.DUCK_CHAT_PORT || '18797');
+
+// ---------------------------------------------------------------------------
+// Agent Identity
+// ---------------------------------------------------------------------------
+/**
+ * DUCK_CHAT_AGENT_ID — optional identifier for multi-agent mesh setups.
+ * When set, this ID is included in mesh broadcasts and health responses so
+ * other agents can distinguish this ChatAgent from siblings.
+ *
+ * Example: DUCK_CHAT_AGENT_ID=chat-primary ./duck chat-agent start
+ */
+const AGENT_IDENTITY = process.env.DUCK_CHAT_AGENT_ID || 'chat-agent';
+
+// ---------------------------------------------------------------------------
+// Whisper Injection (Letta-inspired)
+// ---------------------------------------------------------------------------
+const whisperInjector = new WhisperInjector({
+  mode: (process.env.WHISPER_MODE as any) || 'whisper',
+  maxWhisperLength: parseInt(process.env.WHISPER_MAX_LENGTH || '500'),
+  confidenceThreshold: parseFloat(process.env.WHISPER_CONFIDENCE || '0.7'),
+  injectBeforePrompt: true,
+  injectBeforeTool: true
+});
 
 // ---------------------------------------------------------------------------
 // Agent Mesh Integration (optional)
@@ -34,6 +64,63 @@ const AGENT_ID = 'ChatAgent';
 
 let meshRegistered = false;
 let registeredAgentId: string | null = null;
+let meshWs: any = null; // WebSocket for receiving mesh messages
+
+// Whisper routing: optional external webhook for high-confidence whispers
+const WHISPER_CALLBACK_URL = process.env.WHISPER_CALLBACK_URL; // e.g. OpenClaw gateway URL
+
+// ---------------------------------------------------------------------------
+// Sub-Conscious Integration (optional)
+// ---------------------------------------------------------------------------
+const SUBCONSCIOUS_ENABLED = process.env.SUBCONSCIOUS_ENABLED !== 'false'; // enabled by default
+let subconsciousClient: SubconsciousClient | null = null;
+
+/**
+ * Get or create Sub-Conscious client
+ */
+function getSubconsciousClient(): SubconsciousClient | null {
+  if (!SUBCONSCIOUS_ENABLED) return null;
+  if (!subconsciousClient) {
+    try {
+      subconsciousClient = new SubconsciousClient();
+    } catch (e) {
+      console.warn('[ChatAgent] Failed to create Sub-Conscious client:', e);
+      return null;
+    }
+  }
+  return subconsciousClient;
+}
+
+/**
+ * Send session transcript to Sub-Conscious daemon for persistence
+ */
+async function persistSessionToSubconscious(sessionId: string, session: ChatSession): Promise<void> {
+  const client = getSubconsciousClient();
+  if (!client) return;
+
+  try {
+    // Check if daemon is running
+    const isRunning = await client.ping().catch(() => false);
+    if (!isRunning) {
+      console.log('[ChatAgent] Sub-Conscious daemon not running, skipping persistence');
+      return;
+    }
+
+    // Convert session messages to transcript format
+    const transcript = session.getMessages().map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: new Date(m.timestamp).toISOString(),
+    }));
+
+    // Send to daemon for async analysis
+    await client.sendSession(sessionId, transcript, process.cwd());
+    console.log(`[ChatAgent] Session ${sessionId} sent to Sub-Conscious for analysis`);
+  } catch (e) {
+    // Non-fatal: don't break chat if subconscious fails
+    console.warn('[ChatAgent] Failed to persist session to Sub-Conscious:', e);
+  }
+}
 
 /**
  * Check if mesh is available (port 4000 open)
@@ -87,6 +174,8 @@ async function registerWithMesh(): Promise<void> {
       meshRegistered = true;
       registeredAgentId = data.agentId;
       console.log(`[Mesh] Registered as ${data.agentId}`);
+      // Now connect WebSocket to receive messages (true 2-way mesh)
+      connectMeshWebSocket();
     }
   } catch (err) {
     console.log(`[Mesh] Registration error: ${err.message}`);
@@ -142,8 +231,200 @@ async function sendWhisperAlert(alert: { type: string; message: string; confiden
   }
 }
 
+// ---------------------------------------------------------------------------
+// Mesh WebSocket Consumer — TRUE 2-WAY MESH
+// Enables duck-cli to RECEIVE messages from mesh (not just broadcast).
+// This completes the bidirectional channel after HTTP registration.
+// ---------------------------------------------------------------------------
+
+/**
+ * Connect WebSocket to agent-mesh-api for real-time message consumption.
+ * Call AFTER successful HTTP registration (registerWithMesh).
+ *
+ * This makes the chat-agent truly 2-way:
+ * - OUTBOUND: broadcasts, whisper alerts (existing)
+ * - INBOUND: incoming whispers, task delegations, system broadcasts (new)
+ */
+async function connectMeshWebSocket(): Promise<void> {
+  if (!meshRegistered || !registeredAgentId) {
+    console.log('[MeshWS] Not registered yet — skipping WebSocket connect');
+    return;
+  }
+
+  // Avoid duplicate connections
+  if (meshWs && meshWs.readyState === 1 /* OPEN */) {
+    return;
+  }
+
+  try {
+    const wsUrl = MESH_API_URL.replace('http', 'ws') + '/ws';
+    meshWs = new (require('ws'))(wsUrl + `?agentId=${registeredAgentId}`);
+
+    meshWs.on('open', () => {
+      console.log(`[MeshWS] ✅ Connected to mesh WebSocket`);
+    });
+
+    meshWs.on('message', (data: any) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        handleMeshMessage(msg);
+      } catch (e) {
+        console.log('[MeshWS] Failed to parse message:', e);
+      }
+    });
+
+    meshWs.on('close', () => {
+      console.log(`[MeshWS] ⚠️ WebSocket closed — will reconnect on next registration`);
+      meshWs = null;
+    });
+
+    meshWs.on('error', (err: any) => {
+      console.log(`[MeshWS] Error: ${err?.message || err}`);
+    });
+
+    console.log(`[MeshWS] Connecting to ${wsUrl}?agentId=${registeredAgentId}...`);
+  } catch (err) {
+    console.log(`[MeshWS] WebSocket not available (ws module may not be installed): ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/**
+ * Handle incoming mesh messages — routes by message type.
+ *
+ * INTERNAL messages (stay within duck-cli):
+ * - broadcast (system events) → log only
+ * - agent_joined / agent_left → log only
+ *
+ * EXTERNAL messages (route to user/OpenClaw):
+ * - whisper (high-confidence, confidence >= 0.7) → route to user
+ * - task-delegate → route to processMessage
+ *
+ * This separation keeps Telegram/public replies separate from
+ * internal bridge/meta/council traffic.
+ */
+function handleMeshMessage(msg: {
+  type?: string;
+  fromAgentId?: string;
+  content?: any;
+  event?: string;
+}): void {
+  const type = msg.type || msg.event;
+  const content = msg.content || msg;
+
+  switch (type) {
+    case 'whisper': {
+      // Whisper from Subconscious — route to user if high confidence
+      const whisper = content?.alert || content;
+      const confidence = whisper?.confidence ?? 0;
+      if (confidence >= 0.7) {
+        console.log(`[MeshWS] High-confidence whisper (${confidence}): ${whisper?.message}`);
+        routeWhisperToUser(whisper);
+      } else {
+        console.log(`[MeshWS] Low-confidence whisper (${confidence}): ${whisper?.message}`);
+      }
+      break;
+    }
+
+    case 'task-delegate': {
+      // Task delegation from another agent — process it
+      const task = content?.task || content;
+      const fromAgent = msg.fromAgentId || 'unknown';
+      console.log(`[MeshWS] Task delegate from ${fromAgent}: ${task?.substring(0, 80)}...`);
+      // Process as a new message (high complexity, go through full flow)
+      processMessage(`mesh-delegate-${fromAgent}`, task, undefined, undefined)
+        .then(result => {
+          console.log(`[MeshWS] Delegate task completed`);
+        })
+        .catch(err => {
+          console.error(`[MeshWS] Delegate task failed: ${err.message}`);
+        });
+      break;
+    }
+
+    case 'message_received': {
+      // Direct message from another agent — log it
+      const fromAgent = msg.fromAgentId || 'unknown';
+      console.log(`[MeshWS] Message from ${fromAgent}: ${JSON.stringify(content)?.substring(0, 100)}`);
+      break;
+    }
+
+    case 'agent_joined':
+    case 'agent_left':
+    case 'agent_updated': {
+      // System events — log for visibility, don't bother user
+      console.log(`[MeshWS] 🤝 ${type}: ${content?.name || msg.fromAgentId}`);
+      break;
+    }
+
+    case 'broadcast': {
+      // System broadcast — log for visibility
+      const fromAgent = msg.fromAgentId || 'system';
+      console.log(`[MeshWS] 📢 Broadcast from ${fromAgent}: ${JSON.stringify(content)?.substring(0, 100)}`);
+      break;
+    }
+
+    case 'health':
+    case 'catastrophe': {
+      // Health/catastrophe from mesh — forward to OpenClaw if configured
+      if (WHISPER_CALLBACK_URL) {
+        forwardToCallback(WHISPER_CALLBACK_URL, { type, content }).catch(() => {});
+      }
+      break;
+    }
+
+    default:
+      // Unknown message type — log but don't crash
+      console.log(`[MeshWS] Unknown message type "${type}": ${JSON.stringify(msg)?.substring(0, 100)}`);
+  }
+}
+
+/**
+ * Route high-confidence whisper to user.
+ * Sends to WHISPER_CALLBACK_URL if configured (e.g. OpenClaw gateway).
+ * Falls back to broadcasting to mesh so other agents can handle it.
+ */
+async function routeWhisperToUser(whisper: { type: string; message: string; confidence: number }): Promise<void> {
+  const payload = {
+    source: 'whisper',
+    whisper,
+    // Mark as internal meta/council traffic (not a direct user message)
+    _internal: true,
+  };
+
+  if (WHISPER_CALLBACK_URL) {
+    try {
+      await forwardToCallback(WHISPER_CALLBACK_URL, payload);
+      console.log(`[MeshWS] Whisper forwarded to callback: ${WHISPER_CALLBACK_URL}`);
+      return;
+    } catch (err) {
+      console.log(`[MeshWS] Whisper callback failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Fallback: broadcast to mesh so other agents can handle
+  await broadcastToMesh('whisper-to-user', payload);
+}
+
+/**
+ * Forward data to an external HTTP callback.
+ * Used for routing whispers and alerts to OpenClaw.
+ */
+async function forwardToCallback(url: string, data: any): Promise<void> {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Routing': 'duck-cli/whisper',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!resp.ok) {
+    throw new Error(`Callback ${resp.status}: ${await resp.text()}`);
+  }
+}
+
 // Provider config - loaded from environment
-const PROVIDER = process.env.DUCK_CHAT_PROVIDER || 'minimax';
+const PROVIDER = process.env.DUCK_CHAT_PROVIDER || 'lmstudio';
 const MODEL = process.env.DUCK_CHAT_MODEL || getDefaultModel(PROVIDER);
 // Try to load SOUL.md for richer system prompt
 function loadSoulPrompt(): string {
@@ -205,7 +486,7 @@ const MAX_CONTEXT_TOKENS = parseInt(process.env.DUCK_CHAT_MAX_CONTEXT || '16000'
 function getDefaultModel(provider: string): string {
   const defaults: Record<string, string> = {
     minimax: 'MiniMax-M2.7',
-    lmstudio: 'qwen3.5-0.8b',
+    lmstudio: 'google/gemma-4-26b-a4b',
     kimi: 'k2p5',
     openai: 'gpt-5.4',
     openrouter: 'qwen/qwen3.6-plus-preview:free',
@@ -355,38 +636,207 @@ async function chatComplete(
 }
 
 // ---------------------------------------------------------------------------
-// Task complexity scoring (0-10)
+// Task complexity scoring using Hybrid Orchestrator
 // ---------------------------------------------------------------------------
 function scoreComplexity(message: string): number {
-  const lower = message.toLowerCase();
-  let score = 1;
+  try {
+    const classifier = getClassifier();
+    const analysis = classifier.analyze(message);
+    return analysis.score;
+  } catch (e) {
+    // Fallback to simple scoring if classifier fails
+    const lower = message.toLowerCase();
+    let score = 1;
 
-  const complexKeywords = [
-    'build', 'create', 'implement', 'design', 'architect',
-    'research', 'analyze', 'compare', 'evaluate', 'investigate',
-    'multiple', 'several', 'complex', 'difficult',
-    'database', 'api', 'server', 'deployment', 'infrastructure',
-    'debug', 'refactor', 'migrate', 'integrate',
-    'planning', 'strategy', 'decision',
-  ];
-  const simpleKeywords = [
-    'hi', 'hello', 'hey', 'thanks', 'thank you',
-    'what is', 'who is', 'how do i', 'quick', 'simple',
-    'weather', 'time', 'date', 'remind', 'joke',
-    'define', 'explain', 'tell me about',
-  ];
+    const complexKeywords = [
+      'build', 'create', 'implement', 'design', 'architect',
+      'research', 'analyze', 'compare', 'evaluate', 'investigate',
+      'multiple', 'several', 'complex', 'difficult',
+      'database', 'api', 'server', 'deployment', 'infrastructure',
+      'debug', 'refactor', 'migrate', 'integrate',
+      'planning', 'strategy', 'decision',
+    ];
+    const simpleKeywords = [
+      'hi', 'hello', 'hey', 'thanks', 'thank you',
+      'what is', 'who is', 'how do i', 'quick', 'simple',
+      'weather', 'time', 'date', 'remind', 'joke',
+      'define', 'explain', 'tell me about',
+    ];
 
-  for (const kw of complexKeywords) {
-    if (lower.includes(kw)) score += 1;
+    for (const kw of complexKeywords) {
+      if (lower.includes(kw)) score += 1;
+    }
+    for (const kw of simpleKeywords) {
+      if (lower.includes(kw)) score -= 0.5;
+    }
+
+    if (message.length > 500) score += 1;
+    if (message.length > 2000) score += 2;
+
+    return Math.max(1, Math.min(10, Math.round(score)));
   }
-  for (const kw of simpleKeywords) {
-    if (lower.includes(kw)) score -= 0.5;
+}
+
+// ---------------------------------------------------------------------------
+// LM Studio Model Selection
+// qwen3.5-0.8b (or another fast local model) analyzes the task and picks
+// the best actually-loaded LM Studio model for the job.
+// ---------------------------------------------------------------------------
+
+interface LMStudioModel {
+  id: string;
+}
+
+async function getLoadedLMStudioModels(): Promise<LMStudioModel[]> {
+  const baseUrl = process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL || 'http://127.0.0.1:1234';
+  const apiKey = process.env.LMSTUDIO_API_KEY || process.env.LMSTUDIO_KEY || '';
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey && apiKey !== 'local') headers['Authorization'] = `Bearer ${apiKey}`;
+    const resp = await fetch(`${baseUrl}/v1/models`, { headers });
+    if (!resp.ok) return [];
+    const data = await resp.json() as any;
+    return (data.data || []).map((m: any) => ({ id: m.id }));
+  } catch {
+    return [];
+  }
+}
+
+function getLMStudioSelectorModel(available: string[]): string {
+  const preferred = ['qwen3.5-0.8b', 'gemma-4-e4b-it', 'gemma-4-e2b-it', 'qwen3.5-2b-claude-4.6-opus-reasoning-distilled', 'jan-v3.5-4b'];
+  for (const p of preferred) {
+    if (available.includes(p)) return p;
+  }
+  return available[0] || 'qwen3.5-0.8b';
+}
+
+async function selectBestLMStudioModel(
+  task: string,
+  availableModels: string[],
+  selectorModel: string
+): Promise<string | null> {
+  if (availableModels.length === 0) return null;
+  if (availableModels.length === 1) return availableModels[0];
+
+  const baseUrl = process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL || 'http://127.0.0.1:1234';
+  const apiKey = process.env.LMSTUDIO_API_KEY || process.env.LMSTUDIO_KEY || '';
+
+function inferModelDescription(id: string): string {
+  const lower = id.toLowerCase();
+  const parts: string[] = [];
+
+  // Size heuristic
+  const sizeMatch = lower.match(/(\d+)(\.\d+)?\s*[bm]\b/);
+  let size = 0;
+  if (sizeMatch) {
+    const val = parseFloat(sizeMatch[1] + (sizeMatch[2] || ''));
+    const unit = lower.includes('b') && !lower.includes('.') && val > 100 ? 'M' : (lower.includes('m') ? 'M' : 'B');
+    if (unit === 'B' || val < 1) size = val * 1000;
+    else size = val;
   }
 
-  if (message.length > 500) score += 1;
-  if (message.length > 2000) score += 2;
+  if (size > 0) {
+    if (size < 2000) parts.push(`${size}M parameter model`);
+    else parts.push(`${Math.round(size / 1000)}B parameter model`);
+  }
 
-  return Math.max(1, Math.min(10, Math.round(score)));
+  // Family
+  if (lower.includes('gemma')) parts.push('Gemma family');
+  else if (lower.includes('qwen')) parts.push('Qwen family');
+  else if (lower.includes('llama')) parts.push('Llama family');
+  else if (lower.includes('mistral')) parts.push('Mistral family');
+  else if (lower.includes('phi')) parts.push('Phi family');
+
+  // Capabilities
+  if (lower.includes('vision') || lower.includes('multimodal') || lower.includes('vl')) parts.push('supports vision');
+  if (lower.includes('code')) parts.push('coding-focused');
+  if (lower.includes('reasoning') || lower.includes('reason')) parts.push('reasoning-enhanced');
+  if (lower.includes('distill')) parts.push('distilled');
+  if (lower.includes('instruct') || lower.includes('-it')) parts.push('instruction-tuned');
+  if (lower.includes('tool')) parts.push('tool-calling');
+  if (lower.includes('MLX')) parts.push('MLX-optimized for Apple Silicon');
+
+  // Speed/quality heuristic
+  if (size > 0 && size < 3000) parts.push('fast, lightweight');
+  else if (size >= 3000 && size < 15000) parts.push('good balance of speed and quality');
+  else if (size >= 15000) parts.push('high quality, slower');
+
+  if (parts.length === 0) return 'General-purpose local model.';
+  return parts.join('. ') + '.';
+}
+
+  const modelDescriptions: Record<string, string> = {
+    'google/gemma-4-26b-a4b': 'Large Gemma 4 vision/reasoning model (26B). Best for complex analysis, vision, coding.',
+    'gemma-4-e4b-it': 'Tiny Gemma 4 (4B) with tool-calling. Trained for Android dev, fast execution, vision.',
+    'qwen3.5-27b-claude-4.6-opus-distilled-mlx': 'Large Qwen 27B distilled with Claude reasoning. Best for deep reasoning, coding, writing.',
+    'google/gemma-3n-e4b': 'Small Gemma vision/model. Fast, multimodal.',
+    'qwen35-9b-mlx-turboquant-tq3': 'Fast Qwen 9B quantized. Good balance of speed and quality.',
+    'foundation-sec-8b-reasoning': 'Security-focused 8B reasoning model. Best for security audits, threat analysis.',
+    'qwen3.5-2b-claude-4.6-opus-reasoning-distilled': 'Tiny 2B distilled reasoning model. Fast answers, light analysis.',
+    'gemma-4-e2b-it': 'Very small Gemma 4 (2B). Ultra-fast, good for simple classification and routing.',
+    'qwen3.5-0.8b': 'Ultra-tiny 0.8B. Fastest possible response. Best for greeting, classification, routing only.',
+    'gemma-4-26b-a4b-it': 'Large Gemma 4 instruction-tuned (26B). Great for writing, reasoning, conversation.',
+    'gemma-4-31b-it': 'Very large Gemma 4 (31B). Premium quality for hardest tasks.',
+    'jan-v3.5-4b': 'Small 4B general model. Fast, decent quality.',
+    'qwen/qwen3.5-9b': 'Standard Qwen 9B. Good all-rounder with native multimodal vision.',
+    'qwen3.5-9b-mlx': 'MLX-optimized Qwen 9B. Fast local inference with vision.',
+    'qwen3.5-9b-gemini-3.1-pro-reasoning-distill': 'Distilled Qwen 9B with reasoning. Strong coding and math.',
+    'gemma-4-e4b-gemini-3.1-pro-reasoning-distill': 'Distilled Gemma 4 with reasoning. Fast and smart.',
+    'nvidia/nemotron-3-nano-4b': 'Small NVIDIA model. Good for classification and extraction.',
+    'jan-code-4b': 'Small coding model. Fast code generation and debugging.',
+    'ui-tars-1.5-7b': 'GUI automation / computer-use model. Best for desktop control and UI interaction.',
+    'qwen3.5-27b': 'Large Qwen 27B. High quality general purpose.',
+    'qwopus3.5-27b-v3': 'Massive 27B model. Best for hardest reasoning tasks.',
+    'medina-qwen3.5-27b-openclaw-merged': 'Custom merged 27B model. Strong general performance.',
+  };
+
+  const descLines = availableModels.map(id => {
+    const d = modelDescriptions[id] || inferModelDescription(id);
+    return `- ${id}: ${d}`;
+  }).join('\n');
+
+  const prompt = `You are a model router. Given a user task and a list of available local LM Studio models, pick the SINGLE best model for the job.
+
+Available models:
+${descLines}
+
+User task: "${task.replace(/"/g, '\\"')}"
+
+Respond with ONLY the model ID (e.g., "gemma-4-e4b-it"). No explanation. Just the model id.`;
+
+  try {
+    const url = `${baseUrl}/v1/chat/completions`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey && apiKey !== 'local') headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: selectorModel,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false,
+        temperature: 0.0,
+        max_tokens: 64,
+      }),
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json() as any;
+    const raw = data.choices?.[0]?.message?.content?.trim() || '';
+
+    // Extract model id from response
+    const clean = raw.replace(/^["']|["']$/g, '').trim();
+    const match = availableModels.find(m => clean.includes(m));
+    if (match) {
+      console.log(`[ChatAgent] LM Studio model selector chose: ${match} (selector: ${selectorModel})`);
+      return match;
+    }
+    return null;
+  } catch (err: any) {
+    console.log(`[ChatAgent] Model selection failed:`, err.message);
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -395,29 +845,87 @@ function scoreComplexity(message: string): number {
 async function routeToMetaAgent(task: string): Promise<string> {
   return new Promise((resolve) => {
     const { spawn } = require('child_process');
-    const child = spawn('./duck', ['meta', 'run', task], {
-      cwd: process.cwd(),
+    const { join } = require('path');
+    const duckBin = process.env.DUCK_CLI_PATH
+      || (process.env.DUCK_SOURCE_DIR ? join(process.env.DUCK_SOURCE_DIR, 'duck') : './duck');
+    const timeoutMs = parseInt(process.env.DUCK_META_TIMEOUT_MS || '300000', 10);
+
+    const child = spawn(duckBin, ['meta', 'run', task], {
+      cwd: process.env.DUCK_SOURCE_DIR || process.cwd(),
       env: { ...process.env },
     });
 
     let output = '';
+    let finished = false;
+    const finish = (text: string) => {
+      if (finished) return;
+      finished = true;
+      resolve(text);
+    };
+
     child.stdout.on('data', (data: Buffer) => { output += data.toString(); });
     child.stderr.on('data', (data: Buffer) => { output += data.toString(); });
 
     child.on('close', (code: number) => {
-      resolve(output || `[MetaAgent exited with code ${code}]`);
+      finish(output || `[MetaAgent exited with code ${code}]`);
     });
 
     setTimeout(() => {
-      child.kill();
-      resolve('[MetaAgent timeout after 120s]');
-    }, 120000);
+      try { child.kill('SIGTERM'); } catch {}
+      setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+      }, 3000);
+      finish(`[MetaAgent timeout after ${Math.round(timeoutMs / 1000)}s]`);
+    }, timeoutMs);
   });
 }
 
 // ---------------------------------------------------------------------------
-// Process a single chat message
+// Process a single chat message - ENHANCED with ChatRouter
 // ---------------------------------------------------------------------------
+/**
+ * Task-aware provider routing for medium+ complexity tasks.
+ * Gives high-complexity tasks access to the full provider ecosystem.
+ */
+function routeByTaskType(message: string, complexity: number, availableProviders: string[]): { provider: string; model: string; reason: string } | null {
+  const lower = message.toLowerCase();
+
+  // Vision tasks
+  if ((lower.includes('image') || lower.includes('screenshot') || lower.includes('picture') ||
+       lower.includes('vision') || lower.includes('photo') || lower.includes('look at')) &&
+      availableProviders.includes('kimi')) {
+    return { provider: 'kimi', model: 'k2p5', reason: 'Vision required' };
+  }
+
+  // Coding tasks
+  if ((lower.includes('code') || lower.includes('programming') || lower.includes('debug') ||
+       lower.includes('bug') || lower.includes('function') || lower.includes('script') || lower.includes('implement')) &&
+      availableProviders.includes('minimax')) {
+    return { provider: 'minimax', model: 'glm-5', reason: 'Coding task' };
+  }
+
+  // Analysis / reasoning tasks
+  if ((lower.includes('security') || lower.includes('audit') || lower.includes('vulnerability') ||
+       lower.includes('analyze') || lower.includes('compare') || lower.includes('should i') || lower.includes('pros and cons')) &&
+      availableProviders.includes('minimax')) {
+    return { provider: 'minimax', model: 'MiniMax-M2.7', reason: 'Analysis/reasoning task' };
+  }
+
+  // Android / mobile tasks
+  if (lower.includes('android') || lower.includes('adb') || lower.includes('phone') ||
+      lower.includes('screen tap') || lower.includes('swipe')) {
+    return { provider: 'lmstudio', model: 'gemma-4-e4b-it', reason: 'Android task' };
+  }
+
+  // High complexity generic tasks
+  if (complexity >= 4 && availableProviders.includes('minimax')) {
+    return { provider: 'minimax', model: 'MiniMax-M2.7', reason: 'High complexity' };
+  }
+
+  // No specialist match - use default
+  return null;
+}
+
 async function processMessage(
   userId: string, 
   message: string,
@@ -425,7 +933,7 @@ async function processMessage(
   overrideModel?: string
 ): Promise<{ 
   response: string; 
-  routed: 'direct' | 'meta' | 'council_rejected' | 'council_modified'; 
+  routed: 'direct' | 'meta' | 'council' | 'council_rejected' | 'fast' | 'error'; 
   council?: any;
   provider?: string;
   model?: string;
@@ -434,8 +942,8 @@ async function processMessage(
   const apiKey = getApiKey(PROVIDER);
   
   // Allow runtime override
-  const effectiveProvider = overrideProvider || PROVIDER;
-  const effectiveModel = overrideModel || MODEL;
+  let effectiveProvider = overrideProvider || PROVIDER;
+  let effectiveModel = overrideModel || MODEL;
 
   // Add user message
   session.addUser(message);
@@ -445,43 +953,165 @@ async function processMessage(
     session.addSystem(SYSTEM_PROMPT);
   }
 
-  const complexity = scoreComplexity(message);
-  const context = session.getContext(MAX_CONTEXT_TOKENS);
-
-  // === AI COUNCIL DELIBERATION (before execution) ===
-  // Use MiniMax for council (or configured council provider)
-  const councilApiKey = process.env.MINIMAX_API_KEY || apiKey;
-  if (councilApiKey) {
-    const councilResult = await processWithCouncil(userId, message, complexity, councilApiKey);
+  // === WHISPER INJECTION (Letta-inspired) ===
+  // Get contextual guidance from Sub-Conscious before processing
+  let whisperContext = '';
+  try {
+    const recentHistory = session.getMessages().slice(-5).map((m: any) => m.content);
+    const whisperResult = await whisperInjector.getPromptWhisper({
+      sessionId: userId,
+      message,
+      recentHistory
+    });
     
-    if (councilResult.routed === 'council_rejected') {
-      return { 
-        response: councilResult.response, 
-        routed: 'council_rejected', 
-        council: councilResult.council,
+    if (whisperResult.whisper && whisperResult.confidence >= whisperInjector['config'].confidenceThreshold) {
+      whisperContext = whisperInjector.formatWhisper(whisperResult.whisper);
+      console.log(`[ChatAgent] 🧠 Whisper injected (confidence: ${whisperResult.confidence.toFixed(2)})`);
+    }
+  } catch (e) {
+    // Non-fatal: continue without whisper
+    console.log('[ChatAgent] Whisper injection failed:', e);
+  }
+
+  const complexity = scoreComplexity(message);
+
+  // Tool supervision: detect and broadcast tool calls for monitoring
+  const toolCallMatches = (message.match(/\[Tool\s+(\w+)/g) || []);
+  if (toolCallMatches.length > 0) {
+    broadcastToMesh('tool-supervision', { event: 'tool-calls-detected', count: toolCallMatches.length, tools: toolCallMatches });
+  }
+  
+  // === ORCHESTRATOR INTEGRATION (FIRST) ===
+  // Meta Agent Orchestrator decides routing, including if AI Council is needed
+  const context = {
+    messageCount: session.size(),
+    hasToolCalls: session.getMessages().some((m: any) => 
+      m.content.includes('[Tool') || m.content.includes('tool_call')
+    )
+  };
+  const classification = classifyTaskForOrchestration(message, context);
+  
+  console.log(`[ChatAgent] Task classified: complexity=${classification.complexity}, orchestration=${classification.useOrchestration}, reason="${classification.reason}"`);
+  
+  // Use orchestration for complex tasks - orchestrator decides on AI Council
+  if (classification.useOrchestration) {
+    console.log(`[ChatAgent] Routing to Meta Agent orchestrator for complex task...`);
+    const orchResult = await processWithOrchestration(userId, message, {
+      overrideProvider,
+      overrideModel
+    });
+    
+    if (orchResult.response) {
+      session.addAssistant(orchResult.response);
+      await persistSessionToSubconscious(userId, session);
+      
+      return {
+        response: orchResult.response,
+        routed: orchResult.routed === 'meta' ? 'meta' : 'direct',
         provider: effectiveProvider,
         model: effectiveModel,
       };
     }
-    
-    if (councilResult.routed === 'council_modified') {
-      return { 
-        response: councilResult.response, 
-        routed: 'council_modified', 
-        council: councilResult.council,
-        provider: effectiveProvider,
-        model: effectiveModel,
-      };
+    // If orchestrator returns no response, fall through to normal flow
+  }
+  
+  // Build context with whisper injection
+  let chatContext = session.getContext(MAX_CONTEXT_TOKENS);
+
+  // === LM STUDIO FAST PATH: Model selection before execution ===
+  // For trivial tasks only, ask a lightweight LM Studio model to pick the BEST
+  // small model for the job. Higher complexity tasks get routed to the full provider ecosystem.
+  if (complexity <= 1 && !overrideProvider && !overrideModel) {
+    const lmstudioAvailable = process.env.LMSTUDIO_URL || process.env.LMSTUDIO_BASE_URL;
+    if (lmstudioAvailable) {
+      try {
+        const loadedModels = await getLoadedLMStudioModels();
+        if (loadedModels.length > 0) {
+          const availableIds = loadedModels.map(m => m.id);
+          const selectorModel = getLMStudioSelectorModel(availableIds);
+          console.log(`[ChatAgent] LM Studio fast path: asking ${selectorModel} to pick best model for task...`);
+
+          const bestModel = await selectBestLMStudioModel(message, availableIds, selectorModel);
+          const targetModel = bestModel || selectorModel;
+
+          console.log(`[ChatAgent] Using LM Studio model: ${targetModel}`);
+          const fastResult = await chatComplete('lmstudio', targetModel, chatContext, getApiKey('lmstudio'));
+          session.addAssistant(fastResult.content);
+          await persistSessionToSubconscious(userId, session);
+
+          return {
+            response: fastResult.content,
+            routed: 'direct',
+            provider: 'lmstudio',
+            model: targetModel,
+          };
+        }
+      } catch (err: any) {
+        console.log(`[ChatAgent] LM Studio fast path failed, falling back to default provider:`, err.message);
+        // Fall through to default provider
+      }
     }
   }
 
+  // === TASK-AWARE ROUTING: Medium+ complexity gets access to all providers ===
+  if (!overrideProvider && !overrideModel) {
+    const availableProviders = Object.keys({
+      minimax: process.env.MINIMAX_API_KEY,
+      kimi: process.env.KIMI_API_KEY,
+      openai: process.env.OPENAI_API_KEY,
+      openrouter: process.env.OPENROUTER_API_KEY,
+      lmstudio: process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL,
+    }).filter(p => {
+      if (p === 'lmstudio') return !!process.env.LMSTUDIO_BASE_URL || !!process.env.LMSTUDIO_URL;
+      return !!process.env[`${p.toUpperCase()}_API_KEY`];
+    });
+
+    const taskRoute = routeByTaskType(message, complexity, availableProviders);
+    if (taskRoute) {
+      effectiveProvider = taskRoute.provider;
+      effectiveModel = taskRoute.model;
+      console.log(`[ChatAgent] Task-aware routing: ${taskRoute.provider}/${taskRoute.model} — ${taskRoute.reason}`);
+    }
+  }
+  
+  // Inject whisper into system message if present
+  if (whisperContext && chatContext.length > 0 && chatContext[0].role === 'system') {
+    chatContext[0].content = chatContext[0].content + whisperContext;
+  } else if (whisperContext) {
+    // Prepend as system message
+    chatContext.unshift({ role: 'system', content: whisperContext });
+  }
+
+  // === FAST PATH: Low-complexity tasks skip council deliberation ===
+  // Score 1-2 = simple greetings/facts — no need to burden the council
+  const FAST_PATH_THRESHOLD = 1; // Lowered from 2 to ensure more tasks get proper routing
+  const isFastPath = complexity <= FAST_PATH_THRESHOLD;
+
+  // === META-AGENT ORCHESTRATION THRESHOLD ===
+  // Lowered from 7 to 4 so more tasks get proper orchestration
+  // Tasks with complexity >= 4 should use MetaAgent for better planning
+  const META_AGENT_THRESHOLD = 4;
+
+  // === AI COUNCIL TOOL (callable by Chat Agent or Meta Agent) ===
+  // AI Council is a deliberation tool for complex/ethical decisions
+  // It's NOT a sequential step - it's a resource that can be invoked
+  // Both Chat Agent and Meta Agent can call councilDeliberate() when needed
+  //
+  // Usage:
+  //   - Chat Agent: Direct call for user questions needing deliberation
+  //   - Meta Agent: Tool call during complex task execution
+  //   - Both: Access via council tool in tool registry
+  //
+  // Note: Council deliberation is expensive (multi-model, ~2-3s latency)
+  // Use sparingly for high-stakes decisions only
+
   // Broadcast task-queued to mesh for complex tasks
-  if (complexity >= 7) {
+  if (complexity >= META_AGENT_THRESHOLD) {
     broadcastToMesh('task-queued', { prompt: message, complexity });
   }
 
   // Route complex tasks to MetaAgent
-  if (complexity >= 7 && apiKey) {
+  if (complexity >= META_AGENT_THRESHOLD && apiKey) {
     try {
       const result = await routeToMetaAgent(message);
       
@@ -489,6 +1119,10 @@ async function processMessage(
       broadcastToMesh('task-completed', { prompt: message, complexity, routed: 'meta' });
       
       session.addAssistant(result);
+      
+      // Persist session to Sub-Conscious for long-term memory
+      await persistSessionToSubconscious(userId, session);
+      
       return { 
         response: result, 
         routed: 'meta',
@@ -502,7 +1136,7 @@ async function processMessage(
   }
 
   // For complex tasks that fell back to direct (no apiKey), broadcast completion
-  if (complexity >= 7) {
+  if (complexity >= META_AGENT_THRESHOLD) {
     broadcastToMesh('task-completed', { prompt: message, complexity, routed: 'direct' });
   }
 
@@ -519,8 +1153,12 @@ async function processMessage(
   }
 
   try {
-    const result = await chatComplete(effectiveProvider, effectiveModel, context, apiKey);
+    const result = await chatComplete(effectiveProvider, effectiveModel, chatContext, apiKey);
     session.addAssistant(result.content);
+    
+    // Persist session to Sub-Conscious for long-term memory
+    await persistSessionToSubconscious(userId, session);
+    
     return { 
       response: result.content, 
       routed: 'direct',
@@ -528,10 +1166,35 @@ async function processMessage(
       model: result.model,
     };
   } catch (err) {
-    console.error(`[ChatAgent] ${effectiveProvider} error:`, err);
-    const errorMsg = `🦆 Oops, something went wrong with ${effectiveProvider}: ${err.message}`;
-    session.addAssistant(errorMsg);
-    return { response: errorMsg, routed: 'direct', provider: effectiveProvider, model: effectiveModel };
+    // Classify error type for helpful error messages and potential retry logic
+    const errorMsg = err.message || String(err);
+    const isRateLimit = errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('Rate limit');
+    const isServerError = /\b5\d{2}\b/.test(errorMsg); // 500-599
+    const isAuthError = errorMsg.includes('401') || errorMsg.includes('403') || errorMsg.includes('unauthorized') || errorMsg.includes('Forbidden');
+    const isTimeout = errorMsg.includes('timeout') || errorMsg.includes('timed out');
+    const isNetworkError = errorMsg.includes('network') || errorMsg.includes('ECONNREFUSED') || errorMsg.includes('ENOTFOUND');
+
+    let action = '';
+    if (isRateLimit) {
+      action = `\n\n💡 Tip: Rate limit hit. Wait a moment and try again, or switch providers with POST /providers/switch.`;
+    } else if (isServerError) {
+      action = `\n\n💡 Tip: ${effectiveProvider} server issue. Try again shortly or use a different provider.`;
+    } else if (isAuthError) {
+      action = `\n\n💡 Tip: Auth failed for ${effectiveProvider}. Check your API key in the environment.`;
+    } else if (isTimeout) {
+      action = `\n\n💡 Tip: Request timed out. Try a smaller context or a faster model.`;
+    } else if (isNetworkError) {
+      action = `\n\n💡 Tip: Network error. Check your internet connection or try a different provider.`;
+    }
+
+    console.error(`[ChatAgent] ${effectiveProvider} error [rate_limit=${isRateLimit} server=${isServerError} auth=${isAuthError}]:`, err);
+    const fullErrorMsg = `🦆 Oops, something went wrong with ${effectiveProvider}: ${err.message}${action}`;
+    session.addAssistant(fullErrorMsg);
+    
+    // Persist session to Sub-Conscious even on error (for debugging)
+    await persistSessionToSubconscious(userId, session);
+    
+    return { response: fullErrorMsg, routed: 'direct', provider: effectiveProvider, model: effectiveModel };
   }
 }
 
@@ -540,7 +1203,7 @@ async function processMessage(
 // ---------------------------------------------------------------------------
 function startServer(port: number) {
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, `http://localhost:${port}`);
+    const url = new URL(req.url || '/', `http://localhost:${port}`);
     const pathname = url.pathname;
 
     // CORS
@@ -557,7 +1220,13 @@ function startServer(port: number) {
     // Logger status endpoints
     if (req.method === 'GET' && pathname === '/health') {
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(logger.getHealth()));
+      res.end(JSON.stringify({
+        ...logger.getHealth(),
+        agentId: AGENT_IDENTITY,
+        port: PORT,
+        meshRegistered,
+        whisperInjectorMode: whisperInjector.config.mode,
+      }));
       return;
     }
     if (req.method === 'GET' && pathname === '/logs') {
@@ -749,6 +1418,85 @@ function startServer(port: number) {
       return;
     }
 
+    // GET /council/cache - Get council deliberation cache stats
+    if (req.method === 'GET' && pathname === '/council/cache') {
+      const { getCouncilCacheStats, clearCouncilCache } = require('../council/chat-bridge.js');
+      const stats = getCouncilCacheStats();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        cacheSize: stats.size,
+        ttlMs: stats.ttlMs,
+        note: 'Cache TTL prevents redundant council deliberations for similar queries',
+      }));
+      return;
+    }
+
+    // POST /council/cache/clear - Clear council deliberation cache
+    if (req.method === 'POST' && pathname === '/council/cache/clear') {
+      const { clearCouncilCache } = require('../council/chat-bridge.js');
+      clearCouncilCache();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, message: 'Council cache cleared' }));
+      return;
+    }
+
+
+    // ---- Command & Control endpoint ----
+    // POST /control { action: "shutdown" | "restart" | "status" | "stats" }
+    if (req.method === 'POST' && pathname === '/control') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { action } = JSON.parse(body);
+          if (!action) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'action required: shutdown | restart | status | stats' }));
+            return;
+          }
+          if (action === 'stats') {
+            const sessions = require('./chat-session.js');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+              agentId: AGENT_IDENTITY,
+              meshRegistered,
+              registeredAgentId,
+              sessionCount: sessions.listSessions().length,
+              whisperMode: whisperInjector.config.mode,
+              whisperConfidence: whisperInjector.config.confidenceThreshold,
+              providers: { current: PROVIDER, model: MODEL },
+            }));
+            return;
+          }
+          if (action === 'status') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ agentId: AGENT_IDENTITY, status: 'running', port: PORT, meshRegistered, uptime: process.uptime() }));
+            return;
+          }
+          if (action === 'shutdown') {
+            console.log('[ChatAgent] Shutdown requested via /control');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, message: 'Shutting down...' }));
+            setTimeout(() => process.exit(0), 500);
+            return;
+          }
+          if (action === 'restart') {
+            console.log('[ChatAgent] Restart requested via /control');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, message: 'Restarting...' }));
+            setTimeout(() => process.exit(42), 500);
+            return;
+          }
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Unknown action: \${action}` }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
     // POST /mesh/whisper - Receive whisper alerts from Subconscious via mesh
     if (req.method === 'POST' && pathname === '/mesh/whisper') {
       let body = '';
@@ -781,6 +1529,7 @@ function startServer(port: number) {
     // Health check
     if (req.method === 'GET' && (pathname === '/health' || pathname === '/')) {
       const apiKey = getApiKey(PROVIDER);
+      const wsConnected = meshWs && meshWs.readyState === 1;
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
@@ -791,6 +1540,7 @@ function startServer(port: number) {
         model: MODEL,
         apiKeyConfigured: !!apiKey,
         meshRegistered,
+        meshWsConnected: wsConnected,
         meshEnabled: MESH_ENABLED,
         endpoints: {
           'POST /chat': 'Send message',
@@ -807,6 +1557,7 @@ function startServer(port: number) {
           env_vars: 'DUCK_CHAT_PROVIDER, DUCK_CHAT_MODEL, DUCK_CHAT_MAX_CONTEXT',
           header_override: 'X-Provider, X-Model',
           runtime_switch: 'POST /providers/switch',
+          whisper_routing: 'WHISPER_CALLBACK_URL env var routes high-confidence whispers',
         },
       }));
       return;
@@ -860,15 +1611,26 @@ export async function startChatAgent(port: number = PORT) {
   
   const server = startServer(port);
 
-  process.on('SIGINT', () => {
+  process.once('SIGINT', () => {
     console.log('\n🦆 Shutting down...');
+    if (meshWs) {
+      meshWs.close();
+      meshWs = null;
+    }
     server.close();
     process.exit(0);
   });
-  process.on('SIGTERM', () => {
+  process.once('SIGTERM', () => {
+    if (meshWs) {
+      meshWs.close();
+      meshWs = null;
+    }
     server.close();
     process.exit(0);
   });
 }
 
 export { processMessage, scoreComplexity, chatComplete, getApiKey, getBaseUrl };
+
+// Additional exports for bridge integration
+export { connectMeshWebSocket, handleMeshMessage, routeWhisperToUser };

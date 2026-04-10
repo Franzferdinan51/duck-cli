@@ -3,7 +3,9 @@
  * Brings in council deliberation for complex subconscious decisions
  */
 
+import { EventEmitter } from 'events';
 import { SubconsciousConfig, Whisper, CouncilDecision, SessionContext } from './types.js';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 
 interface CouncilBridgeConfig {
   enabled: boolean;
@@ -23,12 +25,13 @@ const DEFAULT_COUNCIL_CONFIG: CouncilBridgeConfig = {
   timeout: 30000
 };
 
-export class CouncilBridge {
+export class CouncilBridge extends EventEmitter {
   private config: CouncilBridgeConfig;
   private recentDecisions: CouncilDecision[] = [];
   private deliberationCount = 0;
 
   constructor(config: Partial<CouncilBridgeConfig> = {}) {
+    super();
     this.config = { ...DEFAULT_COUNCIL_CONFIG, ...config };
   }
 
@@ -43,7 +46,7 @@ export class CouncilBridge {
   }
 
   /**
-   * Deliberate with the AI Council on a complex issue
+   * Deliberate with the AI Council on a complex issue — with retry + exponential backoff
    */
   async deliberate(
     topic: string,
@@ -56,55 +59,91 @@ export class CouncilBridge {
 
     console.log(`[CouncilBridge] Deliberating on: ${whisperType} - "${topic.substring(0, 50)}..."`);
 
-    try {
-      const startTime = Date.now();
-      
-      // Build council prompt
-      const prompt = this.buildCouncilPrompt(topic, context, whisperType);
-      
-      // Call AI Council API
-      const response = await fetch(this.config.councilUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: prompt,
-          mode: this.config.mode
-        }),
-        signal: AbortSignal.timeout(this.config.timeout)
-      });
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
-      if (!response.ok) {
-        throw new Error(`Council API error: ${response.status}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const startTime = Date.now();
+        const prompt = this.buildCouncilPrompt(topic, context, whisperType);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+        const response = await fetch(this.config.councilUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: prompt, mode: this.config.mode }),
+          signal: controller.signal as any,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Council API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const duration = Date.now() - startTime;
+
+        const decision: CouncilDecision = {
+          topic,
+          verdict: data.verdict || this.synthesizeVerdict(data),
+          confidence: data.confidence || whisperType === 'pattern' ? 0.85 : 0.75,
+          reasoning: data.reasoning || this.extractReasoning(data),
+          councilors: this.extractCouncilors(data),
+          duration,
+          timestamp: new Date(),
+        };
+
+        this.recentDecisions.push(decision);
+        this.deliberationCount++;
+
+        if (this.recentDecisions.length > 10) {
+          this.recentDecisions.shift();
+        }
+
+        console.log(`[CouncilBridge] Verdict: ${decision.verdict} (${decision.confidence}% confidence)`);
+        return decision;
+
+      } catch (error: any) {
+        lastError = error;
+        const isAbort = error?.name === 'AbortError' || error?.message?.includes('aborted');
+
+        if (isAbort) {
+          console.warn(`[CouncilBridge] Attempt ${attempt}/${maxRetries}: timeout`);
+        } else {
+          console.warn(`[CouncilBridge] Attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+        }
+
+        if (attempt < maxRetries) {
+          // Exponential backoff: 2s, 4s
+          const backoffMs = Math.pow(2, attempt - 1) * 2000;
+          await new Promise(r => setTimeout(r, backoffMs));
+        }
       }
-
-      const data = await response.json();
-      const duration = Date.now() - startTime;
-
-      const decision: CouncilDecision = {
-        topic,
-        verdict: data.verdict || this.synthesizeVerdict(data),
-        confidence: data.confidence || whisperType === 'pattern' ? 0.85 : 0.75,
-        reasoning: data.reasoning || this.extractReasoning(data),
-        councilors: this.extractCouncilors(data),
-        duration,
-        timestamp: new Date()
-      };
-
-      this.recentDecisions.push(decision);
-      this.deliberationCount++;
-      
-      // Keep last 10 decisions
-      if (this.recentDecisions.length > 10) {
-        this.recentDecisions.shift();
-      }
-
-      console.log(`[CouncilBridge] Verdict: ${decision.verdict} (${decision.confidence}% confidence)`);
-      return decision;
-
-    } catch (error) {
-      console.error(`[CouncilBridge] Deliberation failed: ${error}`);
-      return null;
     }
+
+    // All retries exhausted — emit error event, return fallback decision
+    console.error(`[CouncilBridge] All ${maxRetries} attempts failed: ${lastError?.message}. Using fallback.`);
+    this.emit('deliberation_failed', { topic, whisperType, error: lastError?.message });
+    // Report council failure to FailureReporter
+    try {
+      getFailureReporter().reportCouncil(lastError?.message || 'All council deliberation attempts failed', `Topic: ${topic}, WhisperType: ${whisperType}`);
+    } catch { /* non-fatal */ }
+
+    // Return a low-confidence fallback so the caller always gets a decision
+    const fallbackDecision: CouncilDecision = {
+      topic,
+      verdict: 'proceed_conservatively',
+      confidence: 0.3,
+      reasoning: `Council unreachable after ${maxRetries} attempts (${lastError?.message}). Defaulting to cautious approach.`,
+      councilors: [],
+      duration: 0,
+      timestamp: new Date(),
+    };
+    this.recentDecisions.push(fallbackDecision);
+    return fallbackDecision;
   }
 
   /**

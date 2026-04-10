@@ -2,7 +2,7 @@
 
 > **Spawn, coordinate, and collect results from parallel AI subagents.**
 
-**Version:** v0.6.1 — April 4, 2026
+**Version:** v2.0.0 — April 4, 2026
 
 ---
 

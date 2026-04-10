@@ -5,6 +5,7 @@
 import { BrowserOSProvider } from './browseros';
 import { KimiProvider } from './kimi';
 import { OpenClawGatewayProvider } from './openclaw-gateway';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 
 export interface Provider {
   name: string;
@@ -15,6 +16,49 @@ export class ProviderManager {
   private providers: Map<string, Provider> = new Map();
   private browserOS: BrowserOSProvider | undefined;
   private active: Provider | undefined;
+
+  /**
+   * Get a provider by name
+   */
+  getProvider(name: string): Provider | undefined {
+    return this.providers.get(name);
+  }
+
+  /**
+   * 🧠 Smart model auto-selection based on task content
+   * Analyzes prompt keywords to select the best provider/model
+   */
+  selectModel(prompt: string): { provider: string; model: string; reason: string } {
+    const p = prompt.toLowerCase();
+
+    // Vision tasks: screenshot, image, vision analysis
+    if (/screenshot|screen.?shot|image.?analysis|vision|look at|see what|analyze image|describe image|visual/i.test(p)) {
+      return { provider: 'kimi', model: 'k2p5', reason: '📸 Vision task → Kimi k2p5' };
+    }
+
+    // Android tasks: tap, swipe, adb, android device control
+    if (/android|tap on android|swipe|adb shell|android device|mobile app|phone screen|termux/i.test(p)) {
+      return { provider: 'lmstudio', model: 'gemma-4-e4b-it', reason: '📱 Android task → Gemma 4 (LM Studio, FREE)' };
+    }
+
+    // Coding tasks: build, debug, code, fix bug, implement, refactor
+    if (/code|build|debug|fix bug|implement|refactor|compile|program|script|function|class|api|endpoint/i.test(p)) {
+      return { provider: 'minimax', model: 'MiniMax-M2.7', reason: '💻 Coding task → MiniMax-M2.7 (GLM-5)' };
+    }
+
+    // Fast/simple tasks: quick, simple, fast, just, what is, lookup
+    if (/^quick|^simple|^fast|^just |what is|lookup|check |list |show me |get |find /i.test(p)) {
+      return { provider: 'lmstudio', model: 'qwen3.5-0.8b', reason: '⚡ Fast task → Qwen 0.8B (LM Studio, FREE)' };
+    }
+
+    // Reasoning/complex tasks
+    if (/analyze|compare|evaluate|strategy|plan|research|investigate|reasoning|think deeply/i.test(p)) {
+      return { provider: 'minimax', model: 'MiniMax-M2.7', reason: '🧠 Complex reasoning → MiniMax-M2.7' };
+    }
+
+    // Default: prefer free local model
+    return { provider: 'lmstudio', model: 'qwen3.5-9b', reason: '🦆 Default → Qwen 3.5-9B (LM Studio, FREE)' };
+  }
 
   async load(): Promise<void> {
     // LM Studio - local models (Mac/Windows PC with LM Studio running)
@@ -63,11 +107,14 @@ export class ProviderManager {
     }
 
     // BrowserOS - browser automation
-    this.browserOS = new BrowserOSProvider({
-      host: process.env.BROWSEROS_HOST || '127.0.0.1',
-      port: parseInt(process.env.BROWSEROS_PORT || '9100'),
-      
-    });
+    try {
+      this.browserOS = new BrowserOSProvider({
+        host: process.env.BROWSEROS_HOST || '127.0.0.1',
+        port: parseInt(process.env.BROWSEROS_PORT || '9100'),
+      });
+    } catch (e: any) {
+      console.warn(`[Provider] BrowserOS instantiation failed (non-fatal): ${e.message}`);
+    }
 
     if (process.env.KIMI_API_KEY) {
       this.providers.set('kimi', new KimiProvider(process.env.KIMI_API_KEY));
@@ -77,9 +124,11 @@ export class ProviderManager {
       this.providers.set('moonshot', new KimiProvider(process.env.MOONSHOT_API_KEY));
       console.log('[Provider] Moonshot loaded');
     }
-        // OpenClaw Gateway - local gateway with Moonshot/kimi-k2.5 (free unlimited)
+        // Duck Gateway - duck-cli's built-in gateway (port 18792) proxying to kimi-k2.5
+        // NOTE: 'openclaw' provider name kept for backward compatibility;
+        // this does NOT require an external OpenClaw installation.
     this.providers.set('openclaw', new OpenClawGatewayProvider());
-    console.log('[Provider] OpenClaw Gateway loaded (kimi-k2.5 free)');
+    console.log('[Provider] Duck Gateway loaded (kimi-k2.5 free)');
 
     const first = Array.from(this.providers.keys())[0];
     if (first) this.active = this.providers.get(first);
@@ -87,12 +136,15 @@ export class ProviderManager {
 
   /**
    * Smart router - tries providers in priority order until one succeeds.
-   * Priority: kimi → minimax → openrouter (free tier)
+   * Uses auto-selection when no explicit provider/model is set.
    */
   async route(prompt: string, messages?: any[]): Promise<{ text: string; provider: string; model: string }> {
     // Build target list from DUCK_PRIORITY env var, or use default
     const priorityEnv = process.env.DUCK_PRIORITY;
     const providerOverride = process.env.DUCK_PROVIDER;  // from -p flag
+    
+    // Smart model selection - auto-detect best model from task content
+    const autoSelected = this.selectModel(prompt);
     
     // Smart default: prefer local (free) > API > paid
     // Use GEMMA_MODEL env var for LM Studio, or first available model
@@ -100,21 +152,30 @@ export class ProviderManager {
     let targets = [
       { provider: 'lmstudio',  model: lmModel,                label: 'LM Studio (Gemma 4 26B, local FREE)' },
       { provider: 'openrouter',model: 'qwen/qwen3.6-plus-preview:free', label: 'OpenRouter Free' },
-      { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'OpenClaw Gateway (Kimi k2.5)' },
+      { provider: 'openclaw',  model: 'kimi-k2.5',          label: 'Duck Gateway (Kimi k2.5)' },
       { provider: 'kimi',      model: 'k2p5',                label: 'Kimi K2.5 (direct)' },
     ];
 
     if (providerOverride) {
       // -p flag: use that provider first, then fallback chain
       const overrideLabel = providerOverride.toUpperCase();
-      const overrideModel = providerOverride === 'kimi' ? 'k2p5' :
-                            providerOverride === 'minimax' ? 'MiniMax-M2.7' :
-                            providerOverride === 'openclaw' ? 'kimi-k2.5' : undefined;
+      // Model map for explicit -p provider overrides; DUCK_MODEL env var overrides all
+      const modelMap: Record<string, string | undefined> = {
+        kimi: 'k2p5',
+        minimax: 'MiniMax-M2.7',
+        openclaw: 'kimi-k2.5',
+        lmstudio: process.env.GEMMA_MODEL || process.env.LMSTUDIO_MODEL || undefined,
+        openrouter: undefined,
+        openai: undefined,
+        anthropic: undefined,
+      };
+      const mappedModel = modelMap[providerOverride];
+      const overrideModel = process.env.DUCK_MODEL || mappedModel;
       targets = [
         { provider: providerOverride, model: overrideModel, label: overrideLabel + ' [PRIORITY]' },
         ...targets.filter(t => t.provider !== providerOverride)
       ];
-      console.log(`[Router📡] Provider override: ${overrideLabel}`);
+      console.log(`[Router📡] Provider override: ${overrideLabel}` + (overrideModel ? ` (model: ${overrideModel})` : ''));
     } else if (priorityEnv) {
       const names = priorityEnv.split(',').map(s => s.trim());
       targets = names.map(name => {
@@ -126,6 +187,24 @@ export class ProviderManager {
         };
       });
       console.log(`[Router📡] Custom priority: ${priorityEnv}`);
+    } else {
+      // Auto-selection: put smart-recommended model first in the chain
+      const smartTarget = {
+        provider: autoSelected.provider,
+        model: autoSelected.model,
+        label: autoSelected.reason,
+      };
+      // Only prepend if the provider is available
+      const prov = this.providers.get(autoSelected.provider);
+      if (prov) {
+        targets = [
+          smartTarget,
+          ...targets.filter(t => t.provider !== autoSelected.provider)
+        ];
+        console.log(`[Router📡] 🧠 Auto-selected: ${autoSelected.reason}`);
+      } else {
+        console.log(`[Router📡] 🧠 Auto-selection skipped: ${autoSelected.provider} not available`);
+      }
     }
 
     const msgList = messages || [{ role: 'user', content: prompt }];
@@ -141,8 +220,10 @@ export class ProviderManager {
       console.log(`[Router📡] Trying ${label}...`);
 
       try {
-        // Add timeout wrapper for each provider request
-        const timeoutMs = 60000; // 60 second timeout per provider
+        // Add timeout wrapper for each provider request.
+        // DUCK_PROVIDER_TIMEOUT_MS allows override (e.g. 120000 for slower models).
+        const envTimeout = parseInt(process.env.DUCK_PROVIDER_TIMEOUT_MS || '60000', 10);
+        const timeoutMs = envTimeout > 0 ? envTimeout : 60000;
         const result = await Promise.race([
           prov.complete({ model: target.model, messages: msgList }),
           new Promise<{ text?: string; toolCalls?: any[]; error?: string }>((_, reject) => 
@@ -155,10 +236,22 @@ export class ProviderManager {
           return { text: result.text, provider: target.provider, model: target.model! };
         }
         console.log(`[Router📡] ❌  ${label}: ${err || 'empty response'}`);
+        // Report provider failure to FailureReporter
+        try {
+          getFailureReporter().reportProvider(target.provider, err || 'empty response', `Model: ${target.model}`);
+        } catch { /* non-fatal */ }
       } catch (e: any) {
         console.log(`[Router📡] ❌  ${label}: ${e.message}`);
+        try {
+          getFailureReporter().reportProvider(target.provider, e.message, `Model: ${target.model}`);
+        } catch { /* non-fatal */ }
       }
     }
+
+    // Report total exhaustion to FailureReporter
+    try {
+      getFailureReporter().reportProvider('all', 'All router targets exhausted', `Targets: ${targets.map(t => t.label).join(', ')}`);
+    } catch { /* non-fatal */ }
 
     throw new Error('All router targets exhausted');
   }
@@ -175,25 +268,42 @@ export class ProviderManager {
     const resolvedProvider = provider || this.detectProvider(model);
     const resolvedModel = provider && !modelId.includes('/') ? model : (modelParts.length > 1 ? modelParts.join('/') : model);
 
-    const prov = this.providers.get(resolvedProvider);
+    let prov = this.providers.get(resolvedProvider);
+    let fallbackModel = resolvedModel;
+    // Fallback: if requested provider unavailable, use first available with a capable model
     if (!prov) {
-      throw new Error(`Provider '${resolvedProvider}' not available. Available: ${this.list().join(', ')}`);
+      const available = this.list();
+      if (available.length === 0) {
+        throw new Error(`No AI providers available. Set MINIMAX_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, LMSTUDIO_URL, or OPENROUTER_API_KEY`);
+      }
+      // Prefer openclaw > lmstudio > openrouter > others
+      const preferred = ['openclaw', 'lmstudio', 'openrouter', 'openai', 'anthropic', 'minimax', 'kimi'].find(p => available.includes(p)) || available[0];
+      prov = this.providers.get(preferred)!;
+      // Use a model this provider is likely to support
+      if (preferred === 'openclaw') fallbackModel = 'kimi-k2.5';
+      else if (preferred === 'lmstudio') fallbackModel = 'qwen3.5-9b'; // bare name for LM Studio
+      else if (preferred === 'openrouter') fallbackModel = 'minimax/minimax-m2.5:free';
+      else fallbackModel = resolvedModel;
+      console.log(`[Router📡] ${resolvedProvider}/${resolvedModel} unavailable, falling back to ${preferred}/${fallbackModel}`);
     }
 
     const msgList = messages || [{ role: 'user', content: prompt }];
-    console.log(`[Router📡] Direct routing: ${resolvedProvider}/${resolvedModel}`);
+    const actualModel = fallbackModel;
+    const provKeys = [...this.providers.keys()];
+    const actualProvider = prov ? (this.providers.get(resolvedProvider) ? resolvedProvider : provKeys.find(k => this.providers.get(k) === prov) || resolvedProvider) : resolvedProvider;
+    console.log(`[Router📡] Routing: ${actualProvider}/${actualModel}`);
 
     // Add timeout wrapper (60 second max per call)
     const timeoutMs = 90000;
     const result = await Promise.race([
-      prov.complete({ model: resolvedModel, messages: msgList }),
+      prov.complete({ model: actualModel, messages: msgList }),
       new Promise<{ text?: string; toolCalls?: any[]; error?: string }>((_, reject) =>
         setTimeout(() => reject({ error: 'Request timed out after 90s' }), timeoutMs)
       )
     ]).catch((e: any) => ({ error: e?.error || e?.message || 'Unknown error' })) as { text?: string; toolCalls?: any[]; error?: string };
 
-    if (result.error) throw new Error(`Model ${resolvedProvider}/${resolvedModel} failed: ${result.error}`);
-    return { text: result.text || '', provider: resolvedProvider, model: resolvedModel };
+    if (result.error) throw new Error(`Model ${actualProvider}/${actualModel} failed: ${result.error}`);
+    return { text: result.text || '', provider: actualProvider, model: actualModel };
   }
 
   /**
@@ -249,7 +359,7 @@ export class ProviderManager {
     // Try vision-capable providers in priority order
     const visionTargets = [
       { provider: 'kimi',      model: 'k2p5', label: 'Kimi K2.5 (vision)' },
-      { provider: 'openclaw',  model: 'kimi-k2.5', label: 'OpenClaw Kimi k2.5' },
+      { provider: 'openclaw',  model: 'kimi-k2.5', label: 'Duck Gateway Kimi k2.5' },
       { provider: 'lmstudio',  model: undefined, label: 'LM Studio (vision model)' },
     ];
 
@@ -380,12 +490,28 @@ class LMStudioProvider implements Provider {
 
   constructor(private url: string, private key: string = 'not-needed') {}
 
-  async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[] }> {
+  /**
+   * Normalize a bare model name to its fully-qualified LM Studio model ID.
+   * LM Studio uses namespaced IDs like 'qwen/qwen3.5-9b' but duck-cli often
+   * references models as bare names like 'qwen3.5-9b'.
+   */
+  private normalizeModel(model?: string): string {
+    const raw = model || process.env.GEMMA_MODEL || 'gemma-4-26b-a4b';
+    // Already namespaced (e.g. 'qwen/qwen3.5-9b') - use as-is
+    if (raw.includes('/')) return raw;
+    // LM Studio uses bare names: qwen3.5-0.8b, gemma-4-e4b-it, qwen3.5-2b-claude-4.6-opus-reasoning-distilled
+    // OpenRouter uses namespaced: qwen/qwen3.5-9b, minimax/minimax-m2.5:free
+    // Return bare names (LM Studio format) - the provider route() handles conversion
+    return raw;
+  }
+
+  async complete(opts: { model?: string; messages: any[]; tools?: any[] }): Promise<{ text?: string; toolCalls?: any[]; error?: string }> {
     const makeRequest = async (): Promise<{ text?: string; toolCalls?: any[]; error?: string }> => {
       try {
         // Use OpenAI-compatible endpoint (/v1/chat/completions) - works perfectly
         const endpoint = this.url.includes('/v1/chat/completions') ? this.url : `${this.url.replace('/api/v1', '').replace('/v1', '')}/v1/chat/completions`;
-        
+        const lmModel = this.normalizeModel(opts.model);
+
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -393,7 +519,7 @@ class LMStudioProvider implements Provider {
             'Authorization': `Bearer ${this.key}`
           },
           body: JSON.stringify({
-            model: opts.model || process.env.GEMMA_MODEL || 'google/gemma-4-26b-a4b',
+            model: lmModel,
             messages: opts.messages,
             tools: opts.tools,
             stream: false
@@ -435,23 +561,20 @@ class LMStudioProvider implements Provider {
       }
       
       const result = await makeRequest();
-      if (!result.error || result.error === '__RETRY__' && attempt === this.retryDelays.length) {
+      if (!result.error) {
         if (result.text !== undefined || result.toolCalls !== undefined) {
           return { text: result.text, toolCalls: result.toolCalls };
-        }
-        if (result.error && result.error !== '__RETRY__') {
-          console.log('[LMStudio] Error:', result.error);
-          return { text: undefined };
         }
       }
       if (result.error && result.error !== '__RETRY__') {
         console.log('[LMStudio] Error:', result.error);
-        return { text: undefined };
+        return { error: result.error, text: undefined };
       }
+      // result.error === '__RETRY__' → fall through to next retry attempt
     }
-    
+
     console.log('[LMStudio] Failed after retries');
-    return { text: undefined };
+    return { error: 'LM Studio failed after retries', text: undefined };
   }
 }
 

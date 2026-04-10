@@ -31,7 +31,7 @@ export interface KAIROSConfig {
 
 export const DEFAULT_KAIROS_CONFIG: KAIROSConfig = {
   enabled: true,
-  tickInterval: 21600000,    // 6 hours (4x daily)
+  tickInterval: 300000,      // 5 minutes (was 6 hours)
   idleThreshold: 30000,       // 30 seconds idle
   maxActionsPerTick: 3,
   proactiveMode: 'balanced',
@@ -190,6 +190,9 @@ export class KAIROS extends EventEmitter {
     this.isRunning = true;
     this.emit('wake');
     
+    // Fire first tick immediately so heartbeat/dream logic runs right away
+    this.tick();
+    
     // Start tick loop
     this.tickInterval = setInterval(() => {
       this.tick();
@@ -211,42 +214,61 @@ export class KAIROS extends EventEmitter {
   }
   
   /**
-   * Process a tick
+   * Process a tick — fully wrapped in try-catch so a broken action never kills the loop
    */
   private tick(): void {
     if (!this.config.enabled) return;
-    
-    const now = new Date();
-    const tick: KAIROSTick = {
-      timestamp: now.getTime(),
-      localTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      terminalFocused: true, // Would integrate with actual terminal focus detection
-      idleDuration: Date.now() - this.heartbeat.getState().lastTick,
-    };
-    
-    // Process heartbeat
-    const state = this.heartbeat.processTick(tick);
-    
-    this.emit('tick', tick, state);
-    
-    // Handle sleep/dream
-    if (state.isAsleep && this.config.dreamEnabled) {
-      this.runDream();
+
+    let tick: KAIROSTick;
+    let state: HeartbeatState;
+
+    try {
+      const now = new Date();
+      tick = {
+        timestamp: now.getTime(),
+        localTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        terminalFocused: true,
+        idleDuration: Date.now() - this.heartbeat.getState().lastTick,
+      };
+
+      state = this.heartbeat.processTick(tick);
+    } catch (e: any) {
+      this.emit('error', { phase: 'heartbeat', error: e.message });
       return;
     }
-    
+
+    this.emit('tick', tick, state);
+
+    // Handle sleep/dream — each phase wrapped independently
+    if (state.isAsleep && this.config.dreamEnabled) {
+      try {
+        this.runDream();
+      } catch (e: any) {
+        this.emit('error', { phase: 'dream', error: e.message });
+      }
+      return;
+    }
+
     // Decide actions based on state
     if (state.isIdle) {
       this.emit('idle', state);
       if (this.config.proactiveMode === 'aggressive' || this.config.proactiveMode === 'balanced') {
-        this.performProactiveActions(state);
+        try {
+          this.performProactiveActions(state);
+        } catch (e: any) {
+          this.emit('error', { phase: 'proactive_actions', error: e.message });
+        }
       }
     } else {
       this.emit('active', state);
     }
-    
-    // Learn patterns
-    this.learnPatterns(tick);
+
+    // Learn patterns — isolated so a bad pattern doesn't crash tick
+    try {
+      this.learnPatterns(tick);
+    } catch (e: any) {
+      this.emit('error', { phase: 'learn_patterns', error: e.message });
+    }
   }
   
   /**
@@ -318,31 +340,38 @@ export class KAIROS extends EventEmitter {
   }
   
   /**
-   * Run dream consolidation
+   * Run dream consolidation — fully isolated
    */
   private runDream(): void {
     if (this.currentDream) return;
-    
+
     this.currentDream = {
       startedAt: Date.now(),
       topics: [],
       insights: [],
     };
-    
+
     this.emit('dream', this.currentDream);
-    
-    // Consolidate patterns and learning
-    const consolidatedInsights = this.consolidateLearnings();
-    this.currentDream.insights = consolidatedInsights;
-    
+
+    // Consolidate patterns and learning — wrapped so crash doesn't kill dream
+    try {
+      const consolidatedInsights = this.consolidateLearnings();
+      this.currentDream.insights = consolidatedInsights;
+    } catch (e: any) {
+      this.emit('error', { phase: 'consolidate_learnings', error: e.message });
+      this.currentDream.insights = [];
+    }
+
     // End dream after some time
+    const dreamId = this.currentDream.startedAt;
     setTimeout(() => {
-      if (this.currentDream) {
+      // Only end the current dream (not a newer one that started after this timeout)
+      if (this.currentDream && this.currentDream.startedAt === dreamId) {
         this.currentDream.endedAt = Date.now();
         this.emit('dream_complete', this.currentDream);
         this.currentDream = undefined;
       }
-    }, 60000); // 1 minute dream
+    }, 30000); // 30 seconds dream
   }
   
   /**
@@ -421,12 +450,53 @@ export class KAIROS extends EventEmitter {
   getCurrentDream(): KAIROSDream | undefined {
     return this.currentDream;
   }
-  
+
   /**
    * Get state
    */
   getState(): HeartbeatState {
     return this.heartbeat.getState();
+  }
+
+  /**
+   * Health check — returns whether KAIROS tick loop is healthy
+   * Unhealthy if: lastTick > 3x tickInterval ago OR tickInterval is null
+   */
+  isHealthy(): boolean {
+    if (!this.isRunning) return false;
+    const state = this.heartbeat.getState();
+    const elapsed = Date.now() - state.lastTick;
+    return elapsed < this.config.tickInterval * 3;
+  }
+
+  /**
+   * Get health report
+   */
+  getHealthReport(): {
+    healthy: boolean;
+    isRunning: boolean;
+    lastTick: number;
+    tickInterval: number;
+    consecutiveIdleTicks: number;
+    consecutiveActiveTicks: number;
+    isIdle: boolean;
+    isAsleep: boolean;
+    actionHistorySize: number;
+    patternCount: number;
+  } {
+    const state = this.heartbeat.getState();
+    return {
+      healthy: this.isHealthy(),
+      isRunning: this.isRunning,
+      lastTick: state.lastTick,
+      tickInterval: this.config.tickInterval,
+      consecutiveIdleTicks: state.consecutiveIdleTicks,
+      consecutiveActiveTicks: state.consecutiveActiveTicks,
+      isIdle: state.isIdle,
+      isAsleep: state.isAsleep,
+      actionHistorySize: this.actionHistory.length,
+      patternCount: this.patterns.size,
+    };
   }
   
   /**

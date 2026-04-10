@@ -1,3 +1,12 @@
+---
+name: computer-use
+description: "Full desktop computer control with vision-based UI understanding using UI-TARS models"
+license: MIT
+metadata:
+  author: duck-cli
+  version: "1.0"
+---
+
 # Computer Use Skill
 
 **Purpose:** Full desktop computer control with vision-based UI understanding  

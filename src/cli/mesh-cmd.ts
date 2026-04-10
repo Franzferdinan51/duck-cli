@@ -13,6 +13,9 @@ import { spawn, execSync } from 'child_process';
 import { join } from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readFileSync as readFile } from 'fs';
 
+// AgentMeshClient for persistent WebSocket mesh connections
+import { AgentMeshClient } from '../mesh/agent-mesh.js';
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -181,7 +184,7 @@ export async function meshCommand(args: string[]): Promise<void> {
       console.log(`   🔑 API Key:     openclaw-mesh-default-key`);
       console.log();
 
-      const child = spawn('node', [serverPath], {
+      const child = spawn(process.execPath, [serverPath], {
         detached: true,
         stdio: 'ignore',
         env: {
@@ -580,6 +583,125 @@ export async function meshCommand(args: string[]): Promise<void> {
     }
 
     // -----------------------------------------------------------------------
+    // duck mesh connect [port] - Persistent WebSocket connection to mesh
+    // -----------------------------------------------------------------------
+    case 'connect': {
+      const port = parseInt(actionArgs[0] || String(MESH_PORT));
+      const meshUrl = actionArgs[1] || MESH_URL;
+
+      console.log(`${c.cyan}Connecting to mesh at ${meshUrl}...${c.reset}\n`);
+
+      // Check server is reachable
+      const portOpen = await isPortOpen(port);
+      if (!portOpen) {
+        console.log(`${c.red}❌ Mesh server not running on port ${port}${c.reset}`);
+        console.log(`   Start it first: ${c.bold}duck mesh start${c.reset}`);
+        return;
+      }
+
+      const agentName = process.env.DUCK_AGENT_NAME || 'DuckCLI';
+      const endpoint = process.env.DUCK_AGENT_ENDPOINT || 'http://localhost:18797';
+      const capabilities = (process.env.DUCK_AGENT_CAPABILITIES || 'reasoning,coding,messaging,cli,chat,mesh-client').split(',').map(s => s.trim()).filter(Boolean);
+
+      // Create the full-featured mesh client
+      const client = new AgentMeshClient({
+        serverUrl: meshUrl,
+        apiKey: MESH_API_KEY,
+        agentName,
+        agentEndpoint: endpoint,
+        capabilities,
+        version: process.env.DUCK_CLI_VERSION || '1.0.0',
+        heartbeatInterval: 30000,
+        reconnectInterval: 5000,
+      });
+
+      // ── Event handlers ──────────────────────────────────────────────────
+
+      client.on('registered', ({ agentId }: { agentId: string }) => {
+        console.log(`${c.green}✅ Registered on mesh as ${agentId}${c.reset}`);
+      });
+
+      client.on('connected', () => {
+        console.log(`${c.green}✅ WebSocket connected to mesh${c.reset}`);
+        console.log(`${c.cyan}   Listening for events... (Ctrl+C to disconnect)${c.reset}\n`);
+      });
+
+      client.on('disconnected', () => {
+        console.log(`${c.yellow}⚠️  Disconnected from mesh${c.reset}`);
+      });
+
+      client.on('agent_joined', (data: any) => {
+        console.log(`${c.green}🤝 Agent joined mesh:${c.reset} ${data?.name || data?.agentId || 'unknown'}`);
+      });
+
+      client.on('agent_left', (data: any) => {
+        console.log(`${c.yellow}👋 Agent left mesh:${c.reset} ${data?.name || data?.agentId || 'unknown'}`);
+      });
+
+      client.on('message_received', (msg: any) => {
+        const from = msg.from || msg.fromAgentId || 'unknown';
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        console.log(`${c.cyan}📨 Mesh message from ${from}:${c.reset}`);
+        console.log(`   ${content.substring(0, 200)}${content.length > 200 ? '...' : ''}`);
+      });
+
+      client.on('catastrophe_alert', (evt: any) => {
+        console.warn(`${c.red}🚨 Catastrophe alert:${c.reset} ${evt?.title || evt?.eventType || 'unknown'}`);
+        if (evt?.description) {
+          console.warn(`   ${evt.description}`);
+        }
+      });
+
+      client.on('agent_health_change', (data: any) => {
+        console.log(`${c.cyan}🏥 Agent health change:${c.reset} ${data?.agentId} → ${data?.status}`);
+      });
+
+      client.on('error', ({ type, error }: { type: string; error: any }) => {
+        console.error(`${c.red}❌ Mesh error [${type}]:${c.reset} ${error?.message || error}`);
+      });
+
+      // ── Register + Connect ──────────────────────────────────────────────
+
+      const agentId = await client.register();
+      if (!agentId) {
+        console.log(`${c.red}❌ Registration failed — check mesh server is running${c.reset}`);
+        console.log(`   ${c.bold}duck mesh status${c.reset} to verify`);
+        return;
+      }
+
+      // Connect WebSocket (auto-reconnect enabled)
+      const connected = await client.connect();
+      if (!connected) {
+        console.log(`${c.red}❌ WebSocket connection failed${c.reset}`);
+        return;
+      }
+
+      // Save PID for background runs
+      const CONNECT_PID_FILE = join(process.env.HOME || '/tmp', '.duck', 'mesh-client.pid');
+      const pidDir = join(CONNECT_PID_FILE, '..');
+      if (!existsSync(pidDir)) mkdirSync(pidDir, { recursive: true });
+      writeFileSync(CONNECT_PID_FILE, String(process.pid));
+
+      // Graceful shutdown
+      const shutdown = async () => {
+        console.log(`\n${c.yellow}Disconnecting from mesh...${c.reset}`);
+        try { await client.unregister(); } catch {}
+        client.disconnect();
+        try { writeFileSync(CONNECT_PID_FILE, ''); } catch {}
+        console.log(`${c.green}✅ Disconnected${c.reset}`);
+        process.exit(0);
+      };
+
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
+
+      // Keep alive — mesh client handles its own heartbeat + reconnect
+      // tsc needs this to not exit
+      await new Promise(() => {});
+      break;
+    }
+
+    // -----------------------------------------------------------------------
     // Unknown action - show help
     // -----------------------------------------------------------------------
     default: {
@@ -633,6 +755,8 @@ ${c.green}duck mesh send <id> <msg>${c.reset} - Send message to agent
 ${c.green}duck mesh inbox${c.reset}     - Check unread messages
 ${c.green}duck mesh health${c.reset}    - Mesh health dashboard
 ${c.green}duck mesh broadcast <msg>${c.reset} - Broadcast to all agents
+${c.green}duck mesh connect${c.reset} [port] - Persistent WebSocket connection to mesh
+   (separate from register — sets up full mesh client with event listeners)
 
 ${c.yellow}Environment Variables:${c.reset}
    MESH_PORT              Server port (default: 4000)

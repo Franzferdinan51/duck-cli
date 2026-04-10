@@ -14,6 +14,7 @@ import {
   FallbackChain,
 } from './tool.js';
 import { FallbackManager } from './fallback-manager.js';
+import { getFailureReporter } from './failure-reporter.js';
 
 export interface ExecutionOptions {
   timeout?: number;
@@ -52,7 +53,11 @@ export class ExecutionEngine {
 
   constructor(fallbackManager?: FallbackManager) {
     this.fallbackManager = fallbackManager ?? new FallbackManager();
-    this.defaultTimeout = 30000;
+    // Allow DUCK_TIMEOUT_MS env var to override default (for Telegram/long tasks).
+    // Default 120s gives complex orchestrated tasks (AI Council, multi-step agents)
+    // enough time without hitting Telegram's 5-min outer timeout.
+    const envTimeout = parseInt(process.env.DUCK_TIMEOUT_MS || '0', 10);
+    this.defaultTimeout = envTimeout > 0 ? envTimeout : 120000;
     this.defaultRetries = {
       maxAttempts: 3,
       initialDelayMs: 1000,
@@ -213,6 +218,19 @@ export class ExecutionEngine {
       maxAttempts: retries.maxAttempts,
       error: lastError?.message,
     });
+
+    // Report to FailureReporter so failures feed into learning/healing pipeline
+    try {
+      const reporter = getFailureReporter();
+      reporter.reportTool(
+        tool.name,
+        lastError?.message ?? 'Unknown error',
+        context?.task?.description,
+        fallbackAttempted
+          ? `Fallback chain: [${fallbackChain.join(' → ')}]. Total attempts: ${totalAttempts}`
+          : `Retries: ${retryAttempts}/${retries.maxAttempts}`
+      );
+    } catch { /* non-fatal */ }
 
     return {
       success: false,

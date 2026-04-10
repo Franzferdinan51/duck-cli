@@ -39,12 +39,37 @@ import {
   ToolErrorType,
   ToolRegistryEntry
 } from './tool-registry.js';
+import { getFailureReporter } from '../orchestrator/failure-reporter.js';
 import { scanForSecrets, redactFromResult, warnOnSecrets } from './secret-scanner.js';
 import { captureDiffSnapshot, generateDiff, formatInlineDiff } from './inline-diff.js';
 import { CredentialPoolManager } from './credential-pool.js';
 import { MemoryManager } from './memory-provider.js';
+import { getTTS } from '../tools/tts.js';
 import { WhisperEngine, MemoryBridge } from '../subconscious/index.js';
 import type { Whisper } from '../subconscious/index.js';
+import { compileSystemPrompt, SystemPromptOptions } from '../prompts/index.js';
+import { existsSync, readFileSync } from 'fs';
+import { dirname } from 'path';
+import { homedir } from 'os';
+
+// Runtime path for SOUL-template.md fallback personality
+export function getSoulTemplate(): string {
+  try {
+    // Try common paths for prompts/SOUL-template.md relative to this file
+    const possiblePaths = [
+      join(dirname(require.resolve('./core.js')), '..', 'prompts', 'SOUL-template.md'),
+      join(homedir(), '.openclaw', 'workspace', 'duck-cli-src', 'src', 'prompts', 'SOUL-template.md'),
+    ];
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        return readFileSync(p, 'utf-8');
+      }
+    }
+  } catch (e) {
+    // Fall through
+  }
+  return '';
+}
 
 export { Planner, Plan, PlanStep };
 export { DangerousToolGuard, ToolRisk };
@@ -503,6 +528,146 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── Skills (Autonomous + Self-Improving) ──────────────────────
+    this.registerTool({ name: 'skill_create', description: 'Create a new skill from description and steps',
+      schema: { prompt: { type: 'string' }, steps: { type: 'string[]', description: 'Array of step descriptions' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSkillCreator } = await import('../skills/skill-creator.js');
+        const creator = getSkillCreator();
+        const result = await creator.createSkillFromPrompt(args.prompt, args.steps || []);
+        if (result) return { success: true, skill: result.name, triggers: result.triggers, description: result.description };
+        return { success: false, error: 'Skill creation failed (may already exist)' };
+      }
+    });
+    this.registerTool({ name: 'skill_list', description: 'List all auto-created skills with health',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { getSkillCreator } = await import('../skills/skill-creator.js');
+        const { getSkillImprover } = await import('../skills/skill-improver.js');
+        const creator = getSkillCreator();
+        const improver = getSkillImprover();
+        return creator.listAutoSkills().map((name: string) => ({ name, health: improver.getSkillHealth(name) }));
+      }
+    });
+    this.registerTool({ name: 'skill_health', description: 'Get health stats for a skill',
+      schema: { skillName: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSkillImprover } = await import('../skills/skill-improver.js');
+        return getSkillImprover().getSkillHealth(args.skillName);
+      }
+    });
+    this.registerTool({ name: 'skill_improve', description: 'Trigger improvement for a skill',
+      schema: { skillName: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSkillImprover } = await import('../skills/skill-improver.js');
+        const result = await getSkillImprover().improveSkillManual(args.skillName);
+        if (result) return { success: true, changes: result.changes, reason: result.reason };
+        return { success: false, error: 'Improvement failed' };
+      }
+    });
+    this.registerTool({ name: 'skill_patterns', description: 'Get patterns ready for skill creation',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { getSkillCreator } = await import('../skills/skill-creator.js');
+        return getSkillCreator().getReadyPatterns();
+      }
+    });
+
+    // ─── Dream / KAIROS ──────────────────────────────────────────
+    this.registerTool({ name: 'dream_status', description: 'Check KAIROS dream system status',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { getKAIROS } = await import('../kairos/orchestrator.js');
+        const k = getKAIROS();
+        return { running: k.isActive(), state: k.getState(), config: k.getConfig(), dream: k.getCurrentDream() };
+      }
+    });
+    this.registerTool({ name: 'dream_trigger', description: 'Manually trigger KAIROS dream consolidation',
+      schema: { save: { type: 'boolean', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getKAIROS } = await import('../kairos/orchestrator.js');
+        const { getSubconsciousClient } = await import('../subconscious/client.js');
+        const k = getKAIROS();
+        (k as any).state.isAsleep = true;
+        (k as any).state.dreamEnabled = true;
+        await (k as any).tick();
+        const dream = k.getCurrentDream();
+        if (dream && args.save) {
+          try { await getSubconsciousClient().saveDream({ sessionId: `dream_${Date.now()}`, startedAt: dream.startedAt, endedAt: dream.endedAt, topics: dream.topics, insights: dream.insights }); } catch {}
+        }
+        return { started: !!dream, insights: dream?.insights || [], topics: dream?.topics || [] };
+      }
+    });
+    this.registerTool({ name: 'dream_results', description: 'Get recent dream/consolidation results',
+      schema: { limit: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSubconsciousClient } = await import('../subconscious/client.js');
+        try {
+          const result = await getSubconsciousClient().getRecent(args.limit || 5);
+          return result.memories.filter((m: any) => m.tags?.includes('dream'));
+        } catch { return []; }
+      }
+    });
+    this.registerTool({ name: 'kairos_start', description: 'Start KAIROS autonomous heartbeat',
+      schema: { mode: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { startKAIROS } = await import('../kairos/orchestrator.js');
+        const k = startKAIROS({ proactiveMode: (args.mode as any) || 'balanced' });
+        return { started: true, mode: k.getConfig().proactiveMode };
+      }
+    });
+    this.registerTool({ name: 'kairos_stop', description: 'Stop KAIROS autonomous heartbeat',
+      schema: {}, dangerous: false,
+      handler: async () => {
+        const { stopKAIROS } = await import('../kairos/orchestrator.js');
+        stopKAIROS();
+        return { stopped: true };
+      }
+    });
+
+    // ─── FTS Memory + Session Search ───────────────────────────────
+    this.registerTool({ name: 'memory_fts_search', description: 'Full-text search memories via TF-IDF',
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const { getSubconsciousClient } = await import('../subconscious/client.js');
+        try { const r = await getSubconsciousClient().recall(args.query, args.limit || 10); return { results: r.memories, count: r.count }; }
+        catch (e: any) { return { error: e.message }; }
+      }
+    });
+    this.registerTool({ name: 'sessions_search', description: 'TF-IDF search across session transcripts',
+      schema: { query: { type: 'string' }, limit: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        try {
+          const { getSessionFTS } = await import('../subconscious/fts-search.js');
+          const fts = getSessionFTS();
+          return fts.search(args.query, args.limit || 10);
+        } catch (e: any) { return { error: e.message }; }
+      }
+    });
+
+    // ─── Voice / TTS ────────────────────────────────────
+    this.registerTool({ name: 'speak', description: '🎤 Convert text to speech using MiniMax TTS. When user asks to "say X", "read this aloud", "generate speech", or "speak this", ALWAYS call this tool first. IMPORTANT: After calling speak, you MUST include the [AUDIO:filepath] marker in your text response so Telegram can send it as a voice message. Format: the marker should appear as a SEPARATE LINE in your response, not inside JSON.',
+      schema: { text: { type: 'string', description: 'Text to convert to speech' }, voice: { type: 'string', optional: true, description: 'Voice: narrator, casual, sad, chinese, japanese, korean' } }, dangerous: false,
+      handler: async (args: any) => {
+        const { text, voice } = args;
+        if (!text) return { error: 'No text provided', success: false };
+        try {
+          const tts = getTTS();
+          if (voice) tts.setVoice(voice);
+          const outPath = `/tmp/tts_${Date.now()}.mp3`;
+          const result = await tts.speak({ text, outputPath: outPath });
+          if (!result.success) return { error: result.error, success: false };
+          // Return as string with audio_marker as a SEPARATE LINE so PTY/Telegram bot can detect it
+          const marker = `[AUDIO:${outPath}]`;
+          return `SUCCESS
+Chars: ${result.chars} | Voice: ${voice || 'narrator'}
+${marker}`;
+        } catch (err: any) {
+          return { error: err.message, success: false };
+        }
+      }
+    });
+
     // ─── Shell (GUARDED) ─────────────────────────────────
     this.registerTool({ name: 'shell', description: 'Execute shell command ⚠️', 
       schema: { command: { type: 'string' }, timeout: { type: 'number', optional: true } }, dangerous: true,
@@ -601,9 +766,192 @@ export class Agent extends EventEmitter {
     });
 
     // ─── Web ──────────────────────────────────────────────
-    this.registerTool({ name: 'web_search', description: 'Search the web', 
-      schema: { query: { type: 'string' } }, dangerous: false,
-      handler: async (args: any) => `Searching web for: ${args.query}`
+    this.registerTool({ name: 'web_search', description: 'Search the web',
+      schema: { query: { type: 'string' }, provider: { type: 'string', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const query = String(args.query || '').trim();
+        if (!query) return { error: 'Missing required argument: query' };
+
+        // Retry config: 3 retries with exponential backoff
+        const retryDelays = [1000, 2000, 4000];
+        let lastError = '';
+
+        for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+          if (attempt > 0) {
+            const delay = retryDelays[attempt - 1];
+            console.log(`[web_search] Retry ${attempt}/${retryDelays.length} after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+
+          try {
+            // 15-second timeout per attempt
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+
+            const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+            const res = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+              },
+              signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (res.status === 429) {
+              lastError = 'Rate limited by search engine (429). Will retry with backoff.';
+              console.warn(`[web_search] Rate limited (429)`);
+              continue; // retry
+            }
+            if (!res.ok) {
+              lastError = `Search HTTP ${res.status}`;
+              if (res.status >= 500) {
+                console.warn(`[web_search] Server error ${res.status}, will retry`);
+                continue;
+              }
+              return { error: lastError };
+            }
+
+            const html = await res.text();
+            const results: Array<{ title: string; url: string; snippet?: string }> = [];
+            const blocks = html.split('<div class="result results_links');
+            for (const block of blocks.slice(1)) {
+              const titleMatch = block.match(/class="result__a"[^>]*>([\s\S]*?)<\/a>/i);
+              const hrefMatch = block.match(/class="result__a"[^>]*href="([^"]+)"/i);
+              const snippetMatch = block.match(/class="result__snippet">([\s\S]*?)<\/a>|class="result__snippet">([\s\S]*?)<\/div>/i);
+              const clean = (s: string) => s
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/\s+/g, ' ')
+                .trim();
+              if (titleMatch && hrefMatch) {
+                results.push({
+                  title: clean(titleMatch[1]),
+                  url: hrefMatch[1],
+                  snippet: snippetMatch ? clean(snippetMatch[1] || snippetMatch[2] || '') : ''
+                });
+              }
+              if (results.length >= 5) break;
+            }
+
+            if (results.length === 0) {
+              return { query, results: [], note: 'No results found. Try a different search query.' };
+            }
+
+            return {
+              query,
+              results,
+              summary: results.map((r, i) => `${i + 1}. ${r.title} — ${r.url}${r.snippet ? `\n   ${r.snippet}` : ''}`).join('\n')
+            };
+          } catch (e: any) {
+            lastError = e.message || 'Unknown fetch error';
+            const isRetryable = e.name === 'AbortError' || e.message?.includes('ECONNRESET') ||
+                               e.message?.includes('ETIMEDOUT') || e.message?.includes('ENOTFOUND') ||
+                               e.message?.includes('Connection') || e.message?.includes('fetch');
+            if (!isRetryable) {
+              return { error: `Web search failed: ${lastError}\n💡 Check your internet connection and try again.` };
+            }
+            console.warn(`[web_search] Network error: ${lastError}, retrying...`);
+          }
+        }
+
+        return { error: `Web search failed after retries: ${lastError}\n💡 Tip: DuckDuckGo may be blocked or rate-limited. Try again in 30 seconds, or use BrowserOS/PinchTab for web access.` };
+      }
+    });
+
+    // ─── Web Fetch ────────────────────────────────────────
+    this.registerTool({ name: 'web_fetch', description: 'Fetch content from a URL',
+      schema: { url: { type: 'string' }, maxChars: { type: 'number', optional: true } }, dangerous: false,
+      handler: async (args: any) => {
+        const url = String(args.url || '').trim();
+        if (!url) return { error: 'Missing required argument: url' };
+
+        // Basic URL validation
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(url);
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            return { error: `Unsupported protocol: ${parsedUrl.protocol}. Only http and https are supported.` };
+          }
+        } catch {
+          return { error: `Invalid URL: "${url}". Please provide a valid http or https URL.` };
+        }
+
+        const retryDelays = [1000, 2000, 4000];
+        let lastError = '';
+        const maxChars = args.maxChars || 50000;
+
+        for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+          if (attempt > 0) {
+            const delay = retryDelays[attempt - 1];
+            console.log(`[web_fetch] Retry ${attempt}/${retryDelays.length} after ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+
+            const res = await fetch(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+              },
+              signal: controller.signal,
+              redirect: 'follow'
+            });
+            clearTimeout(timeout);
+
+            if (res.status === 429) {
+              lastError = 'Rate limited (429). Will retry with backoff.';
+              console.warn(`[web_fetch] Rate limited (429)`);
+              continue;
+            }
+            if (res.status >= 500) {
+              lastError = `Server error ${res.status}`;
+              console.warn(`[web_fetch] Server error ${res.status}, will retry`);
+              continue;
+            }
+            if (res.status === 403 || res.status === 401) {
+              return { error: `Fetch blocked by ${parsedUrl.hostname} (HTTP ${res.status}). The site may require authentication or blocks automated access.` };
+            }
+            if (!res.ok) {
+              return { error: `Fetch HTTP ${res.status} for ${url}` };
+            }
+
+            const ct = res.headers.get('content-type') || '';
+            let content = await res.text();
+
+            // Truncate if needed
+            if (content.length > maxChars) {
+              content = content.slice(0, maxChars) + `\n\n[... truncated, ${content.length - maxChars} chars cut ...]`;
+            }
+
+            return {
+              url,
+              content,
+              contentType: ct,
+              truncated: content.length > maxChars || undefined,
+              summary: `Fetched ${content.length} chars from ${url} (${ct.split(';')[0]})`
+            };
+          } catch (e: any) {
+            lastError = e.message || 'Unknown fetch error';
+            const isRetryable = e.name === 'AbortError' || e.message?.includes('ECONNRESET') ||
+                               e.message?.includes('ETIMEDOUT') || e.message?.includes('ENOTFOUND') ||
+                               e.message?.includes('Connection') || e.message?.includes('fetch');
+            if (!isRetryable) {
+              return { error: `Web fetch failed: ${lastError}\n💡 Check the URL is correct and the site is accessible.` };
+            }
+            console.warn(`[web_fetch] Network error: ${lastError}, retrying...`);
+          }
+        }
+
+        return { error: `Web fetch failed after retries: ${lastError}\n💡 The site may be down or blocking requests. Try again later or use BrowserOS for browser-based access.` };
+      }
     });
 
     // ─── Learning ──────────────────────────────────────────
@@ -995,6 +1343,53 @@ export class Agent extends EventEmitter {
       }
     });
 
+    // ─── Dynamic Skill Management Tools (Agent-Friendly) ─────────────────────
+    this.registerTool({ name: 'skill_list', description: '📋 List all available skills (built-in + file-based)', schema: {}, dangerous: false,
+      handler: async () => {
+        const skills = this.skills.list();
+        return `Available skills (${skills.length}):\n${skills.map(s => `  - ${s}`).join('\n')}`;
+      }
+    });
+    this.registerTool({ name: 'skill_get', description: '📄 Get a skill\'s full content by name', 
+      schema: { name: { type: 'string' } }, dangerous: false,
+      handler: async (args: any) => {
+        const skill = this.skills.get(args.name);
+        if (!skill) {
+          const byTrigger = this.skills.getByNameOrTrigger(args.name);
+          if (byTrigger) {
+            return `Skill: ${byTrigger.name}\nDescription: ${byTrigger.description}\nTriggers: ${byTrigger.triggers.join(', ')}\n\n${byTrigger.content}`;
+          }
+          return `Skill not found: ${args.name}`;
+        }
+        return `Skill: ${skill.name}\nDescription: ${skill.description}\nTriggers: ${skill.triggers.join(', ')}\n\n${skill.content}`;
+      }
+    });
+    this.registerTool({ name: 'skill_register', description: '🆕 Register a new skill dynamically (agent-created)', 
+      schema: { 
+        name: { type: 'string' }, 
+        description: { type: 'string' }, 
+        triggers: { type: 'string' },
+        content: { type: 'string' }
+      }, dangerous: false,
+      handler: async (args: any) => {
+        const triggers = args.triggers ? args.triggers.split(',').map((t: string) => t.trim()) : [];
+        const skill = {
+          name: args.name,
+          description: args.description || args.name,
+          triggers,
+          content: args.content
+        };
+        this.skills.registerSkill(skill);
+        return `Skill registered: ${args.name} with ${triggers.length} trigger(s)`;
+      }
+    });
+    this.registerTool({ name: 'skill_reload', description: '🔄 Reload skills from disk (for newly added file-based skills)', schema: {}, dangerous: false,
+      handler: async () => {
+        await this.skills.reload();
+        return `Skills reloaded: ${this.skills.list().length} total`;
+      }
+    });
+
     // ─── Duck CLI Command Tools ─────────────────────────────────
     this.registerTool({ name: 'duck_run', description: '💻 Run a task with Duck CLI (auto-routes through smart provider chain)',
       schema: { prompt: { type: 'string' }, interactive: { type: 'boolean', optional: true } }, dangerous: false,
@@ -1112,9 +1507,29 @@ export class Agent extends EventEmitter {
       handler: async () => {
         const { exec } = await import('child_process');
         return new Promise((resolve) => {
-          const duckSourceDir = process.env.DUCK_SOURCE_DIR || '/tmp/duck-cli-main-sync';
-        const duckBinary = process.env.DUCK_BINARY || 'duck';
-        exec(`cd ${duckSourceDir} && ${duckBinary} doctor`, (e, stdout, stderr) => resolve(e ? `Error: ${e.message}` : stdout));
+          // Find duck-cli source: env var, workspace, or current dir
+          const sourceCandidates = [
+            process.env.DUCK_SOURCE_DIR,
+            join(process.env.HOME || '', '.openclaw', 'workspace', 'duck-cli-src'),
+            process.cwd()
+          ].filter(Boolean);
+          const duckBinary = process.env.DUCK_BINARY || 'duck';
+          let resolved = false;
+          const tryNext = (i: number) => {
+            if (i >= sourceCandidates.length) {
+              if (!resolved) { resolve(`Error: duck source not found. Set DUCK_SOURCE_DIR or ensure duck-cli is in cwd.`); resolved = true; }
+              return;
+            }
+            const duckSourceDir = sourceCandidates[i];
+            exec(`cd ${duckSourceDir} && ${duckBinary} doctor`, (e, stdout, stderr) => {
+              if (!resolved && e && e.message.includes('No such file')) {
+                tryNext(i + 1); // try next candidate
+              } else if (!resolved) {
+                resolve(e ? `Error: ${e.message}` : stdout); resolved = true;
+              }
+            });
+          };
+          tryNext(0);
         });
       }
     });
@@ -1709,6 +2124,43 @@ export class Agent extends EventEmitter {
         return `Installed packages (${apps.length}):\n\n${apps.slice(0, 80).join('\n')}${apps.length > 80 ? `\n... and ${apps.length - 80} more` : ''}`;
       }
     });
+    // ─── AI Council Tools (Deliberation Layer) ───────────────────
+    this.registerTool({
+      name: 'council_deliberate',
+      description: '🏛️ Deliberate with AI Council for complex/ethical decisions. Use for high-stakes choices, moral dilemmas, or when multiple expert perspectives are needed.',
+      schema: {
+        topic: { type: 'string', description: 'The topic/question to deliberate' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { processWithCouncil } = await import('../council/chat-bridge.js');
+        const result = await processWithCouncil('tool-call', args.topic, 5, process.env.MINIMAX_API_KEY || '');
+        return {
+          verdict: result.routed,
+          response: result.response,
+          council: result.council
+        };
+      }
+    });
+    this.registerTool({
+      name: 'council_ask',
+      description: '🎯 Ask AI Council a direct question and get a verdict. Returns APPROVE, REJECT, MODIFY, or DELEGATE with reasoning.',
+      schema: {
+        question: { type: 'string', description: 'The question to ask the council' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { askCouncil } = await import('../council/chat-bridge.js');
+        const result = await askCouncil(args.question, 'Direct question from tool call', process.env.MINIMAX_API_KEY || '');
+        return {
+          verdict: result.verdict,
+          reasoning: result.reasoning,
+          confidence: result.confidence,
+          councilors: result.councilors_heard
+        };
+      }
+    });
+
     this.registerTool({
       name: 'android_termux',
       description: '🖥️ Run Termux API command (battery, clip-get, clip-set, notif, sensors, location, wifi, toast, vibrate, torch)',
@@ -1814,6 +2266,75 @@ export class Agent extends EventEmitter {
         if (args.description) updates.description = args.description;
         if (args.skills) updates.skills = args.skills;
         return agentCardManager.updateCard(updates);
+      }
+    });
+
+    // ─── MiniMax CLI (mmx) ───────────────────────────────────
+    this.registerTool({
+      name: 'mmx_text',
+      description: '📝 Generate text/chat via MiniMax CLI (mmx). Use for quick text generation when connected to MiniMax.',
+      schema: {
+        prompt: { type: 'string', description: 'Text prompt or message' },
+        system: { type: 'string', optional: true, description: 'System prompt' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const systemArg = args.system ? `--system "${args.system}" ` : '';
+        const result = spawnSync('mmx', ['text', 'chat', '--message', args.prompt, ...(args.system ? ['--system', args.system] : [])], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_image',
+      description: '🖼️ Generate an image via MiniMax CLI (mmx). Provide a prompt.',
+      schema: {
+        prompt: { type: 'string', description: 'Image generation prompt' },
+        output: { type: 'string', optional: true, description: 'Output file path' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['image', args.prompt, ...(args.output ? ['--out', args.output] : [])], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_vision',
+      description: '👁️ Analyze an image via MiniMax CLI (mmx) vision model. Provide image path and optional query.',
+      schema: {
+        imagePath: { type: 'string', description: 'Path to image file' },
+        query: { type: 'string', optional: true, description: 'What to look for in the image' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['vision', args.imagePath, ...(args.query ? ['--query', args.query] : [])], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_search',
+      description: '🔍 Search the web via MiniMax CLI (mmx).',
+      schema: {
+        query: { type: 'string', description: 'Search query' }
+      },
+      dangerous: false,
+      handler: async (args: any) => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['search', args.query], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
+      }
+    });
+    this.registerTool({
+      name: 'mmx_status',
+      description: '📊 Check MiniMax CLI (mmx) quota and auth status.',
+      schema: {},
+      dangerous: false,
+      handler: async () => {
+        const { spawnSync } = await import('child_process');
+        const result = spawnSync('mmx', ['quota'], { encoding: 'utf-8' });
+        return result.stdout || result.stderr || 'No output from mmx';
       }
     });
   }
@@ -1974,7 +2495,45 @@ export class Agent extends EventEmitter {
           return '\n\n❌ ' + call.name + ' failed: ' + e.message;
         }
       }));
-      response += results.join('');
+      const toolSummary = results.join('');
+
+      // After tool execution, do a final synthesis pass so users get a clean
+      // assistant answer instead of raw tool payloads / TOOL_CALL traces.
+      try {
+        const cleanedDraft = response
+          .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+          .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+          .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
+          .trim();
+        const synthesisPrompt = [
+          'Answer the user directly using the tool results below.',
+          'Do not emit TOOL_CALL blocks, internal logs, JSON dumps, or chain-of-thought.',
+          'Respond as a normal assistant with the final answer only.',
+          '',
+          `User request: ${safeMessage}`,
+          cleanedDraft ? `Initial draft: ${cleanedDraft}` : '',
+          `Tool results:${toolSummary}`,
+        ].filter(Boolean).join('\n');
+
+        const synthesized = await this.providers.route(synthesisPrompt);
+        const finalText = (synthesized?.text || '')
+          .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+          .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+          .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
+          .trim();
+
+        response = finalText || (cleanedDraft + toolSummary);
+      } catch (e: any) {
+        console.log('[ToolSynth] Final synthesis failed, falling back to raw tool summary');
+        response = response
+          .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+          .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+          .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+          .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
+          .trim() + toolSummary;
+      }
 
       // DroidClaw-style: Check for stuck loops and inject recovery hints
       const hints = this.loopDetector.check();
@@ -2101,8 +2660,12 @@ export class Agent extends EventEmitter {
   }
 
   private buildSystemPrompt(): string {
+    // Use KAIROS system prompt compilation from prompts module
+    const kairosPrompt = compileSystemPrompt();
+
+    // Build agent-specific capabilities and tools section
     const tools = this.tools.list().map(t => `- ${t.name}: ${t.description}`).join('\n');
-    const capabilities: string[] = ['Be helpful, practical, concise'];
+    const capabilities: string[] = [];
 
     if (this.config.planningEnabled) capabilities.push('Use plan_create for complex multi-step tasks');
     if (this.config.cronEnabled) capabilities.push('Use cron_create to schedule recurring tasks');
@@ -2111,101 +2674,132 @@ export class Agent extends EventEmitter {
     if (this.learningEnabled) capabilities.push('Use memory_remember to save important information');
     capabilities.push('Use learn_from_feedback after completing tasks');
 
-    // DroidClaw-inspired structured thinking + goal-oriented guidance
-    const thinkingGuide = `
-═══════════════════════════════════════════
-STRUCTURED THINKING (DroidClaw-style)
-═══════════════════════════════════════════
+    return `${kairosPrompt}
 
-For complex tasks, STRUCTURE your thinking:
+You are ${this.name}, an advanced AI assistant with autonomous planning, subagent orchestration, and self-improvement.
+
+# Available Tools
+${tools}
+
+# Agent Capabilities
+${capabilities.join('\n')}
+
+# Structured Thinking
 - THINK: Why? Current state and what needs to happen
 - PLAN: Clear 3-5 step plan to achieve the goal
 - DO: Execute tools — one purposeful action at a time
 - REVIEW: Did it work? What changed? What's next?
 
-When calling tools, include a brief thought:
-→ THOUGHT: "I need X because Y. Result will tell me Z."
-→ Then execute the tool.
+# Recovery Strategies (when stuck)
+1. DIAGNOSE: What specifically failed?
+2. ALTERNATIVE: Is there a DIFFERENT tool?
+3. SIMPLIFY: Break into smaller steps
+4. CHECK: Is target available?
+5. ASK: spawn a subagent for second opinion
+6. MOVE ON: Try a different approach
 
-═══════════════════════════════════════════
-GOAL-ORIENTED THINKING (KEY)
-═══════════════════════════════════════════
-
-Focus on WHAT to accomplish, not rigid step-following.
-If a step fails, ask: "What was the PURPOSE of this step?"
-Then find ANOTHER way to achieve that purpose.
-
-❌ BAD: "I tried 3 times to read the file but it failed."
-✅ GOOD: "The file doesn't exist. Use shell to find it, or try a different path."
-
-═══════════════════════════════════════════
-RECOVERY STRATEGIES (when stuck)
-═══════════════════════════════════════════
-
-1. DIAGNOSE: What specifically failed? (network, auth, syntax, permissions?)
-2. ALTERNATIVE: Is there a DIFFERENT tool that achieves the same goal?
-3. SIMPLIFY: Can I break this into smaller steps?
-4. CHECK: Is the target file/app/resource actually available?
-5. ASK: Use duck_council or spawn a subagent for a second opinion
-6. MOVE ON: If truly stuck, try a completely different approach
-
-═══════════════════════════════════════════
-TOOL USE BEST PRACTICES
-═══════════════════════════════════════════
-
+# Best Practices
 - NEVER retry the same failing tool more than once — try DIFFERENT approach
 - Silent successes: shell/file_write often succeed without output
 - Multi-step: use plan_create for clarity
 - Parallel: agent_spawn_team for independent tasks (faster)
-- Desktop: desktop_open / desktop_click / desktop_type / screen_read
-- Web: web_search or browser automation
-- Unsure: speculate tool tries multiple approaches automatically
-- Workflows: workflow_run for multi-step goal sequences
 
-═══════════════════════════════════════════
-DESKTOP AUTOMATION PATTERN (DroidClaw-style)
-═══════════════════════════════════════════
-
-For GUI automation, use the observe-then-act pattern:
-1. screen_read → "Describe what you see, focus on [buttons/fields]"
-2. desktop_click → coordinates from the analysis
-3. desktop_type → enter text after focusing a field
-4. screen_read → verify the result
-
-═══════════════════════════════════════════
-PATIENCE WITH LOADING
-═══════════════════════════════════════════
-
-- Network calls: expect 5-15 seconds
-- File operations: usually instant
-- If stuck after 2+ attempts, try a different approach`
-
-    return `You are ${this.name}, an advanced AI assistant with autonomous planning, subagent orchestration, and self-improvement.
-
-Capabilities:
-${tools}
-
-Guidelines:
-${capabilities.join('\n')}
-${thinkingGuide}`;
+# Voice / TTS (Telegram Voice Messages)
+When user asks you to "say X", "read this aloud", "generate speech", or "speak this":
+1. ALWAYS call the speak tool first with the text to convert
+2. IMPORTANT: After the speak tool returns [AUDIO:filepath], you MUST include that exact marker as a SEPARATE LINE in your final text response (not inside JSON, not buried in text — on its own line)
+3. Example correct response:
+   "Hello! How are you doing today?"
+   [AUDIO:/tmp/tts_1234567890.mp3]
+4. The [AUDIO:...] marker will be automatically detected and sent as a Telegram voice message
+5. Keep the spoken text concise (under 1000 chars for best TTS quality)
+`;
   }
 
   private parseToolCalls(text: string): Array<{ name: string; args: any }> {
     const calls: Array<{ name: string; args: any }> = [];
+    const normalizeToolName = (rawName: string): string | null => {
+      const name = String(rawName || '').trim();
+      if (!name) return null;
+      if (this.tools.has(name)) return name;
+      const lower = name.toLowerCase();
+      const aliases: Record<string, string> = {
+        bash: 'shell',
+        shell: 'shell',
+        command: 'shell',
+        websearch: 'web_search',
+        web_search: 'web_search',
+        webfetch: 'web_fetch',
+        web_fetch: 'web_fetch',
+        fileread: 'file_read',
+        file_read: 'file_read',
+        filewrite: 'file_write',
+        file_write: 'file_write',
+      };
+      const mapped = aliases[lower] || lower;
+      return this.tools.has(mapped) ? mapped : null;
+    };
+
     const pattern1 = /\[TOOL:\s*(\w+)\s*\|\s*args:\s*(\{[^}]+\})\]/g;
     let match;
     while ((match = pattern1.exec(text)) !== null) {
-      try { calls.push({ name: match[1], args: JSON.parse(match[2]) }); } catch {}
+      const name = normalizeToolName(match[1]);
+      if (!name) continue;
+      try { calls.push({ name, args: JSON.parse(match[2]) }); } catch {}
     }
-            const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
-        let match2;
-        while ((match2 = pattern2.exec(text)) !== null) {
-          if (this.tools.has(match2[1])) {
-            try { calls.push({ name: match2[1], args: JSON.parse(match2[2]) }); } catch {}
-          }
-        }
-        return calls;
+
+    const pattern2 = /(\w+)\s*\(\s*(\{[^}]+\})\s*\)/g;
+    let match2;
+    while ((match2 = pattern2.exec(text)) !== null) {
+      const name = normalizeToolName(match2[1]);
+      if (!name) continue;
+      try { calls.push({ name, args: JSON.parse(match2[2]) }); } catch {}
+    }
+
+    // Support model outputs like:
+    // {tool => "web_search", args => { --query "OpenClaw documentation" --provider "DuckDuckGo" }}
+    const pattern3 = /\{\s*tool\s*=>\s*"([^"]+)"\s*,\s*args\s*=>\s*\{([\s\S]*?)\}\s*\}/g;
+    let match3;
+    while ((match3 = pattern3.exec(text)) !== null) {
+      const name = normalizeToolName(match3[1]);
+      const rawArgs = match3[2] || '';
+      if (!name) continue;
+      const args: Record<string, any> = {};
+      const argPattern = /--([a-zA-Z0-9_-]+)\s+"([^"]*)"/g;
+      let argMatch;
+      while ((argMatch = argPattern.exec(rawArgs)) !== null) {
+        args[argMatch[1]] = argMatch[2];
       }
+      calls.push({ name, args });
+    }
+
+    // Support MiniMax/XML-style tool calls like:
+    // <minimax:tool_call><invoke name="Bash"><parameter name="command">ls -la</parameter></invoke></minimax:tool_call>
+    const pattern4 = /<(?:minimax:)?tool_call>[\s\S]*?<invoke\s+name="([^"]+)"\s*>([\s\S]*?)<\/invoke>[\s\S]*?<\/(?:minimax:)?tool_call>/gi;
+    let match4;
+    while ((match4 = pattern4.exec(text)) !== null) {
+      const name = normalizeToolName(match4[1]);
+      if (!name) continue;
+      const rawParams = match4[2] || '';
+      const args: Record<string, any> = {};
+      const paramPattern = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/gi;
+      let paramMatch;
+      while ((paramMatch = paramPattern.exec(rawParams)) !== null) {
+        const key = String(paramMatch[1] || '').trim();
+        const value = String(paramMatch[2] || '')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .trim();
+        if (key) args[key] = value;
+      }
+      calls.push({ name, args });
+    }
+
+    return calls;
+  }
 
       private estimateTokens(text: string): number {
         return Math.ceil(text.length / 4);
@@ -2326,8 +2920,21 @@ ${thinkingGuide}`;
 
         const startTime = Date.now();
         try {
-          const result = await this.tools.execute(toolName, currentArgs);
+          let result = await this.tools.execute(toolName, currentArgs);
           const durationMs = Date.now() - startTime;
+
+          // Some tool handlers return { error: ... } inside a successful wrapper
+          // instead of throwing. Normalize that into a real tool failure so retry,
+          // fallback, and failure-reporting logic can actually fire.
+          if (
+            result?.success &&
+            result?.result &&
+            typeof result.result === 'object' &&
+            result.result.error &&
+            result.result.success !== true
+          ) {
+            result = { ...result, success: false, error: String(result.result.error) };
+          }
 
           if (result.success) {
             // Structured log: TOOL_SUCCESS
@@ -2361,6 +2968,7 @@ ${thinkingGuide}`;
             }
             // Structured log: TOOL_FAIL
             console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError}" attempts=${maxAttempts}/${maxAttempts}`);
+            try { getFailureReporter().reportTool(toolName, String(lastError), JSON.stringify(currentArgs)); } catch {}
             return { success: false, error: lastError };
           }
         } catch (e: any) {
@@ -2382,6 +2990,7 @@ ${thinkingGuide}`;
 
           // Structured log: TOOL_FAIL
           console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${e.message}" attempts=${attempt}/${maxAttempts}`);
+          try { getFailureReporter().reportTool(toolName, String(e.message), JSON.stringify(currentArgs)); } catch {}
           return { success: false, error: e.message };
         }
       }
@@ -2424,6 +3033,7 @@ ${thinkingGuide}`;
       // Structured log: TOOL_FAIL
       const totalAttempts = maxAttempts + entry.fallbacks.length;
       console.log(`[TOOL_FAIL] timestamp=${new Date().toISOString()} tool=${toolName} error="${lastError?.message || lastError}" attempts=${totalAttempts}/${totalAttempts}`);
+      try { getFailureReporter().reportTool(toolName, String(lastError?.message || lastError), JSON.stringify(currentArgs)); } catch {}
 
       // Build a helpful summary error
       const fallbackNames = entry.fallbacks.map(f => f.tool).join(' → ');

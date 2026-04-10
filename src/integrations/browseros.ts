@@ -1,7 +1,14 @@
 /**
  * 🦆 Duck Agent - BrowserOS Integration
  * Connect to BrowserOS MCP server for 60+ browser automation tools
+ *
+ * v2: Added SSRF re-validation after evaluateScript() and click().
+ * Browser interactions can cause client-side redirects to attacker-controlled
+ * URLs via JavaScript evaluation or element clicks — initial URL validation
+ * is not sufficient to catch these post-interaction navigations.
  */
+
+import { validateBrowserURL, SSRFViolationError, type SSRFInteractionResult } from '../security/ssrf.js';
 
 export interface BrowserOSConfig {
   host: string;
@@ -60,18 +67,28 @@ export class BrowserOSIntegration {
    * Get info about BrowserOS
    */
   async getInfo(): Promise<any> {
-    const response = await fetch(`${this.baseUrl}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'browseros_info',
-        params: {}
-      }),
-    });
-    const data = await response.json() as any;
-    return data.result?.text || data;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(`${this.baseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'browseros_info',
+          params: {}
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const data = await response.json() as any;
+      return data.result?.text || data;
+    } catch (e: any) {
+      clearTimeout(timeout);
+      console.warn(`[BrowserOS] getInfo failed: ${e.message}`);
+      return null;
+    }
   }
 
   // ============ Navigation Tools ============
@@ -93,16 +110,42 @@ export class BrowserOSIntegration {
   }
 
   /**
-   * Navigate to a URL
+   * Navigate to a URL.
+   * SSRF pre-validation is performed before navigation to block requests
+   * to private network addresses or blocked hosts.
    */
   async navigate(url: string): Promise<{ success: boolean; page?: BrowserOSPage }> {
+    // SSRF pre-validation before navigation
+    const validation = await validateBrowserURL(url);
+    if (!validation.allowed) {
+      console.error(`[SSRF] BrowserOS navigate blocked: ${validation.reason} | URL: ${url}`);
+      throw new SSRFViolationError(
+        `SSRF violation: ${validation.reason}`,
+        url,
+        validation.resolvedIP
+      );
+    }
+
     return this.callTool('navigate_page', { url });
   }
 
   /**
-   * Open a new page/tab
+   * Open a new page/tab.
+   * If a URL is provided, SSRF pre-validation is performed.
    */
   async newPage(url?: string): Promise<{ page: BrowserOSPage }> {
+    if (url) {
+      const validation = await validateBrowserURL(url);
+      if (!validation.allowed) {
+        console.error(`[SSRF] BrowserOS newPage blocked: ${validation.reason} | URL: ${url}`);
+        throw new SSRFViolationError(
+          `SSRF violation: ${validation.reason}`,
+          url,
+          validation.resolvedIP
+        );
+      }
+    }
+
     return this.callTool('new_page', { url });
   }
 
@@ -179,10 +222,22 @@ export class BrowserOSIntegration {
   }
 
   /**
-   * Evaluate JavaScript on the page
+   * Evaluate JavaScript on the page.
+   * After execution, SSRF re-validation is performed on the browser's
+   * current URL since JS can trigger navigation (window.location, form
+   * submission, meta refresh, etc.).
    */
   async evaluateScript(script: string, pageId?: string): Promise<{ result: any }> {
-    return this.callTool('evaluate_script', { expression: script, pageId });
+    // Capture URL before evaluation for redirect detection
+    const beforePage = pageId ? undefined : await this.getActivePage().catch(() => null);
+    const urlBefore = beforePage?.url;
+
+    const result = await this.callTool('evaluate_script', { expression: script, pageId });
+
+    // SSRF re-validation: check URL after JS execution
+    await this._ssrfRevalidate(pageId, urlBefore);
+
+    return result;
   }
 
   /**
@@ -195,10 +250,20 @@ export class BrowserOSIntegration {
   // ============ Input Tools ============
 
   /**
-   * Click an element by ref
+   * Click an element by ref.
+   * After execution, SSRF re-validation is performed on the browser's
+   * current URL since the clicked element may navigate to an arbitrary URL
+   * (malicious links, form submissions, redirect handlers, etc.).
    */
   async click(ref: string, pageId?: string): Promise<void> {
+    // Capture URL before click for redirect detection
+    const beforePage = pageId ? undefined : await this.getActivePage().catch(() => null);
+    const urlBefore = beforePage?.url;
+
     await this.callTool('click', { ref, pageId });
+
+    // SSRF re-validation: check URL after click
+    await this._ssrfRevalidate(pageId, urlBefore);
   }
 
   /**
@@ -410,32 +475,107 @@ export class BrowserOSIntegration {
   // ============ Internal ============
 
   /**
+   * SSRF re-validation after a browser interaction.
+   * Gets the current page URL and validates it against SSRF rules.
+   * Throws SSRFViolationError if the URL resolves to a private network.
+   *
+   * @param pageId Optional page ID; uses active page if not provided
+   * @param urlBefore Optional URL from before the interaction for redirect detection
+   */
+  private async _ssrfRevalidate(pageId: string | undefined, urlBefore?: string): Promise<void> {
+    try {
+      // Get current page URL (may differ from navigated URL due to client-side redirect)
+      const page = pageId
+        ? (await this.listPages()).find(p => p.id === pageId)
+        : await this.getActivePage();
+
+      if (!page?.url) return;
+
+      const validation = await validateBrowserURL(page.url, urlBefore);
+
+      if (!validation.allowed) {
+        console.error(
+          `[SSRF] BrowserOS post-interaction SSRF violation detected!` +
+          ` Reason: ${validation.reason} | URL: ${page.url}` +
+          ` | Resolved IP: ${validation.resolvedIP ?? 'N/A'}` +
+          ` | Redirected: ${validation.redirected}`
+        );
+        throw new SSRFViolationError(
+          `SSRF violation after browser interaction: ${validation.reason}`,
+          page.url,
+          validation.resolvedIP
+        );
+      }
+
+      if (validation.redirected) {
+        console.log(`[SSRF] BrowserOS: client-side redirect detected (${urlBefore} → ${page.url}), validated OK`);
+      }
+    } catch (e) {
+      // Don't re-throw SSRFViolationError; pass it through
+      if (e instanceof SSRFViolationError) throw e;
+      // Other errors (network, etc.) during re-validation are non-fatal
+      console.warn(`[SSRF] BrowserOS re-validation warning: ${(e as Error).message}`);
+    }
+  }
+
+  /**
    * Call a BrowserOS MCP tool
    */
   private async callTool(toolName: string, params: Record<string, any>): Promise<any> {
-    try {
-      const response = await fetch(`${this.baseUrl}/mcp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: Date.now(),
-          method: toolName,
-          params
-        }),
-      });
+    const retryDelays = [500, 1000, 2000];
+    let lastError = '';
 
-      const data = await response.json() as any;
-      
-      if (data.error) {
-        throw new Error(data.error.message || 'BrowserOS tool error');
+    for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+      if (attempt > 0) {
+        const delay = retryDelays[attempt - 1];
+        console.log(`[BrowserOS] ${toolName} retry ${attempt}/${retryDelays.length} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
 
-      return data.result || data;
-    } catch (error) {
-      console.error(`BrowserOS tool error: ${toolName}`, error);
-      throw error;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(`${this.baseUrl}/mcp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: Date.now(),
+            method: toolName,
+            params
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        let data: any;
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(`BrowserOS ${toolName} returned invalid JSON (HTTP ${response.status}): ${await response.text().catch(() => 'empty')}`);
+        }
+
+        if (data?.error) {
+          throw new Error(data.error.message || `BrowserOS ${toolName} error`);
+        }
+
+        return data.result || data;
+      } catch (e: any) {
+        lastError = e.message || 'Unknown error';
+        const isRetryable = e.name === 'AbortError' || e.message?.includes('ECONNRESET') ||
+                           e.message?.includes('ETIMEDOUT') || e.message?.includes('ENOTFOUND') ||
+                           e.message?.includes('Connection') || e.message?.includes('fetch') ||
+                           e.message?.includes('network') || e.message?.includes('Invalid JSON');
+        if (!isRetryable) {
+          console.error(`[BrowserOS] ${toolName} failed (non-retryable): ${lastError}`);
+          throw e;
+        }
+        console.warn(`[BrowserOS] ${toolName} failed (retryable): ${lastError}`);
+      }
     }
+
+    throw new Error(`BrowserOS ${toolName} failed after ${retryDelays.length} retries: ${lastError}`);
   }
 
   /**

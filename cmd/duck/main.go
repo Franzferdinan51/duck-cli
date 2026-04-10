@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	version = "0.4.0"
+	version = "0.8.0"
 
 	// Styles
 	brandStyle = lipgloss.NewStyle().
@@ -57,8 +57,9 @@ func main() {
 		Use:   "duck",
 		Short: "🦆 The ultimate AI coding agent",
 		Long: `
-Duck CLI — Unified super agent combining OpenClaw infrastructure,
-Hermes-Agent self-improvement, NeMoClaw security, and Kimi k2p5.
+Duck CLI — Standalone AI super agent with optional OpenClaw bridge.
+Runs fully on its own (MiniMax, LM Studio, Kimi, OpenAI, OpenRouter).
+The bridge command connects to OpenClaw for multi-agent setups.
 
 Features:
   • Multi-provider AI (Kimi k2p5, MiniMax M2.7, OpenRouter, LM Studio, ChatGPT)
@@ -70,7 +71,8 @@ Features:
   • AI Council (45 councilors)
   • Agent Mesh networking
   • DEFCON security mode
-  • Desktop UI + Web UI`,
+  • Desktop UI + Web UI
+  • Optional OpenClaw bridge for multi-agent integration`,
 		Version: version,
 	}
 
@@ -88,8 +90,10 @@ Features:
 		mcpCmd(),
 		skillsCmd(),
 		securityCmd(),
+		securityAuditCmd(),
 		statusCmd(),
 		councilCmd(),
+		loggerCmd(),
 		workflowCmd(),
 		androidCmd(),
 		flowCmd(),
@@ -101,15 +105,20 @@ Features:
 		cronCmd(),
 		buddyCmd(),
 		providersCmd(),
+		modelsCmd(),
+		failuresCmd(),
 		teamCmd(),
 		meshCmd(),
 
-	metaCmd(),		meshdCmd(),
+		metaCmd(),
+		meshdCmd(),
 		chatAgentCmd(),
 		rlCmd(),
 		acpServerCmd(),
 		acpSpawnCmd(),
+		a2aCmd(),
 		updateCmd(),
+		backupCmd(),
 		syncCmd(),
 		voiceCmd(),
 		speakCmd(),
@@ -121,11 +130,23 @@ Features:
 		thinkCmd(),
 		doctorCmd(),
 		healthCmd(),
-		loggerCmd(),
 		statsCmd(),
 		configCmd(),
 		traceCmd(),
 		toolsCmd(),
+		sendCmd(),
+		browserCmd(),
+		sandboxCmd(),
+		nodeCmd(),
+		nodesCmd(),
+		devicesCmd(),
+		qrCmd(),
+		capabilityCmd(),
+		graphifyCmd(),
+		mmxCmd(),
+		onboardCmd(),
+		pluginsCmd(),
+		secretsCmd(),
 	)
 
 	// No args → start interactive shell (standalone mode for humans)
@@ -323,26 +344,35 @@ func teamCmd() *cobra.Command {
 // metaCmd - duck meta [plan|run|learnings]
 func metaCmd() *cobra.Command {
 	metaCmd := &cobra.Command{
-		Use:   "meta",
-		Short: "🦆 duck-cli v3 Meta-Agent (LLM-powered orchestration)",
-		Long:  "Plan, execute, and learn from tasks with the Meta-Agent loop.",
+		Use:               "meta",
+		Short:             "🦆 duck-cli v3 Meta-Agent (LLM-powered orchestration)",
+		Long:              "Plan, execute, and learn from tasks with the Meta-Agent loop.",
+		DisableFlagParsing: true, // Flags are handled by TypeScript subcommands
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Pass args as: ["meta", "subcmd", "task part1 part2"]
-			// Node: argv[2]="meta", argv[3]="subcmd", argv[4]="task part1 part2"
-			// main(): command="meta", args=["subcmd", "task part1 part2"]
-			nodeArgs := []string{"meta"}
-			if len(args) > 0 {
-				if len(args) > 1 {
-					// First arg = subcommand, rest joined as single string for task
-					nodeArgs = append(nodeArgs, args[0], strings.Join(args[1:], " "))
-				} else {
-					nodeArgs = append(nodeArgs, args[0])
-				}
-			}
+			// Pass all args directly to TypeScript meta command
+			// e.g. "duck meta plan hello --planner qwen3.5-0.8b"
+			// → nodeArgs = ["meta", "plan", "hello", "--planner", "qwen3.5-0.8b"]
+			nodeArgs := append([]string{"meta"}, args...)
 			return runNodeDirectMulti(nodeArgs, cmd)
 		},
 	}
 	return metaCmd
+}
+
+// failuresCmd - duck failures [stats|list|tools|providers]
+func failuresCmd() *cobra.Command {
+	failuresCmd := &cobra.Command{
+		Use:               "failures",
+		Short:             "View failure reports from self-healing pipeline",
+		DisableFlagParsing: true, // All args pass through to TypeScript
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nodeArgs := []string{"failures"}
+			nodeArgs = append(nodeArgs, args...)
+			// → nodeArgs = ["failures", "stats", ...]
+			return runNodeDirectMulti(nodeArgs, cmd)
+		},
+	}
+	return failuresCmd
 }
 
 // providersCmd - duck providers [list]
@@ -355,6 +385,22 @@ func providersCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// modelsCmd - duck models
+func modelsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "models",
+		Short: "Show available AI models from all providers",
+		Long: `List all available models from configured providers.
+
+Examples:
+  duck models              Show all models
+  duck models --provider   Show models for specific provider`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("models", cmd)
+		},
+	}
 }
 
 // meshCmd - duck mesh [action]
@@ -466,6 +512,22 @@ func acpSpawnCmd() *cobra.Command {
 	return cmd
 }
 
+// a2aCmd - duck a2a [action]
+func a2aCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "a2a [action]",
+		Short: "Agent-to-agent protocol (card|serve|status)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("a2a card", cmd)
+			}
+			return runNodeWithEnv("a2a "+args[0], cmd)
+		},
+	}
+	return cmd
+}
+
 // updateCmd - duck update [action]
 func updateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -477,6 +539,27 @@ func updateCmd() *cobra.Command {
 				return runNodeWithEnv("update check", cmd)
 			}
 			return runNodeWithEnv("update "+args[0], cmd)
+		},
+	}
+	return cmd
+}
+
+// backupCmd - duck backup [action] - Backup create/verify/restore/list/prune
+func backupCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "backup [action] [args]",
+		Short: "🦆 Backup management (create|verify|restore|list|prune)",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("backup list", cmd)
+			}
+			sub := args[0]
+			rest := ""
+			if len(args) > 1 {
+				rest = " " + strings.Join(args[1:], " ")
+			}
+			return runNodeWithEnv("backup "+sub+rest, cmd)
 		},
 	}
 	return cmd
@@ -569,14 +652,23 @@ func skillsCmd() *cobra.Command {
 // securityCmd - duck security
 func securityCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "security [action]",
-		Short: "Security operations (audit|defcon)",
-		Args:  cobra.MaximumNArgs(1),
+		Use:                "security [action]",
+		Short:              "Security operations (scan|audit|check|logs|status|history|defcon|threat)",
+		Long: `Security operations with DEFCON integration.
+
+Commands:
+  duck security scan <target>     Scan for vulnerabilities
+  duck security audit             Full system security audit
+  duck security check <path>      Check file/directory permissions
+  duck security logs              Analyze logs for security events
+  duck security status            Show security status summary
+  duck security history           Show scan history
+  duck security defcon [level]    Show or set DEFCON level (1-5)
+  duck security threat            Report a security threat`,
+		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 || args[0] == "audit" {
-				return runNode("security-audit")
-			}
-			return runNode("security-defcon")
+			// Pass all args directly to TypeScript
+			return runNodeDirectMulti(append([]string{"security"}, args...), cmd)
 		},
 	}
 	return cmd
@@ -830,6 +922,22 @@ func configCmd() *cobra.Command {
 	return cmd
 }
 
+// secretsCmd - duck secrets [set|get|list|show|delete|tags|has|path|export|import]
+func secretsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "secrets [set|get|list|show|delete|tags|has|path|export|import] [key] [value]",
+		Short: "Secure secrets management (API keys, tokens, etc.)",
+		Args:  cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("secrets list", cmd)
+			}
+			return runNodeWithEnv("secrets "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
 // traceCmd - duck trace [list|show|delete|clear]
 func traceCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -866,6 +974,11 @@ func toolsCmd() *cobra.Command {
 func runNode(args ...string) error {
 	exePath, _ := os.Executable()
 	cmdDir := filepath.Dir(exePath)
+	// Resolve symlinks in dist/ path so DUCK_SOURCE_DIR points to real source dir
+	distPath := filepath.Join(cmdDir, "dist")
+	if realDist, err := filepath.EvalSymlinks(distPath); err == nil {
+		cmdDir = filepath.Dir(realDist)
+	}
 	nodeCmd := exec.Command("node", append([]string{filepath.Join(cmdDir, "dist", "cli", "main.js")}, args...)...)
 	nodeCmd.Stdout = os.Stdout
 	nodeCmd.Stderr = os.Stderr
@@ -925,7 +1038,8 @@ func channelsCmd() *cobra.Command {
 				return runNodeWithEnv("channels discord", cmd)
 			}
 			if len(args) > 0 {
-				return runNodeWithEnv("channels "+args[0], cmd)
+				// Forward all args (not just args[0]) - fixes duck channels send hello
+				return runNodeWithEnv("channels "+strings.Join(args, " "), cmd)
 			}
 			return runNodeWithEnv("channels", cmd)
 		},
@@ -937,13 +1051,45 @@ func channelsCmd() *cobra.Command {
 func desktopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "desktop [action]",
-		Short: "Desktop control",
+		Short: "Desktop control (open|click|type|screenshot|status)",
+		Long: `Desktop control via ClawdCursor.
+
+Commands:
+  duck desktop open <app>      Open an application
+  duck desktop click <x> <y>    Click at coordinates
+  duck desktop type <text>      Type text
+  duck desktop screenshot        Capture screenshot
+  duck desktop status          Show desktop control status
+
+Examples:
+  duck desktop open Safari
+  duck desktop click 500 300
+  duck desktop type "Hello world"
+  duck desktop status`,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return runNodeWithEnv("desktop "+args[0], cmd)
 			}
 			return runNodeWithEnv("desktop status", cmd)
+		},
+	}
+}
+
+// sendCmd - duck send <channel> <target> <message>
+func sendCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "send <channel> <target> <message>",
+		Short: "Send a message via a channel (telegram|discord)",
+		Long: `Send a message through Telegram or Discord.
+
+Examples:
+  duck send telegram 123456789 "Hello from Duck CLI"
+  duck send discord 987654321 "Message via Discord"`,
+		Args:  cobra.MinimumNArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			script := "send " + strings.Join(args, " ")
+			return runNodeWithEnv(script, cmd)
 		},
 	}
 }
@@ -1222,8 +1368,8 @@ func androidCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmdStr := strings.Join(args, " ")
-			payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(cmdStr, `"`, `\"`))
-			return runNodeWithEnv("android shell "+payload, cmd)
+			// Pass command directly so it survives Go's strings.Split() in runNodeWithEnv
+			return runNodeWithEnv("android shell-cmd " + cmdStr, cmd)
 		},
 	}
 	dumpCmd := &cobra.Command{
@@ -1280,11 +1426,12 @@ func androidCmd() *cobra.Command {
 		},
 	}
 	screenCmd := &cobra.Command{
-		Use:   "screen",
+		Use:   "screen [serial]",
 		Short: "Read all visible text on Android screen (OCR-style)",
-		Args:  cobra.NoArgs,
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			serial := getFirstDevice()
+			serial := ""
+			if len(args) > 0 { serial = args[0] } else { serial = getFirstDevice() }
 			payload := fmt.Sprintf(`{"serial":"%s"}`, serial)
 			return runNodeWithEnv("android screen " + payload, cmd)
 		},
@@ -1458,8 +1605,8 @@ Other models: set GEMMA_MODEL, DUCK_PRIORITY, or DUCK_CLI_MODEL env vars.`,
 					return fmt.Errorf("Usage: duck android shell <command>")
 				}
 				shellCmd := strings.Join(args[1:], " ")
-				payload := fmt.Sprintf(`{"command":"%s"}`, strings.ReplaceAll(shellCmd, `"`, `\"`))
-				return runNodeWithEnv("android shell "+payload, cmd)
+				// Pass command directly so it survives Go strings.Split()
+				return runNodeWithEnv("android shell-cmd " + shellCmd, cmd)
 			case "dump":
 				query := ""
 				if len(args) > 1 {
@@ -1560,5 +1707,56 @@ Other models: set GEMMA_MODEL, DUCK_PRIORITY, or DUCK_CLI_MODEL env vars.`,
 		},
 	}
 	cmd.AddCommand(devicesCmd, screenshotCmd, tapCmd, typeCmd, shellCmdLocal, dumpCmd, findCmd, swipeCmd, pressCmd, appCmd, screenCmd, batteryCmd, infoCmd, installCmd, packagesCmd, termuxCmd, analyzeCmd, clipboardCmd, notificationsCmd, statusCmd, forwardCmd, pushCmd, agentCmd)
+	return cmd
+}
+
+// browserCmd - duck browser [action]
+func browserCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "browser [action]",
+		Short: "Browser automation via BrowserOS MCP",
+		Long: `Browser automation using BrowserOS MCP.
+
+Commands:
+  duck browser status              Check BrowserOS status
+  duck browser start               Start BrowserOS
+  duck browser stop                Stop BrowserOS
+  duck browser tabs                List open tabs
+  duck browser open <url>          Open URL in new tab
+  duck browser navigate <url>      Navigate current tab to URL
+  duck browser click <ref>         Click element by ref
+  duck browser type <ref> <text>   Type text into element
+  duck browser screenshot [path]   Take screenshot
+  duck browser snapshot            Get accessibility snapshot`,
+		Args: cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("browser status", cmd)
+			}
+			return runNodeWithEnv("browser "+strings.Join(args, " "), cmd)
+		},
+	}
+	return cmd
+}
+
+// sandboxCmd - duck sandbox [action]
+func sandboxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "sandbox [action]",
+		Short: "Sandbox management (list|recreate|explain)",
+		Long: `Manage BrowserOS sandboxes.
+
+Commands:
+  duck sandbox list                List all sandboxes
+  duck sandbox recreate [id]       Recreate a sandbox
+  duck sandbox explain             Explain current page structure`,
+		Args: cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return runNodeWithEnv("sandbox list", cmd)
+			}
+			return runNodeWithEnv("sandbox "+strings.Join(args, " "), cmd)
+		},
+	}
 	return cmd
 }

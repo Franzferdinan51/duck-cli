@@ -43,6 +43,8 @@ import {
 } from './tool.js';
 
 import { FallbackManager, createFallbackManager, getFallbackManager } from './fallback-manager.js';
+import { getSkillCreator, SkillExecution } from '../skills/skill-creator.js';
+import { getSkillImprover } from '../skills/skill-improver.js';
 
 // ==================== Hybrid Orchestrator Types ====================
 
@@ -110,6 +112,10 @@ export class HybridOrchestrator {
   private tools: Map<string, Tool>;
   private toolHandlers: Map<string, (params: ToolParams) => Promise<ToolResult>>;
 
+  // Task history for autonomous skill creation (tracks recent tool sequences)
+  private recentTasks: Array<{ task: string; toolName?: string; success: boolean; timestamp: number }> = [];
+  private maxTaskHistory = 20;
+
   constructor(config: HybridOrchestratorConfig = {}) {
     this.name = config.name ?? 'duck-cli-hybrid';
     this.version = config.version ?? '2.0.0';
@@ -117,10 +123,12 @@ export class HybridOrchestrator {
     this.config = {
       name: this.name,
       version: this.version,
-      defaultTimeout: config.defaultTimeout ?? 30000,
+      // DUCK_TIMEOUT_MS env var cascades to orchestrator so Telegram-triggered
+      // tasks get enough time for complex operations (AI Council, multi-step agents).
+      defaultTimeout: config.defaultTimeout ?? parseInt(process.env.DUCK_TIMEOUT_MS || '120000', 10),
       maxConcurrentTasks: config.maxConcurrentTasks ?? 10,
       enableCouncil: config.enableCouncil ?? true,
-      councilTimeout: config.councilTimeout ?? 30000,
+      councilTimeout: config.councilTimeout ?? parseInt(process.env.DUCK_TIMEOUT_MS || '120000', 10),
       enableMetrics: config.enableMetrics ?? true,
       fastPath: config.fastPath ?? true,
       routerConfig: config.routerConfig ?? {},
@@ -424,6 +432,42 @@ export class HybridOrchestrator {
       const totalTime =
         this.metrics.avgExecutionTimeMs * (this.metrics.tasksProcessed - 1) + execTime;
       this.metrics.avgExecutionTimeMs = totalTime / this.metrics.tasksProcessed;
+
+      // Record for autonomous skill creation & improvement
+      if (result.success) {
+        const toolName = typeof result.toolName === 'string' ? result.toolName : undefined;
+        if (toolName) {
+          // Add to recent task history
+          this.recentTasks.push({ task, toolName, success: true, timestamp: Date.now() });
+          if (this.recentTasks.length > this.maxTaskHistory) {
+            this.recentTasks.shift();
+          }
+
+          // Check for skill creation opportunity (every 5 successful tool tasks)
+          const toolTasks = this.recentTasks.filter(t => t.toolName);
+          if (toolTasks.length >= 5 && toolTasks.length % 5 === 0) {
+            const sequence = toolTasks.slice(-10).map(t => t.toolName!);
+            const skillCreator = getSkillCreator();
+            skillCreator.recordExecution(task, sequence, true, execTime);
+
+            // Check if any patterns are ready
+            const ready = skillCreator.getReadyPatterns();
+            if (ready.length > 0) {
+              console.log(`\n🎯 SkillCreator: ${ready.length} pattern(s) ready for skill creation`);
+              // Async - don't await, let it run in background
+              ready.forEach(p => skillCreator.createSkillForPattern(p.pattern).catch(() => {}));
+            }
+          }
+
+          // Record for skill improvement
+          const improver = getSkillImprover();
+          improver.recordExecution(toolName, task, true, execTime);
+        }
+      } else if (result.toolName) {
+        // Record failure for skill improvement
+        const improver = getSkillImprover();
+        improver.recordExecution(result.toolName, task, false, execTime, result.error);
+      }
     }
 
     return {

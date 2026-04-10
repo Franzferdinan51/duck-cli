@@ -77,7 +77,7 @@ export class TaskRouter {
     this.registry = registry;
     this.engine = engine ?? new ExecutionEngine();
     this.config = {
-      defaultTimeout: config.defaultTimeout ?? 30000,
+      defaultTimeout: config.defaultTimeout ?? parseInt(process.env.DUCK_TIMEOUT_MS || '120000', 10),
       maxRoutingDepth: config.maxRoutingDepth ?? 5,
       enableContextAware: config.enableContextAware ?? true,
       fallbackOnNoMatch: config.fallbackOnNoMatch ?? true,

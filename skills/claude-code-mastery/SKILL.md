@@ -1,3 +1,12 @@
+---
+name: claude-code-mastery
+description: "Employee-grade Claude Code configuration with anti-hallucination checklists, context management, and swarm protocol"
+license: MIT
+metadata:
+  author: duck-cli
+  version: "1.0"
+---
+
 # 🦆 Claude Code Mastery - Employee-Grade Configuration
 
 > **Source:** Reverse-engineered from Claude Code source + billions of agent logs

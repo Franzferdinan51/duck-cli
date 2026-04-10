@@ -7,6 +7,7 @@ import { MetaPlanner } from './meta-planner.js';
 import { MetaCritic } from './meta-critic.js';
 import { MetaHealer } from './meta-healer.js';
 import { MetaLearner } from './meta-learner.js';
+import { getFailureReporter } from './failure-reporter.js';
 import { Task, Plan, PlanStep, StepResult, RecoveryAttempt, SessionExperience, MetaAgentConfig } from './meta-types.js';
 import { ProviderManager } from '../providers/manager.js';
 import { randomUUID } from 'crypto';
@@ -44,6 +45,8 @@ export class MetaAgent {
       criticModel: config.criticModel || 'MiniMax-M2.7',
       healerModel: config.healerModel || 'MiniMax-M2.7',
       plannerProvider: config.plannerProvider || 'minimax',
+      criticProvider: config.criticProvider || config.plannerProvider || 'minimax',
+      healerProvider: config.healerProvider || config.plannerProvider || 'minimax',
       classifierModel: config.classifierModel || 'MiniMax-M2.7',
       classifierProvider: config.classifierProvider || 'minimax',
       orchestratorModel: config.orchestratorModel || config.plannerModel || 'MiniMax-M2.7',
@@ -57,8 +60,8 @@ export class MetaAgent {
     };
 
     this.planner = new MetaPlanner(pm, this.config.plannerModel, this.config.plannerProvider);
-    this.critic = new MetaCritic(pm, this.config.criticModel, this.config.plannerProvider);
-    this.healer = new MetaHealer(pm, this.config.healerModel, this.config.plannerProvider);
+    this.critic = new MetaCritic(pm, this.config.criticModel, this.config.criticProvider);
+    this.healer = new MetaHealer(pm, this.config.healerModel, this.config.healerProvider);
     this.learner = new MetaLearner(this.config.experiencePath);
   }
 
@@ -95,7 +98,8 @@ export class MetaAgent {
         const toolParams = step.params || { prompt: task.prompt, description: step.description };
         result = await this.executeTool(step.tool, toolParams);
       } else if (step.action === 'subagent') {
-        const id = await this.spawnAgent(step.description);
+        const subagentTask = `${step.description}\n\nOriginal user task: ${task.prompt}`;
+        const id = await this.spawnAgent(subagentTask);
         result = { step: step.step, action: step.action, success: true, output: id, durationMs: 1000 };
       } else if (step.action === 'council') {
         console.log(`[MetaAgent] 🏛️ Delegating to AI Council...`);
@@ -115,6 +119,10 @@ export class MetaAgent {
         const rec = await this.healer.diagnose(task.prompt, step, result.error || '', allAttempts);
         console.log(`[MetaAgent] 🔧 ${rec.diagnosis} → ${rec.recoveryAction}`);
         allAttempts.push({ originalStep: step.step, attempt: ++recoveryAttempts, action: rec.recoveryAction, success: false, error: result.error });
+        // Report auto-heal attempt to FailureReporter
+        try {
+          getFailureReporter().reportAutoHeal(rec.diagnosis, rec.recoveryAction, result.error || '', task.prompt);
+        } catch { /* non-fatal */ }
         if (recoveryAttempts < this.config.maxRecoveryAttempts) {
           console.log(`[MetaAgent] 🔄 Recovery (${recoveryAttempts}/${this.config.maxRecoveryAttempts})`);
           continue;

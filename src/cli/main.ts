@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
-// Load .env file if it exists (for LM Studio, API keys, etc.)
-// Note: 'join' and 'existsSync' are imported below in the main imports block
+// ============================================================================
+// 🦆 DOTENV LOADING WITH SECURITY GUARD
+// Loads .env from DUCK_SOURCE_DIR or cwd, but blocks runtime-control vars
+// from untrusted workspace .env files to prevent .env injection attacks.
+// Based on OpenClaw v2026.4.9 security model.
+// ============================================================================
 try {
   const { config: dotenvConfig } = require('dotenv');
   const path = require('path');
@@ -10,11 +14,50 @@ try {
     ? path.join(process.env.DUCK_SOURCE_DIR, '.env')
     : path.join(process.cwd(), '.env');
   if (fs.existsSync(envPath)) {
-    dotenvConfig({ path: envPath });
+    // Determine trust: ~/.duck/.env is trusted (created by setup),
+    // workspace/cwd .env is untrusted (could come from a repo or shared project).
+    const isTrusted = envPath.includes('.duck' + path.sep + '.env');
+    // Read file content and pass through SecurityStateManager before applying
+    const content = fs.readFileSync(envPath, 'utf-8');
+    // Import lazily so we don't add import-time overhead when dotenv isn't needed
+    const { SecurityStateManager } = require('../security/security-state-manager.js');
+    const manager = new SecurityStateManager({
+      envFilePath: envPath,
+      trustedEnvFile: isTrusted,
+    });
+    const filtered = manager.parseAndFilterEnv(content);
+    // Apply each filtered var to process.env manually (bypasses dotenv automatic apply)
+    for (const [key, value] of Object.entries(filtered)) {
+      process.env[key] = String(value);
+    }
+    // If there were any blocked vars, print a report (non-fatal)
+    if (manager.hasViolations()) {
+      manager.printReport();
+    }
   }
 } catch(e) {
-  // dotenv not available, skip
+  // dotenv not available or security module missing, skip
 }
+// ============================================================================
+// 🦆 BOT MODE STDOUT SUPPRESSION
+// In DUCK_BOT_MODE=1, ALL stdout output is redirected to stderr so only the
+// final formatted response (written via process.stdout.write) reaches Telegram.
+// This prevents internal log lines ([Provider], [Agent], etc.) from leaking.
+// ============================================================================
+if (process.env.DUCK_BOT_MODE === '1') {
+  // Redirect process.stdout.write() → stderr (console.log internally uses stdout)
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk: string | Uint8Array) => {
+    process.stderr.write(typeof chunk === 'string' ? chunk : String(chunk));
+    return true;
+  };
+  // Also redirect console methods to stderr so shutdown stats don't leak
+  const originalConsoleError = console.error.bind(console);
+  console.log = (...args: any[]) => { originalConsoleError(...args); };
+  console.warn = (...args: any[]) => { originalConsoleError(...args); };
+  // console.error stays as-is (already writes to stderr)
+}
+
 
 
 // Helper: get agent config from env vars (set by Go layer -p / -m flags)
@@ -39,6 +82,7 @@ function getAgentConfig() {
  * Full-featured AI agent with TUI shell
  */
 
+import { Command } from 'commander';
 import { Agent } from '../agent/core.js';
 import { TelegramChannel } from '../channels/telegram.js';
 import { SessionStore } from '../agent/session-store.js';
@@ -51,6 +95,10 @@ import { meshCommand, meshServerCommand } from './mesh-cmd.js';
 import { toolsCommand as showToolsCommand } from './tools-command.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
+import { createKairosCommand } from '../commands/kairos.js';
+import { createNodesCommand } from '../commands/nodes-cmd.js';
+import { createDevicesCommand } from '../commands/devices-cmd.js';
+import { createQRCommand } from '../commands/qr-cmd.js';
 import { getRateLimiter, RateLimiter } from '../agent/rate-limiter.js';
 import { runHealthCheck, runBootDiagnostics, printHealthReport } from '../agent/health-check.js';
 import { getConfigManager, ConfigManager } from '../agent/config-manager.js';
@@ -133,6 +181,240 @@ async function main() {
         console.log(`  ✅ ${name}${prov ? '' : ' (unavailable)'}`);
       }
       console.log();
+      break;
+    }
+
+    case 'models': {
+      const sub = args[0] || 'list';
+      const { getModelManager } = await import('../models/model-manager.js');
+      const { getModelAliasManager } = await import('../models/model-aliases.js');
+      const { getModelFallbackManager } = await import('../models/model-fallbacks.js');
+      const { getAuthManager } = await import('../models/auth-manager.js');
+      const { getInferCapabilities } = await import('../infer/infer-capabilities.js');
+      const mm = getModelManager();
+      const ma = getModelAliasManager();
+      const mf = getModelFallbackManager();
+      const am = getAuthManager();
+      const ic = getInferCapabilities();
+
+      switch (sub) {
+        case 'list':
+        case 'ls': {
+          const jsonFlag = args.includes('--json');
+          const plainFlag = args.includes('--plain');
+          console.log(mm.listModels({ json: jsonFlag, plain: plainFlag }));
+          break;
+        }
+        case 'status': {
+          const jsonFlag = args.includes('--json');
+          const plainFlag = args.includes('--plain');
+          const probeFlag = args.includes('--probe');
+          console.log(mm.status({ json: jsonFlag, plain: plainFlag, probe: probeFlag }));
+          break;
+        }
+        case 'set': {
+          const modelId = args[1];
+          if (!modelId) {
+            console.log(`${c.red}Usage: duck models set <model-id>${c.reset}`);
+            console.log(`${c.dim}Example: duck models set minimax-portal/MiniMax-M2.7${c.reset}`);
+            return;
+          }
+          const r = mm.setDefault(modelId);
+          console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+          break;
+        }
+        case 'set-image': {
+          const modelId = args[1];
+          if (!modelId) {
+            console.log(`${c.red}Usage: duck models set-image <model-id>${c.reset}`);
+            return;
+          }
+          const r = mm.setDefaultImage(modelId);
+          console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+          break;
+        }
+        case 'scan': {
+          const jsonFlag = args.includes('--json');
+          const setDefault = args.includes('--set-default');
+          const setImage = args.includes('--set-image');
+          const noProbe = args.includes('--no-probe');
+          const yes = args.includes('--yes');
+          const raw = await mm.scan({ json: jsonFlag, setDefault, setImage, noProbe, yes });
+          console.log(raw);
+          break;
+        }
+        case 'aliases': {
+          const sub2 = args[1] || 'list';
+          switch (sub2) {
+            case 'list':
+            case 'ls':
+              console.log(ma.list({ plain: args.includes('--plain') }));
+              break;
+            case 'add': {
+              const alias = args[2];
+              const modelId = args[3];
+              if (!alias || !modelId) {
+                console.log(`${c.red}Usage: duck models aliases add <alias> <model-id>${c.reset}`);
+                return;
+              }
+              const r = ma.add(alias, modelId);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            case 'remove':
+            case 'rm': {
+              const target = args[2];
+              if (!target) {
+                console.log(`${c.red}Usage: duck models aliases remove <alias-or-model-id>${c.reset}`);
+                return;
+              }
+              const r = ma.remove(target);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            default:
+              console.log('Usage: duck models aliases <list|add|remove> [...]');
+          }
+          break;
+        }
+        case 'fallbacks': {
+          const sub2 = args[1] || 'list';
+          switch (sub2) {
+            case 'list':
+            case 'ls':
+              console.log(mf.describe());
+              break;
+            case 'add': {
+              const modelId = args[2];
+              const type = args.includes('--image') ? 'image' : 'text';
+              if (!modelId) {
+                console.log(`${c.red}Usage: duck models fallbacks add <model-id> [--image]${c.reset}`);
+                return;
+              }
+              const r = mf.addFallback(modelId, type);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            case 'remove':
+            case 'rm': {
+              const modelId = args[2];
+              const type = args.includes('--image') ? 'image' : 'text';
+              if (!modelId) {
+                console.log(`${c.red}Usage: duck models fallbacks remove <model-id> [--image]${c.reset}`);
+                return;
+              }
+              const r = mf.removeFallback(modelId, type);
+              console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              break;
+            }
+            case 'clear':
+              console.log(`${c.green}✅ ${mf.clear('all').message}${c.reset}`);
+              break;
+            default:
+              console.log('Usage: duck models fallbacks <list|add|remove|clear> [...]');
+          }
+          break;
+        }
+        case 'auth': {
+          const sub2 = args[1] || 'status';
+          switch (sub2) {
+            case 'list':
+            case 'status':
+              console.log(am.describe());
+              break;
+            case 'add':
+              am.addInteractive();
+              break;
+            case 'login': {
+              const provider = args[2];
+              if (!provider) {
+                console.log(`${c.red}Usage: duck models auth login <provider>${c.reset}`);
+                return;
+              }
+              am.login(provider, { tty: true });
+              break;
+            }
+            case 'order': {
+              const sub3 = args[2];
+              if (sub3 === 'list') {
+                const order = am.getAuthOrder();
+                console.log(order.length > 0 ? order.join(' → ') : '(none)');
+              } else if (sub3) {
+                const order = args.slice(2);
+                const r = am.setAuthOrder(order);
+                console.log(r.success ? `${c.green}✅ ${r.message}${c.reset}` : `${c.red}❌ ${r.message}${c.reset}`);
+              } else {
+                console.log('Usage: duck models auth order [list|<provider>...]');
+              }
+              break;
+            }
+            default:
+              console.log('Usage: duck models auth <list|add|login|order> [...]');
+          }
+          break;
+        }
+        case 'infer': {
+          const sub2 = args[1] || 'list';
+          switch (sub2) {
+            case 'list':
+            case 'ls':
+              console.log(ic.list({ plain: args.includes('--plain') }));
+              break;
+            case 'inspect': {
+              const capId = args[2];
+              if (!capId) {
+                console.log(`${c.red}Usage: duck models infer inspect <capability-id>${c.reset}`);
+                return;
+              }
+              const cap = ic.inspect(capId);
+              if (cap) {
+                console.log(JSON.stringify(cap, null, 2));
+              } else {
+                console.log(`${c.red}Capability not found: ${capId}${c.reset}`);
+              }
+              break;
+            }
+            case 'model': {
+              const sub3 = args[2] || 'list';
+              if (sub3 === 'list' || sub3 === 'ls') {
+                const jsonFlag = args.includes('--json');
+                console.log(ic.modelList({ json: jsonFlag }));
+              } else {
+                // Treat remaining args as prompt
+                const prompt = args.slice(2).join(' ');
+                if (!prompt) {
+                  console.log(`${c.red}Usage: duck models infer model <prompt>${c.reset}`);
+                  return;
+                }
+                const modelIdx = args.indexOf('--model');
+                const model = modelIdx !== -1 ? args[modelIdx + 1] : undefined;
+                console.log(ic.infer({ model, prompt }));
+              }
+              break;
+            }
+            default:
+              console.log('Usage: duck models infer <list|inspect|model> [...]');
+          }
+          break;
+        }
+        default:
+          console.log(`${c.bold}🦆 duck models${c.reset} — OpenClaw model management`);
+          console.log('');
+          console.log(`${c.dim}Usage: duck models <command>${c.reset}`);
+          console.log('');
+          console.log(`  ${c.cyan}list${c.reset}       List configured models`);
+          console.log(`  ${c.cyan}status${c.reset}    Show model configuration state`);
+          console.log(`  ${c.cyan}set${c.reset}        Set the default model`);
+          console.log(`  ${c.cyan}set-image${c.reset} Set the default image model`);
+          console.log(`  ${c.cyan}scan${c.reset}       Scan OpenRouter free models`);
+          console.log('');
+          console.log(`  ${c.cyan}aliases${c.reset}   Manage model aliases`);
+          console.log(`  ${c.cyan}fallbacks${c.reset}  Manage fallback chains`);
+          console.log(`  ${c.cyan}auth${c.reset}       Manage auth profiles`);
+          console.log(`  ${c.cyan}infer${c.reset}      Inference capabilities`);
+          console.log('');
+          console.log(`${c.dim}Run 'duck models <command> --help' for details.${c.reset}`);
+      }
       break;
     }
 
@@ -259,6 +541,10 @@ async function main() {
       await updateCommand(args);
       break;
 
+    case 'backup':
+      await backupCommand(args);
+      break;
+
     case 'sync': {
       const { createSyncCommand } = await import('../commands/sync-cli.js');
       const sync = createSyncCommand();
@@ -351,10 +637,54 @@ async function main() {
       await buddyCommand(args);
       break;
 
-    case 'security-defcon':
-      console.log(`${c.bold}🔐 DEFCON Status: ${c.green}DEFCON 5 - All Clear${c.reset}`);
-      console.log(`${c.dim}No active security threats detected.${c.reset}`);
+    case 'capability':
+    case 'capabilities':
+      await capabilityCommand(args);
       break;
+
+    case 'infer':
+      await inferCommand(args);
+      break;
+
+    case 'graphify':
+      await graphifyCommand(args);
+      break;
+
+    case 'mmx':
+      await mmxCommand(args);
+      break;
+
+    case 'security-defcon':
+    case 'defcon': {
+      const { createSecurityCommand } = await import('../commands/security-cmd.js');
+      const secCmd = createSecurityCommand();
+      await secCmd.parseAsync(['node', 'duck', 'security', 'status']);
+      break;
+    }
+
+    case 'security':
+    case 'sec': {
+      const { createSecurityCommand } = await import('../commands/security-cmd.js');
+      const secCmd = createSecurityCommand();
+      await secCmd.parseAsync(['node', 'security', ...args]);
+      break;
+    }
+
+
+    case 'browser':
+    case 'browse': {
+      const { createBrowserCommand } = await import('../commands/browser-cmd.js');
+      const browserCmd = createBrowserCommand();
+      await browserCmd.parseAsync(['node', 'browser', ...args]);
+      break;
+    }
+
+    case 'sandbox': {
+      const { createSandboxCommand } = await import('../commands/sandbox-cmd.js');
+      const sandboxCmd = createSandboxCommand();
+      await sandboxCmd.parseAsync(['node', 'sandbox', ...args]);
+      break;
+    }
 
     case 'logger': {
       const { loggerStatusCommand, loggerLogsCommand, loggerErrorsCommand, loggerTailCommand } = await import('./logger-cmd.js');
@@ -389,13 +719,24 @@ async function main() {
       break;
     }
     case 'security-audit':
-      console.log(`${c.bold}🔍 Security Audit${c.reset}`);
-      console.log(`${c.dim}Run: duck security audit${c.reset}`);
-      break;
+      {
+        const { createSecurityAuditCommand } = await import('../commands/security-audit.js');
+        const cmd = createSecurityAuditCommand();
+        await cmd.parseAsync(['node', 'duck', ...args]);
+        break;
+      }
     case 'council':
     case 'ai-council':
       await councilCommand(args);
       break;
+
+    case 'failures': {
+      const { createFailuresCommand } = await import('../commands/failures-cmd.js');
+      const failuresCmd = createFailuresCommand();
+      const fullArgs = ['node', 'failures', ...args].filter(a => a.length > 0);
+      await failuresCmd.parseAsync(fullArgs);
+      break;
+    }
 
     case 'meta':
     case 'agent:meta': {
@@ -470,6 +811,31 @@ async function main() {
       await meshCommand(args);
       break;
 
+    case 'node': {
+      const { createRemoteNodeCommand } = await import('../commands/node-cmd.js');
+      const nodeCmd = createRemoteNodeCommand();
+      await nodeCmd.parseAsync(['node', 'duck', 'node', ...args]);
+      break;
+    }
+
+    case 'nodes': {
+      const nodesCmd = createNodesCommand();
+      await nodesCmd.parseAsync(['node', 'duck', 'nodes', ...args]);
+      break;
+    }
+
+    case 'devices': {
+      const devicesCmd = createDevicesCommand();
+      await devicesCmd.parseAsync(['node', 'duck', 'devices', ...args]);
+      break;
+    }
+
+    case 'qr': {
+      const qrCmd = createQRCommand();
+      await qrCmd.parseAsync(['node', 'duck', 'qr', ...args]);
+      break;
+    }
+
     case 'clawhub':
     case 'skills':
       await clawhubCommand(args);
@@ -506,7 +872,15 @@ async function main() {
     case 'setup':
     case 'configure':
     case 'init':
-      await runSetup();
+    case 'onboard':
+      {
+        const { runOnboardingWizard } = await import('../commands/onboard.js');
+        if (cmd === 'onboard') {
+          await runOnboardingWizard();
+        } else {
+          await runSetup();
+        }
+      }
       break;
 
     case 'doctor':
@@ -596,69 +970,19 @@ async function main() {
 
     case 'config':
       {
-        const { getConfigManager } = await import('../agent/config-manager.js');
-        const config = getConfigManager();
-        const [action, ...actionArgs] = args;
-
-        if (!action || action === 'list' || action === 'get') {
-          if (!action || action === 'list') {
-            console.log(`\n${c.bold}🦆 Duck Config${c.reset}`);
-            console.log(`Config file: ${config.getConfigPath()}\n`);
-            console.log(config.toJSON());
-            console.log();
-          } else {
-            // Get specific key
-            const key = actionArgs[0];
-            if (!key) {
-              console.log(`${c.red}Usage: duck config get <key>${c.reset}`);
-              console.log(`Example: duck config get defaults.model`);
-            } else {
-              const value = config.getValue(key);
-              if (value !== undefined) {
-                console.log(`${key} = ${JSON.stringify(value)}`);
-              } else {
-                console.log(`${c.red}Key not found: ${key}${c.reset}`);
-              }
-            }
-          }
-        } else if (action === 'set') {
-          const key = actionArgs[0];
-          const value = actionArgs.slice(1).join(' ');
-          if (!key || !value) {
-            console.log(`${c.red}Usage: duck config set <key> <value>${c.reset}`);
-            console.log(`Example: duck config set defaults.model MiniMax-M2.7`);
-          } else {
-            // Try to parse value
-            let parsedValue: any = value;
-            if (value === 'true') parsedValue = true;
-            else if (value === 'false') parsedValue = false;
-            else if (!isNaN(Number(value))) parsedValue = Number(value);
-            
-            config.setValue(key, parsedValue);
-            console.log(`${c.green}✅ Set ${key} = ${JSON.stringify(parsedValue)}${c.reset}`);
-          }
-        } else if (action === 'reset') {
-          config.reset();
-          console.log(`${c.green}✅ Config reset to defaults${c.reset}`);
-        } else if (action === 'path') {
-          console.log(config.getConfigPath());
-        } else {
-          console.log(`${c.yellow}Usage:${c.reset}`);
-          console.log(`  ${c.green}duck config${c.reset}              List all config`);
-          console.log(`  ${c.green}duck config get <key>${c.reset}    Get a config value`);
-          console.log(`  ${c.green}duck config set <key> <val>${c.reset} Set a config value`);
-          console.log(`  ${c.green}duck config reset${c.reset}       Reset to defaults`);
-          console.log(`  ${c.green}duck config path${c.reset}        Show config file path`);
-          console.log();
-          console.log(`${c.dim}Keys use dot notation, e.g.:${c.reset}`);
-          console.log(`  defaults.model`);
-          console.log(`  defaults.maxRetries`);
-          console.log(`  providers.minimax.enabled`);
-          console.log(`  gracefulDegradation.fallbackModels`);
-          console.log();
-        }
+        const { createConfigCommand } = await import('../commands/config-cmd.js');
+        const cfgCmd = createConfigCommand();
+        await cfgCmd.parseAsync(['node', 'duck', ...args]);
+        break;
       }
+
+    case 'secrets': {
+      const { createSecretsCommand } = await import('../secrets/secrets-cli.js');
+      const secretsCmd = createSecretsCommand();
+      const fullArgs = ['node', 'secrets', ...args].filter(a => a.length > 0);
+      await secretsCmd.parseAsync(fullArgs);
       break;
+    }
 
     default:
       await runTask(command + ' ' + args.join(' '));
@@ -709,12 +1033,14 @@ ${logo}`);
     ]],
     ['CONFIG / UTILS', [
       ['duck config [get|set|list]', 'Config management'],
+      ['duck secrets [set|get|list|show|delete|tags]', 'Secure secrets management'],
       ['duck doctor', 'Run system diagnostics'],
       ['duck health', 'Health check'],
       ['duck boot', 'Boot diagnostics'],
       ['duck stats', 'Agent statistics'],
       ['duck cron [cmd]', 'Cron automation'],
       ['duck update [action]', 'Update / backup duck-cli'],
+      ['duck backup [create|verify|restore|list|prune]', 'Backup management'],
       ['duck trace <list|show|clear>', 'Trace/debug logs'],
     ]],
     ['CHANNELS / MESSAGING', [
@@ -861,6 +1187,7 @@ ${c.bold}Commands:${c.reset}
   /remember <text>   Remember something
   /recall <query>    Search memory
   /model <name>      Switch model
+  /mmx <args>        MiniMax CLI (image, text, speech, etc.)
   /clear             Clear screen
 
 ${c.bold}Just type${c.reset} what you want me to help with!
@@ -916,7 +1243,15 @@ ${c.bold}Just type${c.reset} what you want me to help with!
     case 'setup':
     case 'configure':
     case 'init':
-      await runSetup();
+    case 'onboard':
+      {
+        const { runOnboardingWizard } = await import('../commands/onboard.js');
+        if (cmd === 'onboard') {
+          await runOnboardingWizard();
+        } else {
+          await runSetup();
+        }
+      }
       break;
 
     case 'doctor':
@@ -971,6 +1306,13 @@ ${c.bold}Just type${c.reset} what you want me to help with!
       console.log(`Model switching: ${c.yellow}${args[0]}${c.reset} (not yet implemented)`);
       break;
 
+    case 'mmx':
+    case 'minimax': {
+      const { mmxCommand } = await import('../commands/mmx-cmd.js');
+      await mmxCommand(args);
+      break;
+    }
+
     case 'clear':
       if (args[0] === 'screen' || !args[0]) {
         console.clear();
@@ -984,8 +1326,49 @@ ${c.bold}Just type${c.reset} what you want me to help with!
 }
 
 function formatResponse(text: string): string {
-  // Clean up response formatting
-  return text
+  // Clean up response formatting, especially for bot/Telegram mode.
+  const filtered = text
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return true;
+      return !(
+        trimmed.startsWith('◇ injected env') ||
+        trimmed.startsWith('[Provider]') ||
+        trimmed.startsWith('[Router') ||
+        trimmed.startsWith('[LMStudio]') ||
+        trimmed.startsWith('[MetaPlanner]') ||
+        trimmed.startsWith('[TOOL_CALL]') ||
+        trimmed.startsWith('[/TOOL_CALL]') ||
+        trimmed.startsWith('[TOOL_SUCCESS]') ||
+        trimmed.startsWith('[TOOL_FAIL]') ||
+        trimmed.startsWith('<minimax:tool_call>') ||
+        trimmed.startsWith('</minimax:tool_call>') ||
+        trimmed.startsWith('<invoke name=') ||
+        trimmed.startsWith('</invoke>') ||
+        trimmed.startsWith('<parameter name=') ||
+        trimmed.startsWith('</parameter>') ||
+        trimmed.startsWith('🦆 Duck Agent shutting down') ||
+        trimmed.startsWith('Total cost:') ||
+        trimmed.startsWith('Interactions:') ||
+        trimmed.startsWith('Success rate:') ||
+        trimmed.startsWith('Sessions:') ||
+        trimmed.startsWith('Learned skills:') ||
+        trimmed.startsWith('Cron jobs:') ||
+        trimmed.startsWith('Active subagents:') ||
+        trimmed.startsWith('✅ Duck Agent stopped')
+      );
+    })
+    .join('\n');
+
+  return filtered
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/<start_ck>[\s\S]*?<\/end_ck>/g, '')
+    .replace(/\[TOOL_CALL\][\s\S]*?\[\/TOOL_CALL\]/g, '')
+    .replace(/^\[TOOL_(CALL|SUCCESS|FAIL)\].*$/gm, '')
+    .replace(/<(?:minimax:)?tool_call>[\s\S]*?<\/(?:minimax:)?tool_call>/gi, '')
+    .replace(/<invoke\s+name="[^"]+">[\s\S]*?<\/invoke>/gi, '')
+    .replace(/<parameter\s+name="[^"]+">[\s\S]*?<\/parameter>/gi, '')
     .replace(/\[TOOL:.*?\]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -994,32 +1377,62 @@ function formatResponse(text: string): string {
 // ============ SINGLE TASK MODE ============
 
 async function runTask(task: string) {
+  const botMode = process.env.DUCK_BOT_MODE === '1';
   if (!task) {
     console.log(`${c.red}Error: No task specified${c.reset}`);
     console.log(`Usage: duck run "your task here"`);
     return;
   }
 
-  console.log(logo);
-  console.log(`${c.cyan}Executing task...${c.reset}\n`);
+  if (!botMode) {
+    console.log(logo);
+    console.log(`${c.cyan}Executing task...${c.reset}\n`);
+    console.log(`${c.yellow}Task: "${task}"${c.reset}\n`);
+  }
+
+  // ─── Bot mode: suppress tool execution noise from stdout ───────────────────
+  // In DUCK_BOT_MODE=1, the Python Telegram bot captures ALL stdout.
+  // Tool call metadata, provider messages, and JSON results pollute the chat.
+  // Solution: replace console.log with a no-op during agent execution,
+  // restore only for the final formatted response.
+  let suppressLog: (() => void) | undefined;
+  if (botMode) {
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    // Suppress all console output during agent execution
+    console.log = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    suppressLog = () => {
+      console.log = originalLog;
+      console.warn = originalWarn;
+      console.error = originalError;
+    };
+  }
 
   const cfg = getAgentConfig(); const agent = new Agent({ name: 'Duck Agent', provider: cfg.provider, model: cfg.model });
   await agent.initialize();
 
-  console.log(`${c.yellow}Task: "${task}"${c.reset}\n`);
-  
   try {
     const result = await agent.chat(task);
-    console.log(`\n${c.green}Result:${c.reset}`);
-    console.log(formatResponse(result));
+    // In bot mode, keep console suppressed through shutdown so shutdown stats
+    // do not leak into Telegram/other transports. Use stdout directly.
+    process.stdout.write(formatResponse(result) + '\n');
   } catch (e: any) {
-    console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
-    if (process.env.DEBUG_STACK === '1' && e?.stack) {
-      console.log(`${c.dim}${e.stack}${c.reset}`);
+    if (botMode) {
+      process.stdout.write(`Error: ${e.message}\n`);
+    } else {
+      if (suppressLog) suppressLog();
+      console.log(`\n${c.red}Error:${c.reset} ${e.message}`);
+      if (process.env.DEBUG_STACK === '1' && e?.stack) {
+        console.log(`${c.dim}${e.stack}${c.reset}`);
+      }
     }
+  } finally {
+    await agent.shutdown();
+    if (suppressLog) suppressLog();
   }
-
-  await agent.shutdown();
 }
 
 // ============ THINK MODE ============
@@ -1415,7 +1828,7 @@ async function startWebUI(args: string[] = []) {
   };
   
   const server = createServer(async (req: any, res: any) => {
-    const url = new URL(req.url, `http://localhost:${port}`);
+    const url = new URL(req.url || '/', `http://localhost:${port}`);
     const path = url.pathname;
     
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1545,8 +1958,41 @@ async function desktopCommand(args: string[]) {
       const img = await agent.screenshot();
       console.log(`${c.green}✓${c.reset} Screenshot: ${img}`);
       break;
+    case 'status':
+      // Check if ClawdCursor is running
+      const http = require('http');
+      const statusRes = await new Promise((resolve) => {
+        const req = http.get('http://127.0.0.1:3847/v1/status', (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => resolve(data));
+          res.on('error', () => resolve(null));
+        });
+        req.on('error', () => resolve(null));
+        req.setTimeout(2000, () => { req.destroy(); resolve(null); });
+      });
+      if (statusRes) {
+        try {
+          const info: any = JSON.parse(statusRes as string);
+          console.log(`${c.bold}Desktop Control Status:${c.reset}`);
+          console.log(`  ${c.green}✅ ClawdCursor running${c.reset}`);
+          console.log(`  Endpoint: http://127.0.0.1:3847`);
+          console.log(`  Model: ${info.model || 'unknown'}`);
+        } catch {
+          console.log(`${c.green}✅ ClawdCursor endpoint available${c.reset}`);
+        }
+      } else {
+        console.log(`${c.yellow}⚠️  ClawdCursor not running${c.reset}`);
+        console.log(`  Run: cd ~/.openclaw/workspace/clawd-cursor && nohup npx clawdcursor start > /tmp/clawdcursor.log 2>&1 &`);
+      }
+      break;
     default:
-      console.log('Desktop commands: open <app>, click <x> <y>, type <text>, screenshot');
+      console.log(`${c.bold}Desktop commands:${c.reset}`);
+      console.log(`  ${c.cyan}duck desktop open <app>${c.reset}      Open an application`);
+      console.log(`  ${c.cyan}duck desktop click <x> <y>${c.reset}   Click at coordinates`);
+      console.log(`  ${c.cyan}duck desktop type <text>${c.reset}     Type text`);
+      console.log(`  ${c.cyan}duck desktop screenshot${c.reset}       Capture screenshot`);
+      console.log(`  ${c.cyan}duck desktop status${c.reset}          Show desktop control status`);
   }
 
   await agent.shutdown();
@@ -1612,6 +2058,17 @@ async function androidCommand(args: string[]) {
       const info = await android.getDeviceInfo(serial);
       console.log(JSON.stringify(info, null, 2));
       break;
+    }
+    case 'shell-cmd': {
+      // Direct command from Go layer (avoids JSON encoding issues)
+      const cmd = actionArgs.join(' ');
+      if (!cmd) { console.log(`${c2.red}Usage: duck android shell <command>${c2.reset}`); return; }
+      await android.refreshDevices();
+      if (payload.serial) android.setDevice(payload.serial);
+      const result = await android.shell(cmd);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      process.exit(result.exitCode);
     }
     case 'shell': {
       const cmd = payload.command ?? actionArgs.join(' ');
@@ -1684,7 +2141,7 @@ async function androidCommand(args: string[]) {
       break;
     }
     case 'battery': {
-      const serial = payload.serial;
+      const serial = payload.serial ?? actionArgs[0];
       await android.refreshDevices();
       if (serial) android.setDevice(serial);
       const bat = await android.getBatteryLevel();
@@ -1793,16 +2250,6 @@ async function androidCommand(args: string[]) {
       } else {
         notifs.forEach((n: any) => console.log(`${c2.cyan}${n.app}:${c2.reset} ${n.text || n.title || '(no text)'}`));
       }
-      break;
-    }
-    case 'push': {
-      await android.refreshDevices();
-      if (payload.serial) android.setDevice(payload.serial);
-      const local = payload.local ?? actionArgs[0];
-      const remote = payload.remote ?? actionArgs[1];
-      if (!local || !remote) { console.log(`${c2.red}Usage: duck android push <local-path> <remote-path>${c2.reset}`); return; }
-      const ok = await android.pushFile(local, remote);
-      console.log(ok ? `${c2.green}✓ Pushed${c2.reset}` : `${c2.red}✗ Push failed${c2.reset}`);
       break;
     }
     case 'pull': {
@@ -1947,8 +2394,27 @@ async function memoryCommand(args: string[]) {
       console.log(`Found ${results.length}:`);
       results.forEach((r, i) => console.log(`  ${i + 1}. ${r}`));
       break;
+    case 'stats': {
+      const stats: any = await (agent as any).tools.execute('memory_stats', {});
+      const sr = stats?.result ?? stats ?? {};
+      console.log(`\n${c.bold}Memory Stats${c.reset}`);
+      console.log(`  Entries: ${sr.entries ?? 'N/A'}`);
+      console.log(`  Sessions: ${sr.sessions ?? sr.sessionCount ?? 'N/A'}`);
+      console.log(`  Tool Logs: ${sr.toolLogs ?? 'N/A'}`);
+      break;
+    }
+    case 'list': {
+      const list: any = await (agent as any).tools.execute('memory_list', {});
+      const memories = list?.result?.memories ?? list?.memories ?? [];
+      console.log(`\n${c.bold}Memories (${memories.length})${c.reset}`);
+      memories.slice(0, 20).forEach((m: any, i: number) => {
+        const text = typeof m === 'string' ? m : m.content;
+        console.log(`  ${i + 1}. ${text?.slice(0, 60) ?? '...'}`);
+      });
+      break;
+    }
     default:
-      console.log('Memory: add <text>, search <query>');
+      console.log('Memory: add <text>, search <query>, stats, list');
   }
 
   await agent.shutdown();
@@ -2089,13 +2555,28 @@ async function startChannels(args: string[]) {
   // Handle duck telegram / duck channels telegram [subcommand]
   // When called via Go wrapper: duck telegram → channels telegram → args=['telegram']
   // duck telegram test → channels telegram test → args=['telegram', 'test']
-  if (args[0] === 'telegram' || args[0] === 'test' || args[0] === 'send') {
+  // duck channels telegram → channels channels telegram → args=['channels', 'telegram']
+  // duck channels telegram test → channels channels telegram test → args=['channels', 'telegram', 'test']
+  if (args[0] === 'telegram' || args[0] === 'test' || args[0] === 'send' || args[0] === 'channels') {
     const { telegramCommand } = await import('../plugins/telegram.js');
     // If called as 'telegram' with no subcommand, default to 'test'
     if (args[0] === 'telegram' && !args[1]) {
       await telegramCommand(['test']);
     } else if (args[0] === 'telegram') {
       await telegramCommand(args.slice(1));
+    } else if (args[0] === 'channels') {
+      // duck channels telegram [subcommand] → skip 'channels', pass remaining
+      if (args[1] === 'telegram' || args[1] === 'test' || args[1] === 'send') {
+        const subArgs = args[1] === 'telegram' && !args[2]
+          ? ['test']
+          : args[1] === 'telegram'
+            ? args.slice(2)
+            : [args[1], ...args.slice(2)];
+        await telegramCommand(subArgs);
+      } else {
+        // duck channels with non-telegram subcommand → show help
+        await telegramCommand(['help']);
+      }
     } else {
       // args[0] is 'test' or 'send'
       await telegramCommand(args);
@@ -2192,9 +2673,18 @@ async function sendToChannel(args: string[]) {
 async function updateCommand(args: string[]) {
   const { createUpdateCommand } = await import('../commands/update-cli.js');
   const { Command } = await import('commander');
-  
+
   const update = createUpdateCommand();
   update.parse(['node', 'duck', ...args]);
+}
+
+// ============ BACKUP ============
+
+async function backupCommand(args: string[]) {
+  const { createBackupCommand } = await import('../commands/backup.js');
+
+  const backup = createBackupCommand();
+  backup.parse(['node', 'duck', ...args]);
 }
 
 
@@ -2376,7 +2866,7 @@ async function wsCommand(args: string[]) {
 
 // ============ BUDDY COMPANION ============
 
-async function buddyCommand(args: string[]) {
+async function buddyCommandStub(args: string[]) {
   const action = args[0] || 'status';
   
   console.log(`${c.cyan}Buddy Companion System${c.reset}`);
@@ -2398,7 +2888,7 @@ async function buddyCommand(args: string[]) {
 
 // ============ AI COUNCIL ============
 
-async function councilCommand(args: string[]) {
+async function councilCommandStub(args: string[]) {
   const [mode, ...topicParts] = args;
   const topic = topicParts.join(' ');
   
@@ -2455,7 +2945,7 @@ async function councilCommand(args: string[]) {
 
 // ============ MULTI-AGENT TEAMS ============
 
-async function teamCommand(args: string[]) {
+async function teamCommandStub(args: string[]) {
   const { TeamManager, TEAM_TEMPLATES, MultiAgentCoordinator } = await import('../multiagent/index.js');
   const teamManager = new TeamManager();
   const coordinator = new MultiAgentCoordinator({ maxConcurrent: 5 });
@@ -2648,6 +3138,15 @@ async function teamCommand(args: string[]) {
 // ============ KAIROS AUTONOMOUS ============
 
 async function kairosCommand(args: string[]) {
+  // If kairos has subcommands (start, stop, status, skills, etc.), use commander
+  const subCommands = ['start', 'stop', 'status', 'history', 'dream', 'skills'];
+  if (args.length > 0 && subCommands.includes(args[0])) {
+    const cmd = createKairosCommand();
+    await cmd.parseAsync(['node', 'duck', ...args]);
+    return;
+  }
+
+  // Otherwise start KAIROS autonomous mode
   const mode = args[0] || 'balanced';
   console.log(`${c.cyan}Starting KAIROS autonomous mode: ${mode}${c.reset}`);
   console.log(`${c.green}KAIROS heartbeat system activated${c.reset}`);
@@ -2859,6 +3358,177 @@ async function buddyCommand(args: string[]) {
       default:
         console.log(`${c.yellow}Usage: duck buddy [hatch|list|status]${c.reset}`);
     }
+}
+
+// ============ CAPABILITY MANAGER (Provider-backed Inference) ============
+
+async function capabilityCommand(args: string[]) {
+  const { CapabilityManager } = await import('../capability/capability-manager.js');
+  const manager = new CapabilityManager();
+
+  const [action, ...actionArgs] = args;
+
+  if (!action || action === 'list') {
+    await manager.printCapabilities();
+    return;
+  }
+
+  if (action === 'engines') {
+    manager.printEngines();
+    return;
+  }
+
+  if (action === 'test') {
+    const [model, ...promptParts] = actionArgs;
+    const prompt = promptParts.join(' ') || 'Say "Hello from [model]" in exactly that format.';
+    if (!model) {
+      console.log(`${c.red}Usage: duck capability test <model> [prompt]${c.reset}`);
+      console.log(`${c.dim}Example: duck capability test minimax "Say hello"${c.reset}`);
+      return;
+    }
+    console.log(`${c.cyan}Testing model: ${model}${c.reset}\n`);
+    const result = await manager.testModel(model, prompt);
+    if (result.error) {
+      console.log(`${c.red}Error: ${result.error}${c.reset}`);
+    } else {
+      console.log(`${c.green}Response:${c.reset} ${result.text}`);
+    }
+    console.log(`${c.dim}Provider: ${result.provider} | Model: ${result.model} | ${result.durationMs}ms${c.reset}`);
+    return;
+  }
+
+  if (action === 'run') {
+    const [prompt, ...extraArgs] = actionArgs;
+    if (!prompt) {
+      console.log(`${c.red}Usage: duck capability run "<prompt>"${c.reset}`);
+      return;
+    }
+    const opts: any = {};
+    const engIdx = extraArgs.indexOf('--engine');
+    if (engIdx >= 0 && extraArgs[engIdx + 1]) opts.engine = extraArgs[engIdx + 1];
+    const modIdx = extraArgs.indexOf('--model');
+    if (modIdx >= 0 && extraArgs[modIdx + 1]) opts.model = extraArgs[modIdx + 1];
+    const tempIdx = extraArgs.indexOf('--temperature');
+    if (tempIdx >= 0 && extraArgs[tempIdx + 1]) opts.temperature = parseFloat(extraArgs[tempIdx + 1]);
+    const tokIdx = extraArgs.indexOf('--max-tokens');
+    if (tokIdx >= 0 && extraArgs[tokIdx + 1]) opts.maxTokens = parseInt(extraArgs[tokIdx + 1]);
+
+    console.log(`${c.cyan}Running inference...${c.reset}\n`);
+    const result = await manager.runInference(prompt, opts);
+    if (result.error) {
+      console.log(`${c.red}Error: ${result.error}${c.reset}`);
+    } else {
+      console.log(`${result.text}`);
+    }
+    console.log(`${c.dim}Provider: ${result.provider} | Model: ${result.model} | ${result.durationMs}ms${c.reset}`);
+    return;
+  }
+
+  if (action === 'set-engine') {
+    const engine = actionArgs[0];
+    if (!engine) {
+      console.log(`${c.red}Usage: duck capability set-engine <engine>${c.reset}`);
+      console.log(`${c.dim}Engines: auto, minimax, anthropic, openai, kimi, lmstudio, openrouter${c.reset}`);
+      return;
+    }
+    const ok = manager.setEngine(engine);
+    if (ok) {
+      console.log(`${c.green}✅ Default engine set to: ${engine}${c.reset}`);
+    }
+    return;
+  }
+
+  if (action === 'set-temperature') {
+    const temp = parseFloat(actionArgs[0]);
+    if (isNaN(temp)) {
+      console.log(`${c.red}Usage: duck capability set-temperature <0-2>${c.reset}`);
+      return;
+    }
+    manager.setTemperature(temp);
+    console.log(`${c.green}✅ Temperature set to: ${temp}${c.reset}`);
+    return;
+  }
+
+  if (action === 'set-max-tokens') {
+    const tokens = parseInt(actionArgs[0]);
+    if (isNaN(tokens)) {
+      console.log(`${c.red}Usage: duck capability set-max-tokens <number>${c.reset}`);
+      return;
+    }
+    manager.setMaxTokens(tokens);
+    console.log(`${c.green}✅ Max tokens set to: ${tokens}${c.reset}`);
+    return;
+  }
+
+  if (action === 'config') {
+    const cfg = manager.getConfig();
+    console.log(`\n${c.bold}🦆 Inference Config${c.reset}\n`);
+    console.log(`  ${c.cyan}Engine:${c.reset}       ${cfg.engine}`);
+    console.log(`  ${c.cyan}Temperature:${c.reset}   ${cfg.temperature}`);
+    console.log(`  ${c.cyan}Max Tokens:${c.reset}    ${cfg.maxTokens}`);
+    console.log(`  ${c.cyan}Top P:${c.reset}        ${cfg.topP}`);
+    console.log(`  ${c.cyan}Reasoning:${c.reset}    ${cfg.reasoning ? 'enabled' : 'disabled'}`);
+    console.log(`  ${c.cyan}JSON Mode:${c.reset}    ${cfg.jsonMode ? 'enabled' : 'disabled'}`);
+    console.log();
+    return;
+  }
+
+  // Unknown subcommand — show help
+  console.log(`${c.bold}🦆 duck capability — Provider-backed Inference${c.reset}\n`);
+  console.log(`${c.cyan}Usage:${c.reset} ${c.green}duck capability <subcommand> [args]${c.reset}\n`);
+  console.log(`${c.bold}Subcommands:${c.reset}`);
+  console.log(`  ${c.green}duck capability list${c.reset}              List available providers and models`);
+  console.log(`  ${c.green}duck capability engines${c.reset}             Show available inference engines`);
+  console.log(`  ${c.green}duck capability test <model> [prompt]${c.reset}  Test a specific model`);
+  console.log(`  ${c.green}duck capability run "<prompt>"${c.reset}        Run inference with default engine`);
+  console.log(`  ${c.green}duck capability set-engine <e>${c.reset}        Set default engine`);
+  console.log(`  ${c.green}duck capability set-temperature <n>${c.reset}   Set temperature (0-2)`);
+  console.log(`  ${c.green}duck capability set-max-tokens <n>${c.reset}   Set max tokens`);
+  console.log(`  ${c.green}duck capability config${c.reset}               Show current config`);
+  console.log();
+  console.log(`${c.bold}Examples:${c.reset}`);
+  console.log(`  ${c.dim}duck capability list${c.reset}`);
+  console.log(`  ${c.dim}duck capability test openrouter:minimax/minimax-m2.5:free${c.reset}`);
+  console.log(`  ${c.dim}duck capability test lmstudio:gemma-4-e4b-it "What is 2+2?"${c.reset}`);
+  console.log(`  ${c.dim}duck capability run "Explain quantum computing" --engine minimax${c.reset}`);
+  console.log(`  ${c.dim}duck capability set-engine minimax${c.reset}`);
+  console.log();
+}
+
+// ============ GRAPHIFY ============
+
+async function graphifyCommand(args: string[]) {
+  const { graphifyCommand: cmd } = await import('../commands/graphify-cmd.js');
+  await cmd(args);
+}
+
+// ============ MINIMAX CLI (mmx) ============
+
+async function mmxCommand(args: string[]) {
+  const { mmxCommand: cmd } = await import('../commands/mmx-cmd.js');
+  await cmd(args);
+}
+
+// ============ QUICK INFER (shorthand) ============
+
+async function inferCommand(args: string[]) {
+  const { CapabilityManager } = await import('../capability/capability-manager.js');
+  const manager = new CapabilityManager();
+
+  const prompt = args.join(' ').trim();
+  if (!prompt) {
+    console.log(`${c.red}Usage: duck infer "<prompt>"${c.reset}`);
+    console.log(`${c.dim}Example: duck infer "What is the capital of France?"${c.reset}`);
+    return;
+  }
+
+  const result = await manager.runInference(prompt);
+  if (result.error) {
+    console.log(`${c.red}Error: ${result.error}${c.reset}`);
+    process.exit(1);
+  } else {
+    console.log(result.text);
+  }
 }
 
 // ============ AI COUNCIL ============

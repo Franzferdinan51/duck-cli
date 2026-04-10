@@ -1,3 +1,12 @@
+---
+name: android-automation
+description: "Comprehensive Android device automation through ADB - screen capture, tap, swipe, type, app management, and Termux integration"
+license: MIT
+metadata:
+  author: duck-cli
+  version: "1.0"
+---
+
 # Android Automation Skill for Duck CLI
 
 ## Overview

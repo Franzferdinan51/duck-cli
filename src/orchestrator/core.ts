@@ -20,6 +20,7 @@ import { ToolRegistry, createRegistry, MatchResult } from './tool-registry.js';
 import { FallbackManager, createFallbackManager } from './fallback-manager.js';
 import { ExecutionEngine, createExecutionEngine } from './execution-engine.js';
 import { TaskRouter, createRouter, RouterConfig, RouteResult } from './task-router.js';
+import { getFailureReporter } from './failure-reporter.js';
 
 export interface OrchestratorConfig {
   name?: string;
@@ -438,6 +439,13 @@ Confidence: ${(perception.confidence * 100).toFixed(1)}%
 
     // Check if this is an AllToolsFailedError
     if (error instanceof AllToolsFailedError) {
+      // Report each failed tool to FailureReporter
+      try {
+        const reporter = getFailureReporter();
+        for (const toolName of error.attemptedTools) {
+          reporter.reportTool(toolName, error.lastError.message, task.description, 'AllToolsFailed in orchestrator');
+        }
+      } catch { /* non-fatal */ }
       return {
         taskId: task.id,
         success: false,
@@ -446,6 +454,56 @@ Confidence: ${(perception.confidence * 100).toFixed(1)}%
         toolsAttempted: error.attemptedTools,
         totalExecutionTimeMs: 0,
       };
+    }
+
+    // Attempt recovery: try to find an alternative tool for the same task
+    const recoveryStart = Date.now();
+    const execContext: ExecutionContext = {
+      task,
+      orchestrator: this,
+      sessionId: context?.sessionId ?? this.generateSessionId(),
+      userId: context?.userId,
+      metadata: context?.metadata ?? {},
+    };
+
+    try {
+      // Look for alternative tools (not the one that just failed)
+      const alternatives = this.registry.findBestTool(task, 5);
+      const failedToolName = err.message.includes("'") 
+        ? err.message.split("'")[1] 
+        : null;
+
+      for (const alt of alternatives) {
+        if (failedToolName && alt.tool.name === failedToolName) continue;
+        if (alt.score < 0.3) break; // Skip low-confidence alternatives
+
+        try {
+          const result = await alt.tool.execute(task.params ?? {});
+          if (result.success) {
+            this.setPhase('complete');
+            this.emit({
+              type: 'task_complete',
+              timestamp: Date.now(),
+              taskId: task.id,
+              data: { recovered: true, recoveredBy: alt.tool.name },
+            });
+            return {
+              taskId: task.id,
+              success: true,
+              result,
+              fallbackAttempted: true,
+              toolsAttempted: [alt.tool.name],
+              totalExecutionTimeMs: Date.now() - recoveryStart,
+              metadata: { recovered: true, recoveredBy: alt.tool.name },
+            };
+          }
+        } catch {
+          // This alternative also failed, try next
+          continue;
+        }
+      }
+    } catch {
+      // Recovery attempt itself failed - fall through to failure
     }
 
     this.setPhase('failed', { taskId: task.id });
@@ -457,13 +515,18 @@ Confidence: ${(perception.confidence * 100).toFixed(1)}%
       data: { error: err.message },
     });
 
+    // Report internal error to FailureReporter
+    try {
+      getFailureReporter().reportInternal(err.message, err.stack);
+    } catch { /* non-fatal */ }
+
     return {
       taskId: task.id,
       success: false,
       error: err.message,
       fallbackAttempted: false,
       toolsAttempted: [],
-      totalExecutionTimeMs: 0,
+      totalExecutionTimeMs: Date.now() - recoveryStart,
     };
   }
 

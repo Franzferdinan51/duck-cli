@@ -294,7 +294,7 @@ export class ToolRegistry {
       total: stats.total,
       successes: stats.successes,
       totalTime: stats.totalTime,
-      avgTime: stats.total / stats.totalTime,
+      avgTime: stats.total > 0 ? stats.totalTime / stats.total : 0,
       successRate: stats.total > 0 ? stats.successes / stats.total : 0,
     };
   }
