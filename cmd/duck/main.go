@@ -142,6 +142,7 @@ Features:
 		devicesCmd(),
 		qrCmd(),
 		capabilityCmd(),
+		graphifyCmd(),
 		onboardCmd(),
 		pluginsCmd(),
 		secretsCmd(),

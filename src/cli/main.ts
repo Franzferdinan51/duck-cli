@@ -646,6 +646,10 @@ async function main() {
       await inferCommand(args);
       break;
 
+    case 'graphify':
+      await graphifyCommand(args);
+      break;
+
     case 'security-defcon':
     case 'defcon': {
       const { createSecurityCommand } = await import('../commands/security-cmd.js');
@@ -3477,6 +3481,13 @@ async function capabilityCommand(args: string[]) {
   console.log(`  ${c.dim}duck capability run "Explain quantum computing" --engine minimax${c.reset}`);
   console.log(`  ${c.dim}duck capability set-engine minimax${c.reset}`);
   console.log();
+}
+
+// ============ GRAPHIFY ============
+
+async function graphifyCommand(args: string[]) {
+  const { graphifyCommand: cmd } = await import('../commands/graphify-cmd.js');
+  await cmd(args);
 }
 
 // ============ QUICK INFER (shorthand) ============
