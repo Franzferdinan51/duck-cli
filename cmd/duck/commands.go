@@ -120,18 +120,22 @@ Examples:
 // mmxCmd - duck mmx [args...]
 func mmxCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "mmx [args...]",
-		Short: "MiniMax AI Platform CLI wrapper",
+		Use:     "mmx [args...]",
+		Aliases: []string{"minimax"},
+		Short:   "MiniMax AI Platform CLI wrapper",
 		Long: `Access MiniMax text, image, video, speech, music, vision, and search.
 
 Examples:
+  duck mmx                          # interactive menu
   duck mmx text chat --message "Hello"
   duck mmx image "A cat in a spacesuit"
   duck mmx speech synthesize --text "Hi" --out hi.mp3
   duck mmx video generate --prompt "Sunset waves" --async
+  duck mmx music generate --prompt "Upbeat pop" --out song.mp3
   duck mmx vision photo.jpg
   duck mmx search "MiniMax AI latest news"
-  duck mmx quota`,
+  duck mmx quota
+  duck mmx sync                     # sync duck-cli MINIMAX_API_KEY to mmx`,
 		Args:               cobra.MinimumNArgs(0),
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
