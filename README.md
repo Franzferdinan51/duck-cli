@@ -140,6 +140,35 @@ adb connect 192.168.1.251:5555   # Your Android phone
 | `./duck voice "text"` | Text-to-speech with MiniMax |
 | `./duck speak "text"` | Text-to-speech with MiniMax |
 
+### Browser & Sandbox
+| Command | Description |
+|---------|-------------|
+| `./duck browser status` | Check BrowserOS status |
+| `./duck browser start` | Start BrowserOS |
+| `./duck browser open <url>` | Open tab |
+| `./duck browser navigate <url>` | Navigate current tab |
+| `./duck browser click <element>` | Click element |
+| `./duck browser type <text>` | Type text |
+| `./duck browser screenshot` | Take screenshot |
+| `./duck browser snapshot` | Take accessibility snapshot |
+| `./duck sandbox list` | List sandboxes |
+| `./duck sandbox explain <url>` | Summarize page elements |
+| `./duck sandbox open <url>` | Open URL in sandbox |
+
+### Models & Inference
+| Command | Description |
+|---------|-------------|
+| `./duck models list` | List configured models |
+| `./duck models status` | Show model state |
+| `./duck models set <model>` | Set default model |
+| `./duck models scan` | Scan OpenRouter free models |
+| `./duck models aliases` | Manage model aliases |
+| `./duck models fallbacks` | Manage fallback chains |
+| `./duck models auth` | Manage auth profiles |
+| `./duck infer "<prompt>"` | Quick inference |
+| `./duck capability list` | List inference capabilities |
+| `./duck capability test <model>` | Test a model |
+
 ### Security & System
 | Command | Description |
 |---------|-------------|
@@ -382,6 +411,23 @@ Every interaction is stored in SQLite and persists across sessions.
 # Memory stats
 ./duck memory stats
 ```
+
+### Lossless Context Management (LCM)
+
+LCM preserves every message using DAG-based summarization, so no context is ever truly lost.
+
+```bash
+# LCM is automatic when enabled via environment:
+export LCM_ENABLED=true
+export LCM_FRESH_TAIL_COUNT=64
+export LCM_LEAF_CHUNK_TOKENS=20000
+```
+
+**How it works:**
+- Older messages are compacted into summaries (DAG nodes)
+- Recent messages stay in the fresh tail
+- Model always gets summaries + fresh tail within token budget
+- Summaries are searchable with `grepSummaries()`
 
 ---
 
