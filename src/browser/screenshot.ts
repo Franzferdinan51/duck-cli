@@ -6,7 +6,7 @@
 import { writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 
-const BROWSEROS_MCP_URL = process.env.BROWSEROS_MCP_URL || 'http://127.0.0.1:9200/mcp';
+const BROWSEROS_MCP_URL = process.env.BROWSEROS_MCP_URL || 'http://127.0.0.1:9003/mcp';
 
 export interface ScreenshotOptions {
   path?: string;

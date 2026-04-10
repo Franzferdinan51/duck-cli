@@ -424,7 +424,7 @@ async function forwardToCallback(url: string, data: any): Promise<void> {
 }
 
 // Provider config - loaded from environment
-const PROVIDER = process.env.DUCK_CHAT_PROVIDER || 'minimax';
+const PROVIDER = process.env.DUCK_CHAT_PROVIDER || 'lmstudio';
 const MODEL = process.env.DUCK_CHAT_MODEL || getDefaultModel(PROVIDER);
 // Try to load SOUL.md for richer system prompt
 function loadSoulPrompt(): string {
@@ -486,7 +486,7 @@ const MAX_CONTEXT_TOKENS = parseInt(process.env.DUCK_CHAT_MAX_CONTEXT || '16000'
 function getDefaultModel(provider: string): string {
   const defaults: Record<string, string> = {
     minimax: 'MiniMax-M2.7',
-    lmstudio: 'qwen3.5-0.8b',
+    lmstudio: 'google/gemma-4-26b-a4b',
     kimi: 'k2p5',
     openai: 'gpt-5.4',
     openrouter: 'qwen/qwen3.6-plus-preview:free',
@@ -721,6 +721,50 @@ async function selectBestLMStudioModel(
   const baseUrl = process.env.LMSTUDIO_BASE_URL || process.env.LMSTUDIO_URL || 'http://127.0.0.1:1234';
   const apiKey = process.env.LMSTUDIO_API_KEY || process.env.LMSTUDIO_KEY || '';
 
+function inferModelDescription(id: string): string {
+  const lower = id.toLowerCase();
+  const parts: string[] = [];
+
+  // Size heuristic
+  const sizeMatch = lower.match(/(\d+)(\.\d+)?\s*[bm]\b/);
+  let size = 0;
+  if (sizeMatch) {
+    const val = parseFloat(sizeMatch[1] + (sizeMatch[2] || ''));
+    const unit = lower.includes('b') && !lower.includes('.') && val > 100 ? 'M' : (lower.includes('m') ? 'M' : 'B');
+    if (unit === 'B' || val < 1) size = val * 1000;
+    else size = val;
+  }
+
+  if (size > 0) {
+    if (size < 2000) parts.push(`${size}M parameter model`);
+    else parts.push(`${Math.round(size / 1000)}B parameter model`);
+  }
+
+  // Family
+  if (lower.includes('gemma')) parts.push('Gemma family');
+  else if (lower.includes('qwen')) parts.push('Qwen family');
+  else if (lower.includes('llama')) parts.push('Llama family');
+  else if (lower.includes('mistral')) parts.push('Mistral family');
+  else if (lower.includes('phi')) parts.push('Phi family');
+
+  // Capabilities
+  if (lower.includes('vision') || lower.includes('multimodal') || lower.includes('vl')) parts.push('supports vision');
+  if (lower.includes('code')) parts.push('coding-focused');
+  if (lower.includes('reasoning') || lower.includes('reason')) parts.push('reasoning-enhanced');
+  if (lower.includes('distill')) parts.push('distilled');
+  if (lower.includes('instruct') || lower.includes('-it')) parts.push('instruction-tuned');
+  if (lower.includes('tool')) parts.push('tool-calling');
+  if (lower.includes('MLX')) parts.push('MLX-optimized for Apple Silicon');
+
+  // Speed/quality heuristic
+  if (size > 0 && size < 3000) parts.push('fast, lightweight');
+  else if (size >= 3000 && size < 15000) parts.push('good balance of speed and quality');
+  else if (size >= 15000) parts.push('high quality, slower');
+
+  if (parts.length === 0) return 'General-purpose local model.';
+  return parts.join('. ') + '.';
+}
+
   const modelDescriptions: Record<string, string> = {
     'google/gemma-4-26b-a4b': 'Large Gemma 4 vision/reasoning model (26B). Best for complex analysis, vision, coding.',
     'gemma-4-e4b-it': 'Tiny Gemma 4 (4B) with tool-calling. Trained for Android dev, fast execution, vision.',
@@ -747,7 +791,7 @@ async function selectBestLMStudioModel(
   };
 
   const descLines = availableModels.map(id => {
-    const d = modelDescriptions[id] || 'General-purpose local model.';
+    const d = modelDescriptions[id] || inferModelDescription(id);
     return `- ${id}: ${d}`;
   }).join('\n');
 
