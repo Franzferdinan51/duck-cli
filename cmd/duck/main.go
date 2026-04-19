@@ -68,7 +68,8 @@ Features:
   • MCP server + Gateway API
   • KAIROS proactive AI
   • Sub-Conscious self-reflection
-  • AI Council (45 councilors)
+  • AI Council (52 councilors)
+  • CannaAI Grow Monitoring
   • Agent Mesh networking
   • DEFCON security mode
   • Desktop UI + Web UI
@@ -84,6 +85,7 @@ Features:
 
 	// All commands
 	rootCmd.AddCommand(
+		cannaaiCmd(),
 		runCmd(),
 		shellCmd(),
 		agentCmd(),
@@ -701,6 +703,93 @@ func councilCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&mode, "mode", "decision", "Mode: decision|research|prediction|swarm")
+	return cmd
+}
+
+// cannaaiCmd - duck cannaai <status|monitor|analyze|alerts|plants|council|schedule>
+func cannaaiCmd() *cobra.Command {
+	var councilFlag bool
+	cmd := &cobra.Command{
+		Use:   "cannaai <command>",
+		Short: "🌿 CannaAI grow monitoring commands",
+		Long:  `CannaAI cannabis cultivation monitoring via Duck CLI.
+
+Commands:
+  status    - Show CannaAI system status
+  monitor  - Show current environmental data
+  analyze  - Analyze a plant photo
+  alerts   - List active alerts
+  plants   - List all plants
+  council  - Ask AI Council for grow advice
+  schedule - Show nutrient/water schedules
+
+Environment:
+  CANNAAI_URL     - CannaAI server URL (default: http://localhost:3000)
+  AI_COUNCIL_URL  - AI Council URL (default: http://localhost:3006)
+
+Examples:
+  duck cannaai status
+  duck cannaai monitor
+  duck cannaai analyze /tmp/plant.jpg
+  duck cannaai analyze /tmp/plant.jpg --council
+  duck cannaai alerts
+  duck cannaai plants
+  duck cannaai council "What nutrients does my plant need?"
+  duck cannaai schedule`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
+
+	addCmd := func(use, short string, run func(args []string) error) {
+		c := &cobra.Command{
+			Use:   use,
+			Short: short,
+			Args:  cobra.NoArgs,
+			RunE:  func(cmd *cobra.Command, args []string) error { return run(args) },
+		}
+		cmd.AddCommand(c)
+	}
+
+	addCmd("status", "Show CannaAI system status", func(_ []string) error {
+		return runNodeWithEnv("cannaai status", cmd)
+	})
+	addCmd("monitor", "Show environmental data", func(_ []string) error {
+		return runNodeWithEnv("cannaai monitor", cmd)
+	})
+	addCmd("alerts", "List active alerts", func(_ []string) error {
+		return runNodeWithEnv("cannaai alerts", cmd)
+	})
+	addCmd("plants", "List all plants", func(_ []string) error {
+		return runNodeWithEnv("cannaai plants", cmd)
+	})
+	addCmd("schedule", "Show grow schedules", func(_ []string) error {
+		return runNodeWithEnv("cannaai schedule", cmd)
+	})
+
+	analyzeCmd := &cobra.Command{
+		Use:   "analyze <imagePath>",
+		Short: "Analyze a plant photo",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			env := "cannaai analyze " + args[0]
+			return runNodeWithEnv(env, cmd)
+		},
+	}
+	analyzeCmd.Flags().BoolVar(&councilFlag, "council", false, "Run through AI Council deliberation")
+	cmd.AddCommand(analyzeCmd)
+
+	councilCmd2 := &cobra.Command{
+		Use:   "council <question>",
+		Short: "Ask AI Council for grow advice",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNodeWithEnv("cannaai council "+strings.Join(args, " "), cmd)
+		},
+	}
+	cmd.AddCommand(councilCmd2)
+
 	return cmd
 }
 

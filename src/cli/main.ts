@@ -730,6 +730,14 @@ async function main() {
       await councilCommand(args);
       break;
 
+    case 'cannaai': {
+      const { createCannaaiCommand } = await import('../commands/cannaai.js');
+      const cmd = createCannaaiCommand();
+      const fullArgs = ['node', 'cannaai', ...args].filter(a => a.length > 0);
+      await cmd.parseAsync(fullArgs);
+      break;
+    }
+
     case 'failures': {
       const { createFailuresCommand } = await import('../commands/failures-cmd.js');
       const failuresCmd = createFailuresCommand();
