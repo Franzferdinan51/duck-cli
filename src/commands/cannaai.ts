@@ -7,25 +7,39 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const CANNAAI_URL = process.env.CANNAAI_URL || 'http://localhost:3000';
+const CANNAAI_URL = process.env.CANNAAI_URL || 'http://localhost:3007';
 const AI_COUNCIL_URL = process.env.AI_COUNCIL_URL || 'http://localhost:3006';
 
 async function apiFetch(path: string, opts: any = {}) {
   const url = `${CANNAAI_URL}${path}`;
-  const res = await fetch(url, { timeout: 10000, ...opts });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(url, { signal: controller.signal as any, ...opts });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function councilFetch(path: string, body: any) {
-  const res = await fetch(`${AI_COUNCIL_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    timeout: 60000,
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch(`${AI_COUNCIL_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal as any,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function createCannaaiCommand(): Command {
