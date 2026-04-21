@@ -747,6 +747,12 @@ async function main() {
       break;
     }
 
+    case 'doctor':
+    case 'ai-doctor':
+    case 'repair':
+      await doctorCommand(args);
+      break;
+
     case 'meta':
     case 'agent:meta': {
       const { createMetaAgentCommand } = await import('../commands/meta-agent-cmd.js');
@@ -3895,4 +3901,124 @@ async function rlEnableCommand(): Promise<void> {
 
 async function rlDisableCommand(): Promise<void> {
   await rlCommand(['disable']);
+}
+
+// ============ AI DOCTOR (Self-Healing) ============
+
+async function doctorCommand(args: string[]): Promise<void> {
+  const { getAIDoctor } = await import('../ai-doctor/doctor.js');
+  const { getACPRepar } = await import('../ai-doctor/acp-repair.js');
+
+
+  const [action, ...actionArgs] = args;
+  const doctor = getAIDoctor();
+  const repar = getACPRepar();
+
+
+  const c2 = { reset: '\x1b[0m', bold: '\x1b[1m', green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m' };
+
+
+  console.log(`\n${c2.cyan}${c2.bold}   AI Doctor${c2.reset} — Self-healing diagnosis & repair\n`);
+
+
+  switch (action) {
+    case 'examine':
+    case 'diag':
+    case 'diagnose': {
+      const error = actionArgs.join(' ');
+      if (!error) {
+        console.log(`${c2.yellow}Usage: duck doctor examine <error message>${c2.reset}`);
+        console.log(`${c2.dim}Example: duck doctor examine "ECONNREFUSED localhost:3003"${c2.reset}`);
+        return;
+      }
+      console.log(`${c2.cyan}Examining: ${error}${c2.reset}\n`);
+      const report = await doctor.examine(error);
+      console.log(`${c2.bold}Diagnosis:${c2.reset} ${report.diagnosis.rootCause}`);
+      console.log(`Category: ${report.diagnosis.category} | Severity: ${report.diagnosis.severity} | Confidence: ${(report.diagnosis.confidence * 100).toFixed(0)}%`);
+      if (report.fix && report.fix.steps.length > 0) {
+        console.log(`\n${c2.bold}Proposed Fix (${report.fix.autoFixable ? 'auto-fixable' : 'manual'}):${c2.reset}`);
+        for (const step of report.fix.steps) {
+          console.log(`  ${step.order}. ${step.description}`);
+          if (step.command) console.log(`     Command: ${step.command}`);
+        }
+      }
+      break;
+    }
+
+    case 'fix':
+    case 'apply': {
+      const error = actionArgs.join(' ');
+      if (!error) {
+        console.log(`${c2.yellow}Usage: duck doctor fix <error message>${c2.reset}`);
+        return;
+      }
+      const report = await doctor.examine(error);
+      if (report.fix) {
+        console.log(`${c2.cyan}Applying fix...${c2.reset}`);
+        const result = await doctor.applyFix(report);
+        console.log(result.success ? `${c2.green}Fix applied successfully${c2.reset}` : `${c2.red}Fix failed: ${result.output}${c2.reset}`);
+      } else {
+        console.log(`${c2.yellow}No fix proposed${c2.reset}`);
+      }
+      break;
+    }
+
+    case 'repair':
+    case 'auto': {
+      // ACP auto-repair mode — listens for failures
+      const config = repar.getConfig();
+      console.log(`${c2.bold}ACP Auto-Repair Mode${c2.reset}`);
+      console.log(`Enabled: ${config.enabled} | Auto-repair: ${config.autoRepairOnFailure}`);
+      console.log(`Severity threshold: ${config.severityThreshold} | Max retries: ${config.maxRetries}`);
+      if (config.enabled) {
+        console.log(`\n${c2.green}Auto-repair active — failures will be auto-diagnosed and fixed${c2.reset}`);
+      } else {
+        console.log(`${c2.yellow}Enable with: duck doctor repair --enable${c2.reset}`);
+      }
+      break;
+    }
+
+    case 'history':
+    case 'logs': {
+      const reports = doctor.getHistory();
+      if (reports.length === 0) {
+        console.log(`No repair history yet. ${c2.green}All clear!${c2.reset}\n`);
+        return;
+      }
+      console.log(`${c2.bold}Repair History (${reports.length})${c2.reset}\n`);
+      for (const r of reports.slice(-10)) {
+        const icon = r.result === 'success' ? '✅' : r.result === 'partial' ? '⚠️' : '❌';
+        console.log(`${icon} [${new Date(r.timestamp).toLocaleString()}]`);
+        console.log(`   Error: ${r.error.substring(0, 80)}`);
+        console.log(`   Diagnosis: ${r.diagnosis.rootCause}`);
+        if (r.fix) console.log(`   Fix: ${r.fix.steps.length} steps (${r.applied ? 'applied' : 'not applied'})`);
+        console.log();
+      }
+      break;
+    }
+
+    case 'config':
+    case 'settings': {
+      const config = doctor.getConfig();
+      console.log(`${c2.bold}Doctor Config:${c2.reset}`);
+      console.log(`  Auto-fix: ${config.autoFix}`);
+      console.log(`  Risk threshold: ${config.autoFixRiskThreshold}`);
+      console.log(`  Model: ${config.model}`);
+      console.log(`  Provider: ${config.provider}`);
+      break;
+    }
+
+    default: {
+      console.log(`${c2.bold}AI Doctor Commands:${c2.reset}`);
+      console.log(`  ${c2.green}duck doctor examine <error>${c2.reset}  Diagnose an error`);
+      console.log(`  ${c2.green}duck doctor fix <error>${c2.reset}       Diagnose and apply fix`);
+      console.log(`  ${c2.green}duck doctor repair${c2.reset}            Show auto-repair status`);
+      console.log(`  ${c2.green}duck doctor history${c2.reset}            Show repair history`);
+      console.log(`  ${c2.green}duck doctor config${c2.reset}            Show configuration`);
+      console.log();
+      console.log(`${c2.dim}Examples:${c2.reset}`);
+      console.log(`  duck doctor examine "ECONNREFUSED localhost:3003"`);
+      console.log(`  duck doctor fix "Module not found: better-sqlite3"`);
+    }
+  }
 }
