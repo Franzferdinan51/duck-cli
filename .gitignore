@@ -19,3 +19,4 @@ duck.exe
 *.exe
 .env
 graphify-out/
+duck-dist/
