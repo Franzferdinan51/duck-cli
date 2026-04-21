@@ -6,15 +6,10 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-<<<<<<< Updated upstream
 import Database from '../vendor/better-sqlite3.js';
-import { mkdirSync } from 'fs';
-=======
-import Database from 'better-sqlite3';
 import { existsSync, mkdirSync, openSync, readSync, closeSync, renameSync } from 'fs';
->>>>>>> Stashed changes
-import { join } from 'path';
 import { homedir } from 'os';
+import { join } from 'path';
 
 function ensureSqliteDb(dbPath: string): void {
   if (existsSync(dbPath)) {
