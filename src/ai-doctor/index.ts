@@ -15,6 +15,7 @@
 export { AIDoctor, getAIDoctor } from './doctor.js';
 export { MiniMaxClient } from './minimax-client.js';
 export { ACPRepar, getACPRepar } from './acp-repair.js';
+export { CodeHarness } from './code-harness.js';
 export type {
   Diagnosis,
   FixProposal,
@@ -22,4 +23,6 @@ export type {
   DoctorReport,
   DoctorConfig,
   RepairConfig,
+  Harness,
+  HarnessResult,
 } from './types.js';

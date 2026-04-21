@@ -8,6 +8,7 @@ import type { Diagnosis, FixProposal, DoctorReport, DoctorConfig, FixStep } from
 
 export class AIDoctor {
   private miniMax: MiniMaxClient;
+  private codeHarness: CodeHarness;
   private config: DoctorConfig;
   private reports: DoctorReport[] = [];
 
@@ -19,6 +20,7 @@ export class AIDoctor {
       provider: config?.provider ?? 'minimax',
     };
     this.miniMax = new MiniMaxClient(this.config.model);
+    this.codeHarness = new CodeHarness();
   }
 
   async initialize(): Promise<void> {
@@ -227,6 +229,48 @@ export class AIDoctor {
     } catch (e: any) {
       return `Command failed: ${e.message}`;
     }
+  }
+
+  /**
+   * Auto-repair code using Claude Code or Codex harness
+   */
+  async autoRepair(error: string, context?: { file?: string; code?: string; cwd?: string }): Promise<DoctorReport> {
+    const logs: string[] = [];
+    logs.push(`[${new Date().toISOString()}] Starting code repair via Claude Code/Codex`);
+
+    const result = await this.codeHarness.repair(error, context);
+    logs.push(`[${new Date().toISOString()}] Harness result: ${result.success ? 'success' : 'failed'}`);
+
+    const report: DoctorReport = {
+      timestamp: Date.now(),
+      error,
+      diagnosis: {
+        error,
+        rootCause: result.success ? 'Fixed via code harness' : (result.error || 'Harness failed'),
+        severity: 'medium',
+        category: 'code',
+        confidence: result.success ? 0.9 : 0.3,
+      },
+      fix: result.success ? {
+        diagnosis: {} as Diagnosis,
+        steps: [{
+          order: 1,
+          action: 'patch',
+          description: 'Code fix applied via ' + (CodeHarness.detect() === 'claude' ? 'Claude Code' : 'Codex'),
+          command: undefined,
+          reversible: false,
+          autoFixable: true,
+        }],
+        estimatedRisk: 'medium',
+        autoFixable: true,
+      } : undefined,
+      applied: result.success,
+      result: result.success ? 'success' : 'failed',
+      logs,
+    };
+
+    this.reports.push(report);
+    return report;
   }
 
   private riskAllowed(risk: string): boolean {

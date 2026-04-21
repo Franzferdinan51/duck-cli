@@ -43,3 +43,11 @@ export interface DoctorConfig {
   model: string;
   provider: string;
 }
+
+export type Harness = 'claude' | 'codex' | 'auto';
+
+export interface HarnessResult {
+  success: boolean;
+  output: string;
+  error?: string;
+}
