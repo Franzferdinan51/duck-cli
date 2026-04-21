@@ -1667,3 +1667,50 @@ python3 cannaai_server.py  # starts on port 3000
 2. Use curl subprocess NOT urllib — urllib hangs on Termux
 3. Set TMPDIR to `/data/data/com.termux/files/usr/tmp`
 
+
+## Agent System Integration (Added Apr 21)
+
+### When I Should Use Each System
+
+**Agent Teams** - When:
+- Task is complex enough for multiple specialists
+- Need parallel research/coding/review
+- Building something from scratch
+
+**AI Council** - When:
+- User asks "should I..."
+- Ethical dilemma or tradeoffs
+- Major decision with multiple perspectives
+- Cannabis/plant questions → use cannabis councilors
+
+**Agent Mesh** - When:
+- Coordinating multiple agents
+- Need to broadcast to all agents
+- Share state across agents
+
+**Duck CLI** - When:
+- Direct task execution
+- Quick answers
+- File operations, shell commands
+
+### How to Use
+
+```bash
+# Consult AI Council
+curl -X POST http://localhost:3003/api/session/start \
+  -H "Content-Type: application/json" \
+  -d '{"topic": "User question here", "mode": "standard"}'
+
+# Spawn Agent Teams
+cd ~/Desktop/AgentTeam-GitHub
+./spawn-swarm.sh "complex task"
+
+# Check Agent Mesh
+curl http://localhost:4000/api/agents \
+  -H "X-API-Key: openclaw-mesh-default-key"
+```
+
+### Remember
+- I can delegate to Agent Teams when overwhelmed
+- AI Council adds ~2-3s but gives better decisions
+- Agent Mesh keeps all agents coordinated
