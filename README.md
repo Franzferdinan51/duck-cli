@@ -1,550 +1,403 @@
-# 🦆 duck-cli v0.6.1
+# 🦆 duck-cli v0.8.0
 
-> **Desktop AI Agent** — A rival to Claude Code, Letta Code, and OpenAI Codex. Desktop AI agent with LLM-powered Meta-Agent Orchestrator, AI Council deliberation, persistent memory, multi-provider routing (MiniMax/LM Studio/Kimi/GPT/OpenRouter), agent-mesh communication bus, and 16 built-in tools. Runs on Mac/PC/Linux/Android.
+> **OpenClaw Super Agent** — An agent for agents. duck-cli acts as a co-pilot wrapper around OpenClaw, exposing AI Council deliberation, agent mesh networking, plant monitoring (CannaAI), and Android phone control as ACP tools that any OpenClaw gateway can call.
 
 [![GitHub](https://img.shields.io/github/stars/Franzferdinan51/duck-cli?style=social)](https://github.com/Franzferdinan51/duck-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
 [![Go](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://go.dev/)
-[![Version](https://img.shields.io/badge/version-0.6.1-yellow.svg)]()
+
+---
+
+## 🏗️ Architecture — Super Agent for OpenClaw
+
+duck-cli is NOT a standalone chat bot. It's a **super agent** that attaches to an OpenClaw gateway and provides backend services to whatever agent it's connected to.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    TELEGRAM (Human)                          │
+└─────────────────────────────┬────────────────────────────────┘
+                              │
+                     OpenClaw Gateway
+                     (handles Telegram)
+                              │
+            ┌─────────────────┼─────────────────┐
+            │                 │                 │
+      delegates work    shares context    receives reports
+            │                 │                 │
+            ▼                 ▼                 ▼
+┌─────────────────────────────────────────────────────────────┐
+│              🦆 duck-cli — Super Agent                      │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │  🤖 META-AGENT ORCHESTRATION                        │  │
+│  │  ├── Orchestrator (task routing + planning)         │  │
+│  │  ├── Subconscious (background reasoning daemon)     │  │
+│  │  ├── Meta-Critic (quality assurance)                │  │
+│  │  └── Meta-Learner (experience + improvements)       │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐          │
+│  │ AI Council  │ │ Agent Mesh  │ │  CannaAI    │          │
+│  │ :3003       │ │  :4000      │ │   :3000     │          │
+│  │ 7-model     │ │  networking │ │  plant mon  │          │
+│  └─────────────┘ └─────────────┘ └─────────────┘          │
+│                                                             │
+│  ┌─────────────┐ ┌─────────────────────────────────────┐  │
+│  │Phone Control│ │ ACP Bridge (WebSocket)                │  │
+│  │ADB :40835  │ │ ← connects to OpenClaw gateway       │  │
+│  └─────────────┘ └─────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key distinction:**
+- **OpenClaw** handles the conversation, memory, and user relationship (Telegram)
+- **duck-cli** handles the heavy backend: deliberation, plant analysis, Android control, mesh networking
 
 ---
 
 ## ⚡ Quick Start
 
+### Attach to OpenClaw Gateway
+
 ```bash
-# 1. Clone and build
-git clone https://github.com/Franzferdinan51/duck-cli.git
-cd duck-cli && npm install && npm run build
+# Attach to a local OpenClaw gateway
+./duck attach ws://localhost:18789
 
-# 2. Configure (add your API keys)
-cp .env.example .env
-# Edit .env → MINIMAX_API_KEY=your_key
+# Attach to Mac's OpenClaw gateway (from Android/Termux)
+./duck attach ws://100.68.208.113:18789
 
-# 3. Run a task
-./duck run "what is the capital of Japan?"
+# Check connection status
+./duck attach --status
 
-# 4. Check status
-./duck status
-./duck providers
-
-# 5. Interactive shell
-./duck shell
-
-# 6. Start web UI
-./duck web 3001
+# Detach
+./duck attach --detach
 ```
 
-**Android (optional):**
+### Standalone Mode (no gateway)
+
 ```bash
-adb connect 192.168.1.251:5555   # Your Android phone
+# Interactive shell
+./duck shell
+
+# Run a task
+./duck run "what is the capital of Japan?"
+
+# Quick inference
+./duck infer "Explain quantum computing"
+```
+
+---
+
+## 🧠 AI Council — Multi-Model Deliberation
+
+Routes complex decisions through 7 specialist groups in parallel, then synthesizes a verdict.
+
+**Server:** `http://localhost:3003` (shared with AgentTeams)
+
+```bash
+# Standard deliberation (single model)
+./duck council "should I switch my cannabis plants to flower?"
+
+# Multi-model deliberation (7 specialist groups)
+./duck council "should I switch to flower?" --mode multi
+```
+
+**7 Specialist Groups:**
+| Group | Model | Purpose |
+|-------|-------|---------|
+| Leadership | qwen3.6-35b | Strategic direction |
+| Security | SuperGemma uncensored | Risk assessment |
+| Technical | qwen3.5-0.8b | Implementation feasibility |
+| Strategy | qwen3.5-9b | Long-term planning |
+| Cannabis | qwen3.6-35b | Plant expertise |
+| Analysts | qwen3.5-0.8b | Data review |
+| Special | SuperGemma uncensored MLX | Edge cases |
+
+---
+
+## 🌿 Plant Monitoring — CannaAI
+
+Plant health analysis via vision AI.
+
+**Server:** `http://localhost:3000`
+
+```bash
+# Check CannaAI server health
+./duck plant health
+
+# Analyze plant (requires image)
+# Coming: ./duck plant analyze <image>
+```
+
+---
+
+## 📱 Android Phone Control — ADB
+
+Control an Android phone via ADB wireless debugging.
+
+**Connection:** `adb connect 100.91.33.100:40835`
+
+```bash
+# Connect to phone
+adb connect 100.91.33.100:40835
+
+# Screenshot
+./duck android screenshot
+
+# Tap at coordinates
+./duck android tap 500 500
+
+# Swipe
+./duck android swipe up
+
+# Type text
+./duck android type "hello world"
+
+# Launch app
+./duck android app launch com.whatsapp
+
+# Device info
 ./duck android devices
-./duck android agent "open settings"
+./duck android battery
+./duck android status
+
+# AI agent loop — describe what you want
+./duck android agent "open settings and turn on WiFi"
+```
+
+---
+
+## 🌐 Agent Mesh — Inter-Agent Communication
+
+Connect to a mesh network of agents for distributed communication.
+
+**Mesh API:** `http://localhost:4000`
+
+```bash
+# List connected agents
+./duck mesh list
+
+# Send message to specific agent
+./duck mesh send <agent-id> "task complete"
+
+# Broadcast to all agents
+./duck mesh broadcast "system update incoming"
+
+# Start mesh server
+./duck meshd 4000
+```
+
+---
+
+## 🦆 duck attach — Super Agent ACP Client
+
+The `duck attach` command connects duck-cli to any OpenClaw gateway as a peer super-agent.
+
+**Registered ACP Tools (when attached):**
+| Tool | Purpose |
+|------|---------|
+| `duck_council` | AI Council deliberation |
+| `duck_mesh_list` | List mesh agents |
+| `duck_mesh_send` | Send message to agent |
+| `duck_mesh_broadcast` | Broadcast to all agents |
+| `duck_plant_analyze` | Plant health analysis |
+| `duck_plant_health` | Plant server status |
+| `duck_phone_screenshot` | Phone screenshot |
+| `duck_phone_tap` | Tap at coordinates |
+| `duck_phone_swipe` | Swipe gesture |
+| `duck_phone_type` | Type text |
+| `duck_phone_launch` | Launch app |
+| `duck_status` | Agent status |
+
+---
+
+## 🔧 Configuration
+
+```bash
+# Copy and edit environment
+cp .env.example .env
+
+# Required keys in .env:
+MINIMAX_API_KEY=your_key          # MiniMax API
+LMSTUDIO_URL=http://localhost:1234  # LM Studio (local)
+AI_COUNCIL_URL=http://localhost:3003  # AI Council
+CANNAAI_URL=http://localhost:3000     # Plant monitoring
+MESH_URL=http://localhost:4000        # Agent mesh
 ```
 
 ---
 
 ## 🗂️ All Commands
 
+### Super Agent (OpenClaw Integration)
+| Command | Description |
+|---------|-------------|
+| `./duck attach <ws://gateway>` | Attach to OpenClaw gateway as super agent |
+| `./duck attach --status` | Show connection status |
+| `./duck attach --detach` | Detach from gateway |
+
 ### Core
 | Command | Description |
 |---------|-------------|
-| `./duck run "task"` | Run a task (auto-routes to best provider) |
+| `./duck run "task"` | Run a task |
 | `./duck shell` | Interactive TUI shell |
-| `./duck status` | Show agent status and providers |
-| `./duck providers` | List available AI providers |
-| `./duck setup` | Interactive API key configuration wizard |
-| `./duck think` | Reasoning mode |
-| `./duck stats` | Show usage statistics |
-| `./duck tools [list\|schema\|search]` | List and search tool registry |
-
-### Meta-Agent v3 (LLM-Powered Orchestration)
-| Command | Description |
-|---------|-------------|
-| `./duck meta plan "task"` | Preview what duck-cli would do (no execution) |
-| `./duck meta run "task"` | Full execution with Planner → Critic → Healer → Learner |
-| `./duck meta learnings` | Show lessons from past sessions |
+| `./duck infer "prompt"` | Quick inference |
+| `./duck status` | Show agent status |
+| `./duck providers` | List AI providers |
 
 ### AI Systems
 | Command | Description |
 |---------|-------------|
-| `./duck council "question"` | Ask the AI Council (deliberation) |
-| `./duck kairos [mode]` | KAIROS proactive AI (enable/disable/aggressive/balanced/conservative) |
-| `./duck subconscious [cmd]` | Sub-Conscious control (daemon/status/stats/whisper/recall/council) |
+| `./duck council "question"` | AI Council deliberation |
+| `./duck council "?" --mode multi` | Multi-model deliberation |
+| `./duck subconscious [cmd]` | Subconscious daemon control |
+| `./duck kairos [mode]` | Proactive heartbeat (enable/disable/balanced/aggressive) |
+| `./duck rl [action]` | OpenClaw-RL self-improvement |
 
 ### Agent Mesh & Networking
 | Command | Description |
 |---------|-------------|
-| `./duck mesh [action]` | Agent Mesh networking (list/register/broadcast/send/inbox) |
-| `./duck meshd [port]` | Start built-in mesh server daemon (default port 4000) |
-| `./duck chat-agent start` | Start Duck Chat Agent HTTP server (default port 18797) |
-| `./duck gateway [port]` | Start Duck Gateway API (default port 18792) |
-
-### Protocol Servers
-| Command | Description |
-|---------|-------------|
-| `./duck mcp [port]` | Start MCP server (default port 3850) |
-| `./duck mcp --stdio` | MCP with stdio transport (LM Studio / Claude Desktop) |
-| `./duck acp [type]` | Spawn ACP agent (codex/claude/pi/gemini) |
-| `./duck acp-server [port]` | Start ACP server (default port 18794) |
-| `./duck unified` | Start all protocols: MCP + ACP + WS + Gateway |
-
-### Scheduling & Automation
-| Command | Description |
-|---------|-------------|
-| `./duck cron list` | List all cron jobs |
-| `./duck cron enable <id>` | Enable a cron job |
-| `./duck cron disable <id>` | Disable a cron job |
-| `./duck cron run <id>` | Run a cron job immediately |
-
-### Memory & Sessions
-| Command | Description |
-|---------|-------------|
-| `./duck memory` | Memory system commands |
-| `./duck memory remember "fact"` | Store a fact in memory |
-| `./duck memory recall "query"` | Search memory |
-
-### Subagents
-| Command | Description |
-|---------|-------------|
-| `./duck agent list` | List active subagents |
-| `./duck agent spawn "task"` | Spawn a new subagent |
-| `./duck buddy [action]` | Buddy companion (hatch/list/stats/reroll) |
-| `./duck team [action]` | Multi-agent teams (create/spawn/status/list) |
+| `./duck mesh list` | List mesh agents |
+| `./duck mesh send <id> <msg>` | Send message to agent |
+| `./duck mesh broadcast <msg>` | Broadcast to all agents |
+| `./duck meshd [port]` | Start mesh server (default 4000) |
 
 ### Android Control (ADB)
 | Command | Description |
 |---------|-------------|
-| `./duck android devices` | List connected Android devices |
-| `./duck android status` | Device status (model, battery, screen) |
+| `./duck android devices` | List connected devices |
+| `./duck android status` | Device info (model, battery, screen) |
 | `./duck android screenshot` | Capture screen |
-| `./duck android screen` | Read visible text (OCR-style) |
-| `./duck android dump` | Dump UI hierarchy (XML) |
-| `./duck android find "text"` | Find element and tap |
 | `./duck android tap <x> <y>` | Tap at coordinates |
 | `./duck android swipe <dir>` | Swipe (up/down/left/right) |
 | `./duck android type "text"` | Type text |
-| `./duck android press <key>` | Key (enter/back/home/recent/power) |
+| `./duck android press <key>` | Key (enter/back/home/power) |
 | `./duck android app launch <pkg>` | Launch app |
 | `./duck android app kill <pkg>` | Force-stop app |
 | `./duck android battery` | Battery level |
 | `./duck android notifications` | Recent notifications |
-| `./duck android agent "task"` | 🦆 AI agent loop (Perceive → Reason → Act) |
-| `./duck android analyze` | Full vision pipeline: screenshot + UI + app + battery |
+| `./duck android agent "task"` | AI agent loop (Perceive → Reason → Act) |
+| `./duck android find "text"` | Find element and tap |
+| `./duck android dump` | UI hierarchy (XML) |
+| `./duck android screen` | OCR-style text reading |
 
-### Web & Desktop
+### Plant Monitoring
 | Command | Description |
 |---------|-------------|
-| `./duck web [port]` | Start Duck Web UI (default port 3001) |
-| `./duck desktop` | Desktop control |
-| `./duck voice "text"` | Text-to-speech with MiniMax |
-| `./duck speak "text"` | Text-to-speech with MiniMax |
+| `./duck plant health` | CannaAI server status |
+| `./duck plant analyze <image>` | Analyze plant health (via CannaAI) |
 
-### Browser & Sandbox
+### Memory & Sessions
 | Command | Description |
 |---------|-------------|
-| `./duck browser status` | Check BrowserOS status |
-| `./duck browser start` | Start BrowserOS |
-| `./duck browser open <url>` | Open tab |
-| `./duck browser navigate <url>` | Navigate current tab |
-| `./duck browser click <element>` | Click element |
-| `./duck browser type <text>` | Type text |
-| `./duck browser screenshot` | Take screenshot |
-| `./duck browser snapshot` | Take accessibility snapshot |
-| `./duck sandbox list` | List sandboxes |
-| `./duck sandbox explain <url>` | Summarize page elements |
-| `./duck sandbox open <url>` | Open URL in sandbox |
+| `./duck memory remember "fact"` | Store in memory |
+| `./duck memory recall "query"` | Search memory |
+| `./duck memory stats` | Memory statistics |
+| `./duck history` | Show conversation history |
+| `./duck clear` | Clear history |
+
+### Meta-Agent
+| Command | Description |
+|---------|-------------|
+| `./duck meta plan "task"` | Preview plan (no execution) |
+| `./duck meta run "task"` | Full execution with Planner → Critic → Healer → Learner |
+| `./duck meta learnings` | Show lessons from past sessions |
+
+### Subagents & Teams
+| Command | Description |
+|---------|-------------|
+| `./duck agent list` | List active subagents |
+| `./duck agent spawn "task"` | Spawn new subagent |
+| `./duck buddy [action]` | Buddy companion (hatch/list/stats/reroll) |
+| `./duck team [action]` | Multi-agent teams (create/spawn/status/list/swarm) |
+
+### Protocol Servers
+| Command | Description |
+|---------|-------------|
+| `./duck mcp [port]` | MCP server (default 3850) |
+| `./duck mcp --stdio` | MCP with stdio transport |
+| `./duck acp [type]` | Spawn ACP agent (codex/claude/pi/gemini) |
+| `./duck acp-server [port]` | ACP server (default 18794) |
+| `./duck ws [port]` | WebSocket server |
+| `./duck unified` | All protocols: MCP + ACP + WS |
+
+### Scheduling
+| Command | Description |
+|---------|-------------|
+| `./duck cron list` | List cron jobs |
+| `./duck cron enable <id>` | Enable job |
+| `./duck cron disable <id>` | Disable job |
+| `./duck cron run <id>` | Run immediately |
+
+### Skills & Tools
+| Command | Description |
+|---------|-------------|
+| `./duck skills list` | List skills |
+| `./duck skills search <query>` | Search skills |
+| `./duck skills install <name>` | Install skill |
+| `./duck skills info <name>` | Show skill details |
+| `./duck tools list` | List available tools |
+| `./duck tools search <query>` | Search tools |
 
 ### Models & Inference
 | Command | Description |
 |---------|-------------|
 | `./duck models list` | List configured models |
-| `./duck models status` | Show model state |
+| `./duck models status` | Show model configuration |
 | `./duck models set <model>` | Set default model |
 | `./duck models scan` | Scan OpenRouter free models |
-| `./duck models aliases` | Manage model aliases |
-| `./duck models fallbacks` | Manage fallback chains |
-| `./duck models auth` | Manage auth profiles |
-| `./duck infer "<prompt>"` | Quick inference |
-| `./duck capability list` | List inference capabilities |
-| `./duck capability test <model>` | Test a model |
 
-### MiniMax AI Platform (`mmx-cli`)
+### MiniMax Platform
 | Command | Description |
 |---------|-------------|
 | `./duck mmx` | Interactive MiniMax menu |
-| `./duck mmx sync` | Sync `MINIMAX_API_KEY` to mmx config |
-| `./duck mmx text chat --message "Hello"` | Text generation |
+| `./duck mmx text chat --message "Hi"` | Text generation |
 | `./duck mmx image "prompt"` | Image generation |
 | `./duck mmx speech synthesize --text "Hi" --out hi.mp3` | Text-to-speech |
 | `./duck mmx video generate --prompt "Sunset"` | Video generation |
 | `./duck mmx music generate --prompt "Pop" --out song.mp3` | Music generation |
 | `./duck mmx vision photo.jpg` | Image understanding |
 | `./duck mmx search "query"` | Web search |
-| `./duck mmx quota` | Check usage quota |
-| `./duck mmx auth status` | Check mmx auth |
-| `./duck mmx auth login --api-key <key>` | Authenticate mmx |
+| `./duck mmx sync` | Sync API key to mmx config |
 
-### Security & System
+### System
 | Command | Description |
 |---------|-------------|
-| `./duck security audit` | Run security audit |
-| `./duck security defcon` | Show DEFCON level |
-| `./duck health` | Check system health |
-| `./duck doctor` | Run system diagnostics |
-| `./duck update [check\|install]` | Update Duck CLI |
+| `./duck health` | System health check |
+| `./duck doctor` | Diagnostics |
+| `./duck update` | Update duck-cli |
+| `./duck backup [create\|verify]` | Backup management |
+| `./duck secrets [set\|get\|list]` | Secrets management |
+| `./duck config [key] [value]` | Configuration |
 | `./duck trace [enable\|view]` | Execution traces |
-| `./duck backup [create\|verify\|restore\|list\|prune]` | Backup management |
-| `./duck secrets [set\|get\|list\|show\|delete\|tags]` | Secure secrets management |
-| `./duck config [key] [value]` | Manage Duck CLI configuration |
-
-### Workflows & Flows
-| Command | Description |
-|---------|-------------|
-| `./duck workflow <file>` | Execute JSON workflow |
-| `./duck workflow <file> --flow` | Execute YAML flow (deterministic, no LLM) |
-| `./duck flow <file>` | Execute JSON flow |
-
-### Skills & Marketplace
-| Command | Description |
-|---------|-------------|
-| `./duck skills list` | List all skills |
-| `./duck skills search <query>` | Search skills |
-| `./duck skills install <name>` | Install a skill |
-| `./duck skills info <name>` | Show skill details |
-| `./duck skills update` | Update all skills |
-| `./duck skills uninstall <name>` | Uninstall a skill |
-| `./duck clawhub` | ClawHub skill marketplace |
-
-### Sync & Integrations
-| Command | Description |
-|---------|-------------|
-| `./duck sync [action]` | Sync & watch (watch/status/openclaw/github/tandem) |
-| `./duck rl [action]` | OpenClaw-RL self-improvement |
-| `./duck channels` | Start Telegram/Discord channels |
-| `./duck souls` | SOUL registry — AI personas |
+| `./duck security audit` | Security audit |
 
 ### Other
 | Command | Description |
 |---------|-------------|
-| `./duck config [key] [value]` | Manage Duck CLI configuration |
-| `./duck trace list` | List execution traces |
-| `./duck trace view <id>` | View a trace |
+| `./duck web [port]` | Web UI (default 3001) |
+| `./duck gateway [port]` | Gateway API (default 18792) |
+| `./duck voice "text"` | Text-to-speech |
+| `./duck sync [action]` | Sync & watch |
+| `./duck souls` | SOUL registry (AI personas) |
 | `./duck --version` | Show version |
 | `./duck --help` | Show all commands |
 
 ---
 
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│              You (CLI / Telegram / Web)              │
-└──────────────────────────┬──────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────┐
-│              CHAT AGENT (port 18797)                 │
-│         MiniMax M2.7 · Session memory                │
-│    HTTP API: /chat, /chat/stream, /providers         │
-└──────────────────────────┬──────────────────────────┘
-                           │
-              ┌────────────┴────────────┐
-              │                         │
-        Simple task              Complex task
-              │                         │
-              ▼                         ▼
-      Direct Response          ┌───────────────────────────┐
-                                │        AI COUNCIL         │
-                                │  (45 deliberative agents) │
-                                │  mode: decision/research/  │
-                                │         prediction/swarm  │
-                                └─────────────┬─────────────┘
-                                              │ APPROVE / REJECT
-                                              ▼
-                              ┌───────────────────────────────┐
-                              │     META-AGENT ORCHESTRATOR    │
-                              │   plan → run → learnings       │
-                              │   Planner → Critic → Healer   │
-                              └─────────────┬─────────────────┘
-                                            │
-                                            ▼
-                              ┌───────────────────────────────┐
-                              │           TOOLS (16)           │
-                              │  exec · file · desktop · web   │
-                              │  memory · android · shell ⚠️  │
-                              └───────────────────────────────┘
-```
-
-**Model Assignments by Component:**
-| Component | Model | Provider | Purpose |
-|-----------|-------|----------|---------|
-| **Chat Agent** | MiniMax-M2.7 | MiniMax | Primary user-facing chat |
-| **Orchestrator** | qwen3.5-0.8b | LM Studio | Fast task routing (complexity ≤2) |
-| **Bridge** | qwen3.5-0.8b | LM Studio | ACP/MCP protocol handling |
-| **Subconscious** | qwen3.5-9b | LM Studio | Whisper generation & analysis |
-| **Security** | N/A | N/A | RegExp-based scanning (no LLM) |
-
-**Provider routing:**
-| Provider | Best For | Models |
-|----------|----------|--------|
-| **LM Studio** | Free local, fast | qwen3.5-0.8b, qwen3.5-9b |
-| **MiniMax** | Fast general, coding | MiniMax-M2.7, glm-5 |
-| **OpenRouter** | Free tier | qwen/qwen3.6-plus-preview:free |
-| **Kimi** | Vision, coding | kimi-k2.5 |
-| **OpenClaw Gateway** | Free vision | kimi-k2.5 (via WebSocket) |
-
-**Architecture model assignments:**
-| Component | Model | Notes |
-|-----------|-------|-------|
-| Chat Agent | MiniMax-M2.7 | Primary conversational layer |
-| Orchestrator | qwen3.5-0.8b | LM Studio, fast local planning |
-| Bridge | qwen3.5-0.8b | LM Studio, inter-service communication |
-| Subconscious | qwen3.5-9b | LM Studio, whisper monitoring daemon |
-| Security | N/A | RegExp-based pattern matching, no LLM |
-| AI Council | MiniMax-M2.7 / qwen3.5-9b | Deliberative agents on-demand |
-
-**Notes:**
-- SecurityAgent is **on-demand only** (not auto-spawned) to save RAM
-- qwen3.5-0.8b auto-spawns for fast tasks when LM Studio is available
-- ACP Server currently ignores `model` parameter from spawn messages (known issue)
-
----
-
-## 🚀 Full Setup
-
-```bash
-# 1. Clone and build
-git clone https://github.com/Franzferdinan51/duck-cli.git
-cd duck-cli && npm install && npm run build
-
-# 2. Configure API keys
-cp .env.example .env
-# Edit .env → MINIMAX_API_KEY=your_key
-
-# 3. Start the mesh server (optional, for multi-agent)
-./duck meshd 4000
-
-# 4. Start Chat Agent (conversational layer)
-./duck chat-agent start --port 18797
-
-# 5. Start Telegram bot (connects to @AgentSmithsbot)
-./duck telegram start
-
-# Or run everything together:
-# Terminal 1: Mesh server     → ./duck meshd 4000
-# Terminal 2: Chat Agent     → ./duck chat-agent start --port 18797
-# Terminal 3: Telegram bot    → ./duck telegram start
-# Terminal 4: Duck CLI        → ./duck shell
-```
-
-**Environment variables for Chat Agent:**
-```bash
-export MINIMAX_API_KEY=your_key          # Required
-export DUCK_CHAT_PROVIDER=minimax        # minimax | lmstudio | kimi | openai | openrouter
-export DUCK_CHAT_MODEL=MiniMax-M2.7     # Model per provider
-export MESH_API_KEY=openclaw-mesh-default-key
-```
-
----
-
-## 🧠 Meta-Agent v3
-
-LLM-powered orchestration — the orchestrator itself reasons about how to approach tasks.
-
-```bash
-# Preview plan (Planner LLM)
-./duck meta plan "build a REST API"
-
-# Full execution
-./duck meta run "build a REST API"
-
-# Use free local model
-./duck meta run "task" --provider lmstudio
-
-# Show lessons from past sessions
-./duck meta learnings
-```
-
-**How it works:**
-```
-Task → MetaPlanner (LLM) → Structured Plan
-                          ↓
-              MetaCritic evaluates each step
-                          ↓
-              MetaHealer diagnoses failures + recovery
-                          ↓
-              MetaLearner logs to ./experiences/
-```
-
----
-
-## 🤖 AI Council
-
-Complex decisions trigger **AI Council deliberation** — multiple AI agents debate and return a verdict.
-
-```bash
-# Ask a question
-./duck council "should I upgrade all dependencies at once?"
-
-# Modes: decision (default) | research | prediction | swarm
-./duck council "what are the risks?" --mode research
-```
-
-**Council triggers automatically:**
-- Complexity score >= 7
-- Ethical keywords: "should i", "privacy", "hack", "illegal"
-- High-stakes keywords: "money", "security", "delete everything"
-
----
-
-## 🌊 KAIROS — Proactive Heartbeat
-
-Continuous monitoring even when you're not interacting.
-
-```bash
-./duck kairos status         # Check if running
-./duck kairos enable        # Start heartbeat
-./duck kairos disable       # Pause
-./duck kairos aggressive    # Faster polling
-./duck kairos conservative  # Slower, less intrusive
-./duck kairos balanced      # Default balanced mode
-```
-
----
-
-## 💾 Memory & Sessions
-
-Every interaction is stored in SQLite and persists across sessions.
-
-```bash
-# Remember a fact
-./duck memory remember "project=duck-cli, language=TypeScript"
-
-# Recall a fact
-./duck memory recall "project"
-
-# Memory stats
-./duck memory stats
-```
-
-### Lossless Context Management (LCM)
-
-LCM preserves every message using DAG-based summarization, so no context is ever truly lost.
-
-```bash
-# LCM is automatic when enabled via environment:
-export LCM_ENABLED=true
-export LCM_FRESH_TAIL_COUNT=64
-export LCM_LEAF_CHUNK_TOKENS=20000
-```
-
-**How it works:**
-- Older messages are compacted into summaries (DAG nodes)
-- Recent messages stay in the fresh tail
-- Model always gets summaries + fresh tail within token budget
-- Summaries are searchable with `grepSummaries()`
-
----
-
-## ⏰ Scheduling
-
-```bash
-./duck cron list            # Show all jobs
-./duck cron enable <id>     # Enable a job
-./duck cron disable <id>    # Disable a job
-./duck cron run <id>        # Run immediately
-```
-
-**Built-in cron jobs:** health-check, memory-check, auto-heal, backup, morning-check, evening-check, portfolio, price-alert, briefing, daily-weather, and more.
-
----
-
-## 📱 Android Agent
-
-Control your Android phone via ADB.
-
-```bash
-# Connect
-adb connect 192.168.1.251:5555
-./duck android devices
-
-# AI agent loop — perceive → reason → act
-./duck android agent "open WhatsApp"
-./duck android agent "go home"
-./duck android agent "open settings and turn on WiFi"
-
-# Direct control
-./duck android screenshot
-./duck android screen          # OCR-style text reading
-./duck android dump            # UI hierarchy
-./duck android find "Settings" # Find + tap
-./duck android tap 500 300
-./duck android swipe up
-./duck android type "hello"
-```
-
----
-
-## 🚀 MiniMax AI Platform (`mmx-cli`)
-
-Deep integration with the official [MiniMax CLI](https://github.com/MiniMax-AI/cli) for text, image, video, speech, music, vision, and search.
-
-```bash
-# Interactive menu
-./duck mmx
-
-# Auth sync — pushes MINIMAX_API_KEY from .env to mmx config
-./duck mmx sync
-
-# Text
-./duck mmx text chat --message "Explain quantum computing"
-
-# Image
-./duck mmx image "A cyberpunk cat in a neon city"
-
-# Speech
-./duck mmx speech synthesize --text "Hello world" --out hello.mp3
-
-# Video
-./duck mmx video generate --prompt "Ocean waves at sunrise"
-
-# Music
-./duck mmx music generate --prompt "Upbeat electronic track" --out track.mp3
-
-# Vision
-./duck mmx vision ./photo.jpg
-
-# Search
-./duck mmx search "Latest AI breakthroughs"
-
-# Quota
-./duck mmx quota
-```
-
-**Integration layer:** `src/integrations/mmx.ts` provides a typed TypeScript API over `mmx-cli`, auto-syncs credentials, and exposes `mmx_text`, `mmx_image`, `mmx_vision`, `mmx_search`, and `mmx_status` as agent tools.
-
----
-
-## 🌐 Protocol Servers
-
-**MCP (Model Context Protocol):**
-```bash
-./duck mcp 3850                   # Start on port 3850
-./duck mcp --stdio                # stdio transport (LM Studio, Claude Desktop)
-./duck mcp connect -- python3 /path/to/mcp-server.py
-```
-
-**WebSocket / Gateway:**
-```bash
-./duck gateway 18792              # Duck Gateway API
-./duck web 3001                   # Web UI
-```
-
-**All protocols at once:**
-```bash
-./duck unified                    # MCP + ACP + WS + Gateway
-```
+## 🔌 Service Ports
+
+| Service | Port | Description |
+|---------|------|-------------|
+| AI Council | 3003 | Multi-model deliberation (shared with AgentTeams) |
+| CannaAI | 3000 | Plant monitoring server |
+| Agent Mesh | 4000 | Inter-agent communication |
+| MCP Server | 3850 | Model Context Protocol |
+| ACP Server | 18794 | Agent Client Protocol |
+| Gateway | 18792 | Duck Gateway API |
+| Chat Agent | 18797 | Duck Chat Agent HTTP |
+| Web UI | 3001 | Duck Web Interface |
 
 ---
 
@@ -553,40 +406,43 @@ Deep integration with the official [MiniMax CLI](https://github.com/MiniMax-AI/c
 ```
 duck-cli/
 ├── src/
-│   ├── agent/                     # Core agent, tools, session store
-│   ├── orchestrator/             # Hybrid Orchestrator v2
-│   │   ├── task-complexity.ts      # 1-10 scoring
-│   │   ├── model-router.ts          # Task → best model
-│   │   ├── council-bridge.ts        # AI Council
-│   │   └── hybrid-core.ts           # Main loop
-│   ├── providers/                # MiniMax, LM Studio, Kimi, OpenRouter, OpenClaw
-│   ├── integrations/             # External integrations
-│   │   └── mmx.ts                   # MiniMax CLI (mmx-cli) integration layer
-│   ├── subconscious/             # Whisper monitoring
-│   ├── kairos/                   # Proactive heartbeat
-│   ├── mesh/                     # Agent mesh networking
-│   ├── skills/                   # Skill marketplace
-│   ├── tools/                    # Tool implementations
-│   └── commands/                 # CLI command handlers
-├── cmd/duck/                    # Go CLI wrapper
+│   ├── cli/                    # CLI commands
+│   │   ├── main.ts               # Command router
+│   │   ├── attach-cmd.ts        # duck attach (super-agent ACP client)
+│   │   └── mesh-cmd.ts         # duck mesh commands
+│   ├── agent/                   # Core agent
+│   │   └── core.ts              # Main agent implementation
+│   ├── bridge/                  # ACP/MCP bridges
+│   │   ├── acp-bridge.ts        # ACP protocol bridge
+│   │   ├── websocket-bridge.ts  # WebSocket connection
+│   │   └── bridge-manager.ts    # Bridge orchestration
+│   ├── orchestrator/           # Meta-agent system
+│   │   ├── core.ts              # Main orchestrator
+│   │   ├── meta-agent.ts        # Meta-agent implementation
+│   │   └── council-bridge.ts   # AI Council integration
+│   ├── council/                # AI Council client
+│   │   └── client.ts            # Council deliberation client
+│   ├── providers/              # AI providers
+│   │   ├── manager.ts           # Multi-provider routing
+│   │   ├── lmstudio.ts         # LM Studio local models
+│   │   └── minimax.ts          # MiniMax API
+│   ├── mesh/                   # Agent mesh networking
+│   ├── subconscious/           # Background reasoning daemon
+│   ├── skills/                 # Skill marketplace
+│   └── commands/               # CLI command implementations
+├── cmd/duck/                   # Go CLI wrapper
 │   └── main.go
-├── docs/                        # Architecture docs
-│   ├── META-AGENT-SYSTEM-PROMPT.md
-│   ├── ARCHITECTURE.md
-│   ├── COUNCIL-INTEGRATION.md
-│   ├── MODEL-ROUTING.md
-│   └── ... (21 docs total)
-└── tools/                       # Standalone tools
+└── duck-dist/                  # Built duck binary (Go)
 ```
 
 ---
 
-## ⚠️ Known Architecture Notes
+## ⚠️ Known Notes
 
-- **SecurityAgent is on-demand only** — not auto-spawned; triggered by specific keywords
-- **Three complexity scoring systems exist:** `scoreComplexity()` (chat-agent.ts:640), `classifyTaskForOrchestration()` (chat-agent-orchestrator.ts:183), and `analyzeTask()` (task-complexity.ts:278)
-- **ACP Server ignores model parameter** — passes model to provider but provider ignores it (uses default model)
-- **Duplicate fast-path code in chat-agent.ts** — both the orchestration path and direct path have overlapping fast-path logic that could be consolidated
+- **Super Agent mode**: `duck attach` connects duck-cli to OpenClaw as a peer agent — this is the primary mode for OpenClaw integration
+- **Phone connection**: ADB wireless debugging on `100.91.33.100:40835`
+- **AI Council**: Uses port 3003 (shared with AgentTeams), not the old port 3001
+- **Services must be running**: CannaAI (:3000), AI Council (:3003), Agent Mesh (:4000) need to be started separately
 
 ---
 
@@ -594,11 +450,10 @@ duck-cli/
 
 | Repo | Purpose |
 |------|---------|
-| **[duck-cli](https://github.com/Franzferdinan51/duck-cli)** | **Main repo** — desktop AI agent |
-| **[droidclaw](https://github.com/Franzferdinan51/droidclaw)** | Bun-based Android agent |
-| **[Open-WebUi-Lobster-Edition](https://github.com/Franzferdinan51/Open-WebUi-Lobster-Edition)** | OpenWebUI fork with generative UI |
-| **[AI-Bot-Council-Concensus](https://github.com/Franzferdinan51/AI-Bot-Council-Concensus)** | Multi-agent deliberation |
-| **[RS-Agent-Skill-Lobster-Edition](https://github.com/Franzferdinan51/RS-Agent-Skill-Lobster-Edition)** | RuneScape API toolkit |
+| **[AgentTeams](https://github.com/Franzferdinan51/AgentTeams)** | Multi-agent orchestration framework (shares AI Council with duck-cli) |
+| **[CannaAI](https://github.com/Franzferdinan51/CannaAI)** | Cannabis plant monitoring AI |
+| **[OpenClaw](https://github.com/openclaw/openclaw)** | ACP/MCP protocols, Skills system |
+| **[duck-cli](https://github.com/Franzferdinan51/duck-cli)** | This repo — Super Agent for OpenClaw |
 
 ---
 
@@ -609,8 +464,7 @@ duck-cli/
 - **[LM Studio](https://lmstudio.ai/)** — Local LLM inference
 - **[Kimi/Moonshot](https://platform.moonshot.cn/)** — Vision + coding
 - **[Gemma 4](https://ai.google.dev/)** — Android-trained local model
-- **[Pretext](https://github.com/chenglou/pretext)** — Canvas text measurement
 
 ---
 
-**🦆 duck-cli — Desktop AI agent. Autonomous. Multi-model. Self-improving.**
+**🦆 duck-cli — Super Agent for OpenClaw. An agent for agents.**
