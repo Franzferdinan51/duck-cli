@@ -349,7 +349,7 @@ export class AICouncilClient extends EventEmitter {
   sessionId: string | null = null;
   currentMode: string = 'deliberation';
   
-  constructor(baseUrl: string = 'http://localhost:3001') {
+  constructor(baseUrl: string = 'http://localhost:3003') {
     super();
     this.baseUrl = baseUrl;
   }

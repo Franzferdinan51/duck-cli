@@ -92,6 +92,7 @@ import { homedir } from 'os';
 import { join, dirname } from 'path';
 import * as readline from 'readline';
 import { meshCommand, meshServerCommand } from './mesh-cmd.js';
+import { attachCommand } from './attach-cmd.js';
 import { toolsCommand as showToolsCommand } from './tools-command.js';
 import { subconsciousCommand } from '../commands/subconscious.js';
 import { clawhubCommand, soulsCommand } from './clawhub-commands.js';
@@ -817,6 +818,10 @@ async function main() {
 
     case 'mesh':
       await meshCommand(args);
+      break;
+
+    case 'attach':
+      await attachCommand(args);
       break;
 
     case 'node': {
