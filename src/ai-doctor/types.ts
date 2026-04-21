@@ -44,7 +44,7 @@ export interface DoctorConfig {
   provider: string;
 }
 
-export type Harness = 'claude' | 'codex' | 'auto';
+export type Harness = 'claude' | 'codex' | 'crush' | 'auto';
 
 export interface HarnessResult {
   success: boolean;
