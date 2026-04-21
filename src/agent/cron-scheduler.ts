@@ -5,10 +5,28 @@
  */
 
 import { spawn } from 'child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, openSync, readSync, closeSync, renameSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import Database from '../vendor/better-sqlite3.js';
+
+function ensureSqliteDb(dbPath: string): void {
+  if (existsSync(dbPath)) {
+    const header = Buffer.alloc(16);
+    let fd: number | undefined;
+    try {
+      fd = openSync(dbPath, 'r');
+      readSync(fd, header, 0, 16, 0);
+    } catch {}
+    finally { if (fd !== undefined) try { closeSync(fd); } catch {} }
+    // SQLite files start with "SQLite format 3" (0x53 0x51 0x4c ...)
+    if (header[0] !== 0x53 || header[1] !== 0x51 || header[2] !== 0x4c) {
+      // Backup JSON and remove — new Database() will create fresh SQLite
+      renameSync(dbPath, dbPath + '.bak.json');
+      try { require('fs').unlinkSync(dbPath); } catch {}
+    }
+  }
+}
 
 export interface CronJob {
   id: string;
@@ -51,6 +69,7 @@ export class CronScheduler {
     mkdirSync(this.cronDir, { recursive: true });
     
     const dbPath = join(this.cronDir, 'cron.db');
+    ensureSqliteDb(dbPath);
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     

@@ -6,10 +6,30 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+<<<<<<< Updated upstream
 import Database from '../vendor/better-sqlite3.js';
 import { mkdirSync } from 'fs';
+=======
+import Database from 'better-sqlite3';
+import { existsSync, mkdirSync, openSync, readSync, closeSync, renameSync } from 'fs';
+>>>>>>> Stashed changes
 import { join } from 'path';
 import { homedir } from 'os';
+
+function ensureSqliteDb(dbPath: string): void {
+  if (existsSync(dbPath)) {
+    const header = Buffer.alloc(16);
+    let fd: number | undefined;
+    try {
+      fd = openSync(dbPath, 'r');
+      readSync(fd, header, 0, 16, 0);
+    } catch {}
+    finally { if (fd !== undefined) try { closeSync(fd); } catch {} }
+    if (header[0] !== 0x53 || header[1] !== 0x51 || header[2] !== 0x4c) {
+      renameSync(dbPath, dbPath + '.bak.json');
+    }
+  }
+}
 
 export type SubagentStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type SubagentRole = 'general' | 'researcher' | 'coder' | 'reviewer' | 'qa' | 'writer' | 'planner';
@@ -78,6 +98,7 @@ export class SubagentManager extends EventEmitter {
     mkdirSync(this.subagentDir, { recursive: true });
     
     const dbPath = join(this.subagentDir, 'subagents.db');
+    ensureSqliteDb(dbPath);
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     

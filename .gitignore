@@ -18,5 +18,9 @@ duck
 duck.exe
 *.exe
 .env
+<<<<<<< Updated upstream
 graphify-out/
 duck-dist/
+=======
+.gitnexus
+>>>>>>> Stashed changes

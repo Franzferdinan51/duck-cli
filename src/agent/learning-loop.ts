@@ -5,10 +5,25 @@
  */
 
 import { EventEmitter } from 'events';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, openSync, readSync, closeSync, renameSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import Database from '../vendor/better-sqlite3.js';
+
+function ensureSqliteDb(dbPath: string): void {
+  if (existsSync(dbPath)) {
+    const header = Buffer.alloc(16);
+    let fd: number | undefined;
+    try {
+      fd = openSync(dbPath, 'r');
+      readSync(fd, header, 0, 16, 0);
+    } catch {}
+    finally { if (fd !== undefined) try { closeSync(fd); } catch {} }
+    if (header[0] !== 0x53 || header[1] !== 0x51 || header[2] !== 0x4c) {
+      renameSync(dbPath, dbPath + '.bak.json');
+    }
+  }
+}
 
 export interface Interaction {
   id: string;
@@ -85,6 +100,7 @@ export class LearningLoop extends EventEmitter {
     mkdirSync(this.learningDir, { recursive: true });
     
     const dbPath = join(this.learningDir, 'learning.db');
+    ensureSqliteDb(dbPath);
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     
