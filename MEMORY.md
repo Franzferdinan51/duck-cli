@@ -5688,3 +5688,47 @@ Duckets asked me to build a "Master Controller Dashboard" for OpenClaw. After se
 - Created `OpenClaw-backup.zip` on Desktop (packing in progress)
 - Desktop now clean with essential project folders only
 
+
+
+---
+
+## Current Technical Setup (2026-04-21)
+
+### AI Council Server
+- **Port:** 3003 (shared between duck-cli and AgentTeams)
+- **GitHub:** https://github.com/Franzferdinan51/AgentTeams
+- **Multi-model:** 7 specialist groups in parallel
+- **Timeout:** 5 min per call
+
+### LM Studio Models (Local)
+| Model | Purpose |
+|-------|---------|
+| qwen3.6-35b-a3b | Primary reasoning, leadership, cannabis |
+| qwen3.5-27b | Heavy analysis |
+| qwen3.5-9b | Strategy |
+| qwen3.5-0.8b | Fast tasks, technical |
+| supergemma4-26b-uncensored-v2 | Security |
+| supergemma4-26b-uncensored-mlx-v2 | Special tasks |
+| gemma-4-e4b-it | Android automation |
+
+### CannaAI Plant Server
+- **Port:** 3000 (Python, zero Node deps)
+- **GitHub:** https://github.com/Franzferdinan51/CannaAI
+- **Vision model:** qwen3.5-0.8b (NOT gemma — hangs on Termux)
+- **LM Studio:** http://100.68.208.113:1234/v1
+
+### ADB Connection (Android)
+- **Port:** 40835 (wireless ADB)
+- **Phone IP:** 100.91.33.100
+- **Connect:** `adb connect 100.91.33.100:40835`
+
+### Resource Rules
+- Max 2 concurrent model calls (RAM limit)
+- 5-min timeout per call
+- Small models: 256 tokens max
+- Large models: 1024 tokens max
+
+### Repos
+- duck-cli: https://github.com/Franzferdinan51/duck-cli
+- AgentTeams: https://github.com/Franzferdinan51/AgentTeams
+- CannaAI: https://github.com/Franzferdinan51/CannaAI

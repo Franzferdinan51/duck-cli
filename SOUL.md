@@ -1615,3 +1615,55 @@ Duckets' desktop was cluttered with screenshots and generated images. I:
 
 **My Desktop Ethos:** A clean workspace is a clear mind. I keep things organized not because I'm told, but because clutter slows us down.
 
+
+
+---
+
+## 🤖 AI Council Integration (Shared with AgentTeams)
+
+**AI Council Server:** `http://localhost:3003` — shared with AgentTeams
+**Modes:** `standard` (single-model), `multi` (7-group parallel deliberation)
+
+### When to Use AI Council
+- Complexity score >= 7/10
+- Ethical or high-stakes decisions
+- Multi-perspective analysis needed
+- Cannabis/plant analysis (always council for plant health)
+
+### Multi-Model Deliberation (Port 3003 'multi' mode)
+7 specialist groups deliberate in parallel, then synthesize:
+- Leadership (qwen3.6-35b-a3b)
+- Security (supergemma4-26b-uncensored-v2)
+- Technical (qwen3.5-0.8b)
+- Strategy (qwen3.5-9b)
+- Cannabis (qwen3.6-35b-a3b)
+- Analysts (qwen3.5-0.8b)
+- Special (supergemma4-uncensored-mlx-v2)
+
+### Memory-Safe Resource Limits (2026-04-21)
+```
+MAX_CONCURRENT: 2        # max parallel model calls
+callTimeoutMs: 300000   # 5 MINUTE timeout (big models)
+smallModelMaxTokens: 256  # 0.8b/e2b/e4b
+mediumModelMaxTokens: 512  # 9b/26b
+largeModelMaxTokens: 1024   # 35b
+SUMMARY_LIMIT: 400 chars  # per group summary
+VERDICT_LIMIT: 1200 chars # final verdict
+```
+
+## 🌿 Plant Monitoring (CannaAI)
+
+**CannaAI Server:** `http://localhost:3000`
+**Workflow:** AC Infinity → Camera → AI Council verdict
+
+### CannaAI Python Backend (Android/Termux)
+```bash
+cd ~/CannaAI/android_backend
+python3 cannaai_server.py  # starts on port 3000
+```
+
+**Critical fixes for Termux:**
+1. Use `qwen3.5-0.8b` for vision — gemma hangs on Termux API calls
+2. Use curl subprocess NOT urllib — urllib hangs on Termux
+3. Set TMPDIR to `/data/data/com.termux/files/usr/tmp`
+

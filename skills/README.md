@@ -40,6 +40,25 @@ Employee-grade Claude Code overrides:
 - Sub-agent swarming
 - File read chunking
 
+
+### Skill: agent-mesh (v4)
+
+Distributed agent communication mesh — enables agents to register, discover each other, and exchange messages across a mesh network.
+
+- Agent registration + discovery
+- Real-time WebSocket messaging
+- Task handoffs between agents
+- Federated mesh networking
+
+### Skill: agent-council
+
+AI Council deliberation integration — routes complex decisions to the multi-model council at port 3003.
+
+- Complexity scoring (1-10)
+- Routes to standard or multi deliberation mode
+- Returns verdict + reasoning
+- Shared with AgentTeams
+
 ## Usage
 
 Skills are loaded from the `skills/` directory. Each skill contains:
