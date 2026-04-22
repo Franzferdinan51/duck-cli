@@ -11,7 +11,7 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-export type Harness = 'claude' | 'codex' | 'crush' | 'auto';
+export type Harness = 'claude' | 'codex' | 'crush' | 'openclaude' | 'auto';
 
 export interface HarnessResult {
   success: boolean;
@@ -22,10 +22,20 @@ export interface HarnessResult {
 export class CodeHarness {
   private harness: Harness;
   private workdir: string;
+  private model: string;
+  private baseUrl: string;
+  private apiKey: string;
 
-  constructor(harness: Harness = 'auto', workdir?: string) {
+  constructor(
+    harness: Harness = 'auto',
+    workdir?: string,
+    config?: { model?: string; baseUrl?: string; apiKey?: string }
+  ) {
     this.harness = harness;
     this.workdir = workdir || process.cwd();
+    this.model = config?.model || process.env.OPENAI_MODEL || 'MiniMax-M2.7';
+    this.baseUrl = config?.baseUrl || process.env.OPENAI_BASE_URL || 'https://api.minimax.chat/v1';
+    this.apiKey = config?.apiKey || process.env.OPENAI_API_KEY || '';
   }
 
   /**
@@ -33,6 +43,7 @@ export class CodeHarness {
    */
   static detect(): Harness {
     if (existsSync('/data/data/com.termux/files/usr/bin/claude')) return 'claude';
+    if (existsSync('/data/data/com.termux/files/usr/bin/openclaude')) return 'openclaude';
     if (existsSync('/data/data/com.termux/files/usr/bin/crush-arm64')) return 'crush';
     if (existsSync('/usr/local/bin/codex') || existsSync('/data/data/com.termux/files/usr/bin/codex')) return 'codex';
     return 'claude'; // fallback
@@ -48,10 +59,11 @@ export class CodeHarness {
     const prompt = this.buildPrompt(error, context);
 
     switch (harness) {
-      case 'claude': return this.runClaude(prompt, workdir);
-      case 'crush':  return this.runCrush(prompt, workdir);
-      case 'codex':  return this.runCodex(prompt, workdir);
-      default:       return this.runClaude(prompt, workdir);
+      case 'claude':     return this.runClaude(prompt, workdir);
+      case 'openclaude': return this.runOpenClaude(prompt, workdir);
+      case 'crush':      return this.runCrush(prompt, workdir);
+      case 'codex':      return this.runCodex(prompt, workdir);
+      default:           return this.runClaude(prompt, workdir);
     }
   }
 
@@ -81,10 +93,11 @@ FIX: <corrected code or "NO_FIX" if not code-related>
 EXPLANATION: <1-2 sentences on what was wrong>`;
 
     switch (harness) {
-      case 'claude': return this.runClaude(prompt, workdir);
-      case 'crush':  return this.runCrush(prompt, workdir);
-      case 'codex':  return this.runCodex(prompt, workdir);
-      default:       return this.runClaude(prompt, workdir);
+      case 'claude':     return this.runClaude(prompt, workdir);
+      case 'openclaude': return this.runOpenClaude(prompt, workdir);
+      case 'crush':      return this.runCrush(prompt, workdir);
+      case 'codex':      return this.runCodex(prompt, workdir);
+      default:           return this.runClaude(prompt, workdir);
     }
   }
 
@@ -112,10 +125,11 @@ ${replacement}
 Use sed or a text editor to make this change. Write the result back to ${file}.`;
 
     switch (harness) {
-      case 'claude': return this.runClaude(prompt, workdir);
-      case 'crush':  return this.runCrush(prompt, workdir);
-      case 'codex':  return this.runCodex(prompt, workdir);
-      default:       return this.runClaude(prompt, workdir);
+      case 'claude':     return this.runClaude(prompt, workdir);
+      case 'openclaude': return this.runOpenClaude(prompt, workdir);
+      case 'crush':      return this.runCrush(prompt, workdir);
+      case 'codex':      return this.runCodex(prompt, workdir);
+      default:           return this.runClaude(prompt, workdir);
     }
   }
 
@@ -147,6 +161,38 @@ EXPLANATION: <explanation>`;
 
       const output = execSync(
         `cd '${workdir}' && claude --permission-mode bypassPermissions --print '${escaped}'`,
+        {
+          encoding: 'utf-8',
+          timeout: 120000,
+          shell: '/data/data/com.termux/files/usr/bin/bash',
+          maxBuffer: 1024 * 1024,
+        }
+      );
+
+      return { success: true, output: output.trim() };
+    } catch (e: any) {
+      return {
+        success: false,
+        output: e.stdout || '',
+        error: e.stderr || e.message,
+      };
+    }
+  }
+
+  private async runOpenClaude(prompt: string, workdir: string): Promise<HarnessResult> {
+    try {
+      // OpenClaude is model-agnostic — set model via env vars
+      // Uses MiniMax by default, or any OpenAI-compatible API
+      const envSetup = [
+        `OPENAI_BASE_URL='${this.baseUrl}'`,
+        `OPENAI_API_KEY='${this.apiKey}'`,
+        `OPENAI_MODEL='${this.model}'`,
+      ].join(' ');
+
+      const escaped = prompt.replace(/'/g, "'\\''");
+
+      const output = execSync(
+        `${envSetup} cd '${workdir}' && openclaude exec '${escaped}'`,
         {
           encoding: 'utf-8',
           timeout: 120000,
